@@ -1,11 +1,8 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import pkg from 'pg';
-import dns from 'dns';
-import { promisify } from 'util';
 import logger from '../utils/logger.js';
 
 const { Pool } = pkg;
-const lookup = promisify(dns.lookup);
 
 async function getSecret(name: string): Promise<string> {
   const client = new SecretManagerServiceClient();
@@ -20,74 +17,18 @@ async function getSecret(name: string): Promise<string> {
   }
 }
 
-async function checkSecrets(): Promise<void> {
-  logger.info('Testing Secret Manager access...');
-  try {
-    const [dbHost, dbPort] = await Promise.all([
-      getSecret('DB_HOST'),
-      getSecret('DB_PORT'),
-    ]);
-    logger.info('Successfully retrieved secrets:', {
-      dbHost,
-      dbPort,
-    });
-  } catch (error) {
-    logger.error('Secret Manager test failed:', error);
-    throw error;
-  }
-}
-
-async function checkDNS(host: string): Promise<void> {
-  logger.info('Testing DNS resolution...');
-  try {
-    const { address, family } = await lookup(host);
-    logger.info('DNS resolution successful:', {
-      host,
-      resolvedIP: address,
-      ipVersion: `IPv${family}`,
-    });
-  } catch (error) {
-    logger.error('DNS resolution failed:', error);
-    throw error;
-  }
-}
-
-async function checkTCPConnection(host: string, port: number): Promise<void> {
-  logger.info('Testing TCP connection...');
-  const pool = new Pool({
-    host,
-    port,
-    user: 'postgres',
-    password: await getSecret('DB_PASSWORD'),
-    database: 'postgres',
-    connectionTimeoutMillis: 30000,
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
-    // Add retry logic
-    max: 3,
-    idleTimeoutMillis: 30000
-  });
-
-  try {
-    await pool.connect();
-    logger.info('TCP connection successful');
-  } catch (error) {
-    logger.error('TCP connection failed:', error);
-    throw error;
-  } finally {
-    await pool.end();
-  }
-}
-
 async function checkDatabaseConnection(): Promise<void> {
-  logger.info('Testing full database connection...');
+  logger.info('Testing database connection...');
   
+  logger.info('Fetching database secrets...');
   const [dbName, dbUser, dbPassword] = await Promise.all([
     getSecret('DB_NAME'),
     getSecret('DB_USER'),
     getSecret('DB_PASSWORD'),
   ]);
+  logger.info('Database secrets retrieved successfully');
 
+  logger.info('Creating test connection pool...');
   const pool = new Pool({
     host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
     database: dbName,
@@ -98,27 +39,42 @@ async function checkDatabaseConnection(): Promise<void> {
     max: 1,
     idleTimeoutMillis: 5000
   });
+  logger.info('Test pool created, attempting connection...');
 
   try {
+    logger.info('Acquiring client from test pool...');
     const client = await pool.connect();
+    logger.info('Successfully acquired client, testing query...');
     const result = await client.query('SELECT version()');
     logger.info('Database connection successful:', {
       version: result.rows[0].version,
+      connectionDetails: {
+        database: dbName,
+        user: dbUser,
+        socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db'
+      }
     });
     client.release();
+    logger.info('Test client released');
   } catch (error) {
-    logger.error('Database connection failed:', error);
+    logger.error('Database connection failed:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      code: (error as any)?.code,
+      detail: (error as any)?.detail,
+      hint: (error as any)?.hint
+    });
     throw error;
   } finally {
+    logger.info('Closing test pool...');
     await pool.end();
+    logger.info('Test pool closed');
   }
 }
 
 export async function runDiagnostics(): Promise<void> {
   try {
-    // Test database connection using Cloud SQL socket
     await checkDatabaseConnection();
-
     logger.info('All diagnostics completed successfully');
   } catch (error) {
     logger.error('Diagnostics failed:', error);

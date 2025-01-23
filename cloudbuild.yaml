@@ -7,7 +7,7 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/backend']
 
-  # Deploy to Cloud Run with VPC connector
+  # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -25,7 +25,6 @@ steps:
       - '--add-cloudsql-instances'
       - 'delta-entity-447812-p2:us-central1:delta-entity-447812-db'
       - '--allow-unauthenticated'
-      - '--no-cpu-throttling'
       - '--min-instances'
       - '1'
       - '--port'

@@ -15,9 +15,13 @@ export class DatabaseManager {
 
   constructor(config: Awaited<ReturnType<typeof initConfig>>) {
     this.config = config;
-    logger.info('Initializing database connection with config:', {
+    logger.info('Creating database pool with config:', {
       database: config.DB_NAME,
       user: config.DB_USER,
+      socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+      maxConnections: 20,
+      idleTimeout: '60 seconds',
+      connectionTimeout: '5 seconds'
     });
 
     this.pool = new Pool({
@@ -35,13 +39,42 @@ export class DatabaseManager {
 
     // Handle pool errors
     this.pool.on('error', (err: Error) => {
-      logger.error('Unexpected error on idle client', err);
+      logger.error('Pool error occurred:', {
+        error: err.message,
+        stack: err.stack,
+        code: (err as any).code,
+        detail: (err as any).detail,
+        hint: (err as any).hint
+      });
       process.exit(-1);
+    });
+
+    // Add pool event listeners for debugging
+    this.pool.on('connect', () => {
+      logger.info('New client connected to pool');
+    });
+
+    this.pool.on('acquire', () => {
+      logger.debug('Client acquired from pool', {
+        totalCount: this.pool.totalCount,
+        idleCount: this.pool.idleCount,
+        waitingCount: this.pool.waitingCount
+      });
+    });
+
+    this.pool.on('remove', () => {
+      logger.debug('Client removed from pool', {
+        totalCount: this.pool.totalCount,
+        idleCount: this.pool.idleCount,
+        waitingCount: this.pool.waitingCount
+      });
     });
   }
 
   private async checkConnection(): Promise<void> {
+    logger.info('Attempting to check database connection...');
     const client = await this.pool.connect();
+    logger.info('Successfully acquired client from pool');
     try {
       const startTime = Date.now();
       const result = await client.query('SELECT version(), current_database(), current_user');
@@ -66,9 +99,14 @@ export class DatabaseManager {
   async init(): Promise<void> {
     try {
       logger.info('Starting database initialization...');
+      logger.info('Checking connection before schema application...');
+      await this.checkConnection();
+      logger.info('Connection check successful');
 
       // Apply initial schema if needed
+      logger.info('Beginning schema application...');
       await this.applySchema();
+      logger.info('Schema application completed');
 
       logger.info('Database initialization completed successfully');
     } catch (error) {
@@ -82,26 +120,35 @@ export class DatabaseManager {
   }
 
   private async applySchema(): Promise<void> {
+    logger.info('Attempting to acquire client for schema application...');
     const client = await this.pool.connect();
+    logger.info('Successfully acquired client for schema application');
     try {
       // Check if schema already exists
+      logger.info('Checking if users table exists...');
       const tableExists = await client.query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_name = 'users'
         );
       `);
+      logger.info('Table existence check result:', { exists: tableExists.rows[0].exists });
 
       if (!tableExists.rows[0].exists) {
+        logger.info('Users table does not exist, beginning schema creation...');
         await client.query('BEGIN');
+        logger.info('Transaction started');
 
         const schemaSQL = readFileSync(
           join(process.cwd(), 'dist/database/migrations/20250123130842_wooden_coast.sql'),
           'utf-8'
         );
+        logger.info('Schema SQL file loaded successfully');
 
         await client.query(schemaSQL);
+        logger.info('Schema SQL executed successfully');
         await client.query('COMMIT');
+        logger.info('Transaction committed');
         
         logger.info('Initial schema applied successfully');
       } else {
