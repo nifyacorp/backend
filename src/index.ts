@@ -8,7 +8,7 @@ import { errorHandler } from './middleware/error.js';
 import { DatabaseManager } from './database/manager.js';
 import logger from './utils/logger.js';
 
-const PORT = process.env.PORT || '8080';
+const PORT = parseInt(process.env.PORT || '8080', 10);
 
 async function startServer() {
   try {
