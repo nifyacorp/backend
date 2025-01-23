@@ -30,24 +30,29 @@ async function checkDatabaseConnection(): Promise<void> {
 
   logger.info('Creating test connection pool...');
   const pool = new Pool({
-    host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+    host: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
     database: dbName,
     user: dbUser,
     password: dbPassword,
     ssl: false,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 20000, // Increase timeout
     max: 1,
     idleTimeoutMillis: 5000
   });
-  logger.info('Test pool created, attempting connection through Unix socket...');
+  logger.info('Test pool created, attempting connection through Unix socket:', {
+    socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+    database: dbName,
+    user: dbUser
+  });
 
   try {
     logger.info('Acquiring client from test pool...');
     const client = await pool.connect();
     logger.info('Successfully acquired client, testing query...');
-    const result = await client.query('SELECT version()');
+    const result = await client.query('SELECT version(), pg_postmaster_start_time() as start_time');
     logger.info('Database connection successful:', {
       version: result.rows[0].version,
+      serverStartTime: result.rows[0].start_time,
       connectionDetails: {
         database: dbName,
         user: dbUser,

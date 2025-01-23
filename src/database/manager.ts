@@ -17,14 +17,14 @@ export class DatabaseManager {
     logger.info('Creating database pool with config:', {
       database: config.DB_NAME,
       user: config.DB_USER,
-      socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+      socketPath: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
       maxConnections: 20,
       idleTimeout: '60 seconds',
       connectionTimeout: '5 seconds'
     });
 
     this.pool = new Pool({
-      host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+      host: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
       database: config.DB_NAME || 'nifya',
       user: config.DB_USER,
       password: config.DB_PASSWORD,
@@ -33,7 +33,7 @@ export class DatabaseManager {
       // Connection pool configuration
       max: 20, // Maximum number of clients in the pool
       idleTimeoutMillis: 60000, // Close idle clients after 1 minute
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 20000, // Increase timeout for initial connection
     });
 
     // Handle pool errors
