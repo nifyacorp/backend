@@ -43,7 +43,7 @@ async function checkDatabaseConnection(): Promise<void> {
     keepAlive: true
   });
   logger.info('Test pool created, attempting connection:', {
-    socketPath,
+    socketDir,
     database: dbName,
     user: dbUser
   });
@@ -59,7 +59,7 @@ async function checkDatabaseConnection(): Promise<void> {
       connectionDetails: {
         database: dbName,
         user: dbUser,
-        socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+        socketDir,
         connectionType: 'Unix domain socket'
       }
     });
