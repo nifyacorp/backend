@@ -1,23 +1,27 @@
 # Use Node.js 20 as the base image
-FROM node:20-slim
+FROM node:20-alpine
 
 # Create app directory
 WORKDIR /usr/src/app
 
-# Copy package files
+# Install dependencies first for better caching
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy source code
+# Copy source files
 COPY . .
 
-# Build the application
+# Build TypeScript code
 RUN npm run build
 
-# Expose the port the app runs on
+# Clean up dev dependencies
+RUN npm prune --production
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Expose port
 EXPOSE 3000
 
-# Start the application
+# Start production server
 CMD [ "npm", "start" ]
