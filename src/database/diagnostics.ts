@@ -58,9 +58,10 @@ async function checkTCPConnection(host: string, port: number): Promise<void> {
     host,
     port,
     user: 'postgres',
-    password: 'test',
+    password: await getSecret('DB_PASSWORD'),
     database: 'postgres',
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
   });
 
   try {

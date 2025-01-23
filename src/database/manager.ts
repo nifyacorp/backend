@@ -32,12 +32,13 @@ export class DatabaseManager {
       database: config.DB_NAME || 'nifya',
       user: config.DB_USER,
       password: config.DB_PASSWORD,
-      // Cloud SQL doesn't require SSL for internal connections
-      ssl: false,
+      // Optimize for internal network connection
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       // Connection pool configuration
       max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+      idleTimeoutMillis: 60000, // Close idle clients after 1 minute
+      connectionTimeoutMillis: 10000, // Increased timeout for internal network
     });
 
     // Handle pool errors
