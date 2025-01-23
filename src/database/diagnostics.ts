@@ -30,14 +30,15 @@ async function checkDatabaseConnection(): Promise<void> {
 
   logger.info('Creating test connection pool...');
   const pool = new Pool({
-    host: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+    host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
     database: dbName,
     user: dbUser,
     password: dbPassword,
     ssl: false,
     connectionTimeoutMillis: 20000, // Increase timeout
     max: 1,
-    idleTimeoutMillis: 5000
+    idleTimeoutMillis: 5000,
+    keepAlive: true
   });
   logger.info('Test pool created, attempting connection through Unix socket:', {
     socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',

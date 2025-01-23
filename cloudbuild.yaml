@@ -21,9 +21,11 @@ steps:
       - '--platform'
       - 'managed'
       - '--set-env-vars'
-      - 'NODE_ENV=production,PORT=8080'
+      - 'NODE_ENV=production,PORT=8080,DB_SOCKET_PATH=/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db'
       - '--add-cloudsql-instances'
       - 'delta-entity-447812-p2:us-central1:delta-entity-447812-db'
+      - '--service-account'
+      - 'nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com'
       - '--allow-unauthenticated'
       - '--min-instances'
       - '1'
@@ -37,6 +39,10 @@ steps:
       - '512Mi'
       - '--execution-environment'
       - 'gen2'
+      - '--vpc-connector'
+      - 'projects/delta-entity-447812-p2/locations/us-central1/connectors/vpc-connector'
+      - '--vpc-egress'
+      - 'all-traffic'
 
 images:
   - 'gcr.io/$PROJECT_ID/backend'
