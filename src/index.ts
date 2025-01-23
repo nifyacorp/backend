@@ -20,7 +20,7 @@ async function startServer() {
     // Middleware
     app.use(express.json());
     app.use(cors({
-      origin: config.CORS_ORIGIN,
+      origin: ['https://nifya.com', 'https://webcontainer.io'],
       credentials: true,
     }));
     app.use(helmet());

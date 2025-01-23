@@ -72,10 +72,62 @@ DB_INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:delta-entity-4478
 ## Development
 
 ### Prerequisites
-
 - Node.js 20 or higher
 - npm or yarn
 - Docker (for containerization)
+- Google Cloud CLI
+
+### Google Cloud Setup
+
+1. Enable required APIs:
+   ```bash
+   gcloud services enable secretmanager.googleapis.com --project=delta-entity-447812-p2
+   gcloud services enable cloudsql.googleapis.com --project=delta-entity-447812-p2
+   gcloud services enable run.googleapis.com --project=delta-entity-447812-p2
+   ```
+
+2. Create a service account:
+   ```bash
+   gcloud iam service-accounts create nifya-orchestration \
+     --display-name="Nifya Orchestration Service Account" \
+     --project=delta-entity-447812-p2
+   ```
+
+3. Grant necessary permissions:
+   ```bash
+   # Secret Manager access
+   ```bash
+   gcloud projects add-iam-policy-binding delta-entity-447812-p2 \
+     --member="serviceAccount:nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com" \
+     --role="roles/secretmanager.secretAccessor"
+
+   # Cloud SQL access
+   gcloud projects add-iam-policy-binding delta-entity-447812-p2 \
+     --member="serviceAccount:nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com" \
+     --role="roles/cloudsql.client"
+
+   # Cloud SQL Editor (for schema management)
+   gcloud projects add-iam-policy-binding delta-entity-447812-p2 \
+     --member="serviceAccount:nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com" \
+     --role="roles/cloudsql.editor"
+
+   # Cloud Run Invoker
+   gcloud projects add-iam-policy-binding delta-entity-447812-p2 \
+     --member="serviceAccount:nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com" \
+     --role="roles/run.invoker"
+   ```
+
+4. Create and configure secrets:
+   ```bash
+   # Create secrets
+   echo -n "34.31.128.250" | gcloud secrets create DB_HOST --data-file=- --project=delta-entity-447812-p2
+   echo -n "5432" | gcloud secrets create DB_PORT --data-file=- --project=delta-entity-447812-p2
+   echo -n "nifya" | gcloud secrets create DB_NAME --data-file=- --project=delta-entity-447812-p2
+   echo -n "postgres" | gcloud secrets create DB_USER --data-file=- --project=delta-entity-447812-p2
+   echo -n "your-password-here" | gcloud secrets create DB_PASSWORD --data-file=- --project=delta-entity-447812-p2
+   echo -n "delta-entity-447812-p2:us-central1:delta-entity-447812-db" | \
+     gcloud secrets create DB_INSTANCE_CONNECTION_NAME --data-file=- --project=delta-entity-447812-p2
+   ```
 
 ### Setup
 
@@ -113,12 +165,31 @@ docker build -t nifya-orchestration .
 The service is configured for deployment to Google Cloud Run using Cloud Build. The deployment process is automated through the `cloudbuild.yaml` configuration.
 
 ### Cloud Run Features
-
 - Automatic container builds
 - Cloud SQL connection
 - Environment variable management
 - HTTPS endpoints
 - Automatic scaling
+- Service account: `nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com`
+
+### Required Permissions
+
+The service account requires the following permissions:
+- Secret Manager:
+  - `roles/secretmanager.secretAccessor`: Access to read secrets
+
+- Cloud SQL:
+  - `roles/cloudsql.client`: Connect to Cloud SQL instances
+  - `roles/cloudsql.editor`: Manage database schemas and users
+
+- Cloud Run:
+  - `roles/run.invoker`: Invoke Cloud Run services
+
+These permissions allow the service to:
+1. Read configuration from Secret Manager
+2. Connect to Cloud SQL instances
+3. Create and modify database schemas
+4. Deploy and run on Cloud Run
 
 ## Database Schema
 

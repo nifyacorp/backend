@@ -18,13 +18,14 @@ export const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   AUTH_SERVICE_URL: z.string().url(),
   JWT_SECRET: z.string().min(32),
-  CORS_ORIGIN: z.string().url(),
+  CORS_ORIGIN: z.union([z.string().url(), z.literal('*')]).default('*'),
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
   RATE_LIMIT_MAX: z.string().transform(Number).default('100'),
 });
 
 export async function initConfig() {
   const [
+    authServiceUrl,
     dbHost,
     dbPort,
     dbName,
@@ -32,6 +33,7 @@ export async function initConfig() {
     dbPassword,
     dbInstance,
   ] = await Promise.all([
+    getSecret('SERVICE_URL_AUTH'),
     getSecret('DB_HOST'),
     getSecret('DB_PORT'),
     getSecret('DB_NAME'),
@@ -40,7 +42,10 @@ export async function initConfig() {
     getSecret('DB_INSTANCE_CONNECTION_NAME'),
   ]);
 
-  const config = configSchema.parse(process.env);
+  const config = configSchema.parse({
+    ...process.env,
+    AUTH_SERVICE_URL: authServiceUrl || process.env.AUTH_SERVICE_URL,
+  });
 
   return {
     ...config,
