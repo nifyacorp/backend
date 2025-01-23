@@ -1,12 +1,12 @@
 import pino from 'pino';
-import config from '../config/index.js';
+import { getConfig } from '../config/index.js';
 
-const logger = pino({
-  level: config.NODE_ENV === 'development' ? 'debug' : 'info',
+const defaultLogger = pino({
+  level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
   serializers: {
     error: pino.stdSerializers.err,
   },
-  transport: config.NODE_ENV === 'development'
+  transport: process.env.NODE_ENV === 'development'
     ? {
         target: 'pino-pretty',
         options: {
@@ -18,5 +18,3 @@ const logger = pino({
       }
     : undefined,
 });
-
-export default logger;

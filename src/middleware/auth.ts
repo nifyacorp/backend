@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { jwtVerify } from 'jose';
-import config from '../config/index.js';
+import { getConfig } from '../config/index.js';
 import { User } from '../types/auth.js';
 
 declare global {
@@ -26,6 +26,7 @@ export const authenticate = async (
     }
 
     const token = authHeader.split(' ')[1];
+    const config = await getConfig();
     const encoder = new TextEncoder();
     
     const { payload } = await jwtVerify(
@@ -33,7 +34,14 @@ export const authenticate = async (
       encoder.encode(config.JWT_SECRET)
     );
 
-    req.user = payload as User;
+    // Validate payload structure
+    const user: User = {
+      id: payload.sub as string,
+      email: payload.email as string,
+      roles: (payload.roles as string[]) || []
+    };
+
+    req.user = user;
     next();
   } catch (error) {
     return res.status(StatusCodes.UNAUTHORIZED).json({

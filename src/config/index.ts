@@ -13,7 +13,7 @@ async function getSecret(name: string): Promise<string> {
   return version.payload?.data?.toString() || '';
 }
 
-const configSchema = z.object({
+export const configSchema = z.object({
   PORT: z.string().default('3000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   AUTH_SERVICE_URL: z.string().url(),
@@ -51,4 +51,15 @@ export async function initConfig() {
     DB_PASSWORD: dbPassword,
     DB_INSTANCE_CONNECTION_NAME: dbInstance,
   };
+}
+
+export type Config = Awaited<ReturnType<typeof initConfig>>;
+
+let config: Config | null = null;
+
+export async function getConfig(): Promise<Config> {
+  if (!config) {
+    config = await initConfig();
+  }
+  return config;
 }

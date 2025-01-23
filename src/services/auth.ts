@@ -1,17 +1,17 @@
 import { StatusCodes } from 'http-status-codes';
-import config from '../config/index.js';
+import { getConfig } from '../config/index.js';
 import { AuthResponse } from '../types/auth.js';
 import { createError } from '../utils/error.js';
 
 export class AuthService {
-  private baseUrl: string;
+  private config: Awaited<ReturnType<typeof getConfig>>;
 
-  constructor() {
-    this.baseUrl = config.AUTH_SERVICE_URL;
+  constructor(config?: Awaited<ReturnType<typeof getConfig>>) {
+    this.config = config || await getConfig();
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${this.baseUrl}/auth/login`, {
+    const response = await fetch(`${this.config.AUTH_SERVICE_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,7 +32,7 @@ export class AuthService {
   }
 
   async refreshToken(token: string): Promise<AuthResponse> {
-    const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+    const response = await fetch(`${this.config.AUTH_SERVICE_URL}/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
