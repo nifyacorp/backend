@@ -1,6 +1,6 @@
 import { StatusCodes } from 'http-status-codes';
 import { getConfig } from '../config/index.js';
-import { AuthResponse, SignupData, PasswordResetData, PasswordChangeData, GoogleAuthResponse, GoogleCallbackParams } from '../types/auth.js';
+import { AuthResponse, SignupData, PasswordResetData, PasswordChangeData, GoogleAuthResponse, GoogleCallbackParams, User } from '../types/auth.js';
 import { createError } from '../utils/error.js';
 
 export class AuthService {

@@ -1,11 +1,11 @@
 import pkg from 'pino';
 
-const { pino } = pkg as unknown as { pino: typeof pkg };
+const pino = pkg as unknown as typeof pkg;
 
 const logger = pino({
   level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
   serializers: {
-    error: pino.stdSerializers.err,
+    error: pkg.stdSerializers.err,
   },
   transport: process.env.NODE_ENV === 'development'
     ? {
