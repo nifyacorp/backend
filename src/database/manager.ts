@@ -4,13 +4,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import logger from '../utils/logger.js';
 import type { initConfig } from '../config/index.js';
-import dns from 'dns';
 import { runDiagnostics } from './diagnostics.js';
 import { promisify } from 'util';
 
 const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
-
-const lookup = promisify(dns.lookup);
 
 export class DatabaseManager {
   private pool: PgPool;
@@ -19,26 +16,21 @@ export class DatabaseManager {
   constructor(config: Awaited<ReturnType<typeof initConfig>>) {
     this.config = config;
     logger.info('Initializing database connection with config:', {
-      host: config.DB_HOST,
-      port: config.DB_PORT,
       database: config.DB_NAME,
       user: config.DB_USER,
-      instance: config.DB_INSTANCE_CONNECTION_NAME,
     });
 
     this.pool = new Pool({
-      host: config.DB_HOST,
-      port: config.DB_PORT,
+      host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
       database: config.DB_NAME || 'nifya',
       user: config.DB_USER,
       password: config.DB_PASSWORD,
-      // Optimize for internal network connection
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
+      // Use Unix domain socket
+      ssl: false,
       // Connection pool configuration
       max: 20, // Maximum number of clients in the pool
       idleTimeoutMillis: 60000, // Close idle clients after 1 minute
-      connectionTimeoutMillis: 10000, // Increased timeout for internal network
+      connectionTimeoutMillis: 5000,
     });
 
     // Handle pool errors
@@ -46,23 +38,6 @@ export class DatabaseManager {
       logger.error('Unexpected error on idle client', err);
       process.exit(-1);
     });
-  }
-
-  private async checkDNS(): Promise<void> {
-    try {
-      const { address, family } = await lookup(this.config.DB_HOST);
-      logger.info('DNS resolution successful:', {
-        host: this.config.DB_HOST,
-        resolvedIP: address,
-        ipVersion: `IPv${family}`,
-      });
-    } catch (error) {
-      logger.error('DNS resolution failed:', {
-        host: this.config.DB_HOST,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
   }
 
   private async checkConnection(): Promise<void> {
@@ -100,9 +75,7 @@ export class DatabaseManager {
       logger.error('Failed to initialize database connection:', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        host: this.config.DB_HOST,
         database: this.config.DB_NAME,
-        instance: this.config.DB_INSTANCE_CONNECTION_NAME,
       });
       throw error;
     }
@@ -164,7 +137,6 @@ export class DatabaseManager {
         stack: error instanceof Error ? error.stack : undefined,
         sql,
         params,
-        host: this.config.DB_HOST,
         database: this.config.DB_NAME,
       });
       throw error;

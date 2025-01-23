@@ -27,21 +27,15 @@ export async function initConfig() {
   const [
     authServiceUrl,
     jwtSecret,
-    dbHost,
-    dbPort,
     dbName,
     dbUser,
     dbPassword,
-    dbInstance,
   ] = await Promise.all([
     getSecret('SERVICE_URL_AUTH'),
     getSecret('JWT_SECRET'),
-    getSecret('DB_HOST'),
-    getSecret('DB_PORT'),
     getSecret('DB_NAME'),
     getSecret('DB_USER'),
     getSecret('DB_PASSWORD'),
-    getSecret('DB_INSTANCE_CONNECTION_NAME'),
   ]);
 
   const config = configSchema.parse({
@@ -52,12 +46,9 @@ export async function initConfig() {
 
   return {
     ...config,
-    DB_HOST: dbHost,
-    DB_PORT: parseInt(dbPort, 10),
     DB_NAME: dbName,
     DB_USER: dbUser,
     DB_PASSWORD: dbPassword,
-    DB_INSTANCE_CONNECTION_NAME: dbInstance,
   };
 }
 

@@ -82,33 +82,21 @@ async function checkTCPConnection(host: string, port: number): Promise<void> {
 async function checkDatabaseConnection(): Promise<void> {
   logger.info('Testing full database connection...');
   
-  const [
-    dbHost,
-    dbPort,
-    dbName,
-    dbUser,
-    dbPassword,
-  ] = await Promise.all([
-    getSecret('DB_HOST'),
-    getSecret('DB_PORT'),
+  const [dbName, dbUser, dbPassword] = await Promise.all([
     getSecret('DB_NAME'),
     getSecret('DB_USER'),
     getSecret('DB_PASSWORD'),
   ]);
 
   const pool = new Pool({
-    host: dbHost,
-    port: parseInt(dbPort, 10),
+    host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
     database: dbName,
     user: dbUser,
     password: dbPassword,
     ssl: false,
-    connectionTimeoutMillis: 30000,
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
-    // Add retry logic
-    max: 3,
-    idleTimeoutMillis: 30000
+    connectionTimeoutMillis: 5000,
+    max: 1,
+    idleTimeoutMillis: 5000
   });
 
   try {
@@ -128,20 +116,7 @@ async function checkDatabaseConnection(): Promise<void> {
 
 export async function runDiagnostics(): Promise<void> {
   try {
-    // Step 1: Check Secret Manager access
-    await checkSecrets();
-
-    // Step 2: Get database host for further tests
-    const dbHost = await getSecret('DB_HOST');
-    const dbPort = parseInt(await getSecret('DB_PORT'), 10);
-
-    // Step 3: Check DNS resolution
-    await checkDNS(dbHost);
-
-    // Step 4: Check TCP connection
-    await checkTCPConnection(dbHost, dbPort);
-
-    // Step 5: Check full database connection
+    // Test database connection using Cloud SQL socket
     await checkDatabaseConnection();
 
     logger.info('All diagnostics completed successfully');
