@@ -1,9 +1,10 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { Pool } from 'pg';
+import pkg from 'pg';
 import dns from 'dns';
 import { promisify } from 'util';
 import logger from '../utils/logger.js';
 
+const { Pool } = pkg;
 const lookup = promisify(dns.lookup);
 
 async function getSecret(name: string): Promise<string> {
