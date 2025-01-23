@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.js';
 import { errorHandler } from './middleware/error.js';
 import { DatabaseManager } from './database/manager.js';
 import logger from './utils/logger.js';
+import { runDiagnostics } from './database/diagnostics.js';
 
 const port = parseInt(process.env.PORT || '8080', 10);
 const host = '0.0.0.0';
@@ -14,10 +15,14 @@ const host = '0.0.0.0';
 async function startServer() {
   try {
     const config = await initConfig();
+    
+    // Run diagnostics before initializing services
+    await runDiagnostics();
+    
     const app = express();
     const db = new DatabaseManager(config);
 
-    // Initialize database
+    // Initialize database schema
     await db.init();
 
     // Middleware

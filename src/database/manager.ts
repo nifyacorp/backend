@@ -91,15 +91,6 @@ export class DatabaseManager {
   async init(): Promise<void> {
     try {
       logger.info('Starting database initialization...');
-      
-      // Run diagnostics first
-      await runDiagnostics();
-
-      // Check DNS resolution
-      await this.checkDNS();
-
-      // Test basic connection and get server details
-      await this.checkConnection();
 
       // Apply initial schema if needed
       await this.applySchema();
