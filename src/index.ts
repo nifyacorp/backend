@@ -8,6 +8,8 @@ import { errorHandler } from './middleware/error.js';
 import { DatabaseManager } from './database/manager.js';
 import logger from './utils/logger.js';
 
+const PORT = process.env.PORT || '8080';
+
 async function startServer() {
   try {
     const config = await initConfig();
@@ -29,6 +31,11 @@ async function startServer() {
       max: config.RATE_LIMIT_MAX,
     }));
 
+    // Health check endpoint
+    app.get('/_health', (req, res) => {
+      res.status(200).json({ status: 'healthy' });
+    });
+
     // Routes
     app.use('/api/auth', authRoutes);
 
@@ -36,9 +43,8 @@ async function startServer() {
     app.use(errorHandler);
 
     // Start server
-    const port = config.PORT;
-    app.listen(port, () => {
-      logger.info(`Server listening on port ${port}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`Server listening on port ${PORT}`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

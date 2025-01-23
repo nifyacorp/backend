@@ -20,8 +20,9 @@ RUN npm prune --production
 # Set production environment
 ENV NODE_ENV=production
 
-# Expose port
-EXPOSE 3000
+# Expose Cloud Run default port
+EXPOSE 8080
+ENV PORT=8080
 
 # Start production server
 CMD [ "npm", "start" ]
