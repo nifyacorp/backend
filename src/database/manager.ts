@@ -14,27 +14,28 @@ export class DatabaseManager {
 
   constructor(config: Awaited<ReturnType<typeof initConfig>>) {
     this.config = config;
-    logger.info('Creating database pool with config:', {
+    const socketPath = process.env.DB_SOCKET_PATH;
+    
+    if (!socketPath) {
+      throw new Error('DB_SOCKET_PATH environment variable is not set');
+    }
+
+    logger.info('Initializing database connection:', {
+      socketPath,
       database: config.DB_NAME,
-      user: config.DB_USER,
-      socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
-      maxConnections: 20,
-      idleTimeout: '60 seconds',
-      connectionTimeout: '5 seconds'
+      user: config.DB_USER
     });
 
     this.pool = new Pool({
-      host: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+      host: socketPath,
       database: config.DB_NAME || 'nifya',
       user: config.DB_USER,
       password: config.DB_PASSWORD,
-      // Use Unix domain socket
       ssl: false,
-      // Connection pool configuration
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 60000, // Close idle clients after 1 minute
-      connectionTimeoutMillis: 20000, // Increase timeout for initial connection
-      keepAlive: true // Enable keep-alive
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      keepAlive: true
     });
 
     // Handle pool errors
