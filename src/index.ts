@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { pinoHttp } from 'pino-http';
 import { initConfig } from './config/index.js';
 import authRoutes from './routes/auth.js';
 import { errorHandler } from './middleware/error.js';
@@ -19,7 +18,6 @@ async function startServer() {
     await db.init();
 
     // Middleware
-    app.use(pinoHttp());
     app.use(express.json());
     app.use(cors({
       origin: config.CORS_ORIGIN,
