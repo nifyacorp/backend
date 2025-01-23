@@ -124,7 +124,7 @@ export class DatabaseManager {
         await client.query('BEGIN');
 
         const schemaSQL = readFileSync(
-          join(process.cwd(), 'src/database/migrations/initial.sql'),
+          join(process.cwd(), 'dist/database/migrations/20250123130842_wooden_coast.sql'),
           'utf-8'
         );
 
