@@ -6,11 +6,18 @@ import { createError } from '../utils/error.js';
 export class AuthService {
   private config: Awaited<ReturnType<typeof getConfig>>;
 
-  constructor(config?: Awaited<ReturnType<typeof getConfig>>) {
-    this.config = config || await getConfig();
+  constructor() {
+    this.config = null as any;
+  }
+
+  private async initConfig(): Promise<void> {
+    if (!this.config) {
+      this.config = await getConfig();
+    }
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
+    await this.initConfig();
     const response = await fetch(`${this.config.AUTH_SERVICE_URL}/auth/login`, {
       method: 'POST',
       headers: {
@@ -32,6 +39,7 @@ export class AuthService {
   }
 
   async refreshToken(token: string): Promise<AuthResponse> {
+    await this.initConfig();
     const response = await fetch(`${this.config.AUTH_SERVICE_URL}/auth/refresh`, {
       method: 'POST',
       headers: {

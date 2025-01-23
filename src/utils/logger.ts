@@ -1,7 +1,6 @@
 import pino from 'pino';
-import { getConfig } from '../config/index.js';
 
-const defaultLogger = pino({
+const logger = pino.pino({
   level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
   serializers: {
     error: pino.stdSerializers.err,
@@ -18,3 +17,5 @@ const defaultLogger = pino({
       }
     : undefined,
 });
+
+export default logger;
