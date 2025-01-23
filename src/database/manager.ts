@@ -1,3 +1,4 @@
+import type { Pool as PgPool } from 'pg';
 import pkg from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -6,14 +7,12 @@ import type { initConfig } from '../config/index.js';
 import dns from 'dns';
 import { promisify } from 'util';
 
-const { Pool } = pkg;
-
-const { Pool } = pg;
+const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
 
 const lookup = promisify(dns.lookup);
 
 export class DatabaseManager {
-  private pool: Pool;
+  private pool: PgPool;
   private config: Awaited<ReturnType<typeof initConfig>>;
 
   constructor(config: Awaited<ReturnType<typeof initConfig>>) {
@@ -41,7 +40,7 @@ export class DatabaseManager {
     });
 
     // Handle pool errors
-    this.pool.on('error', (err) => {
+    this.pool.on('error', (err: Error) => {
       logger.error('Unexpected error on idle client', err);
       process.exit(-1);
     });

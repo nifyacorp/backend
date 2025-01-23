@@ -1,9 +1,11 @@
 import pkg from 'pino';
 
-const logger = pkg({
+const { pino } = pkg as unknown as { pino: typeof pkg };
+
+const logger = pino({
   level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
   serializers: {
-    error: pkg.stdSerializers.err,
+    error: pino.stdSerializers.err,
   },
   transport: process.env.NODE_ENV === 'development'
     ? {
@@ -17,3 +19,5 @@ const logger = pkg({
       }
     : undefined,
 });
+
+export default logger;
