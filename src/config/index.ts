@@ -26,6 +26,7 @@ export const configSchema = z.object({
 export async function initConfig() {
   const [
     authServiceUrl,
+    jwtSecret,
     dbHost,
     dbPort,
     dbName,
@@ -34,6 +35,7 @@ export async function initConfig() {
     dbInstance,
   ] = await Promise.all([
     getSecret('SERVICE_URL_AUTH'),
+    getSecret('JWT_SECRET'),
     getSecret('DB_HOST'),
     getSecret('DB_PORT'),
     getSecret('DB_NAME'),
@@ -45,6 +47,7 @@ export async function initConfig() {
   const config = configSchema.parse({
     ...process.env,
     AUTH_SERVICE_URL: authServiceUrl || process.env.AUTH_SERVICE_URL,
+    JWT_SECRET: jwtSecret || process.env.JWT_SECRET,
   });
 
   return {
