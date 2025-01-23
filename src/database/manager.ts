@@ -1,10 +1,12 @@
-import { Pool } from 'pg';
+import pg from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import logger from '../utils/logger.js';
 import type { initConfig } from '../config/index.js';
 import dns from 'dns';
 import { promisify } from 'util';
+
+const { Pool } = pg;
 
 const lookup = promisify(dns.lookup);
 
