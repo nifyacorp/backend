@@ -29,14 +29,10 @@ async function checkDatabaseConnection(): Promise<void> {
   logger.info('Database credentials retrieved successfully');
 
   logger.info('Creating test connection pool...');
-  const socketPath = process.env.DB_SOCKET_PATH;
-  
-  if (!socketPath) {
-    throw new Error('DB_SOCKET_PATH environment variable is not set');
-  }
+  const socketDir = '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
   const pool = new Pool({
-    host: socketPath,
+    host: socketDir,
     database: dbName,
     user: dbUser,
     password: dbPassword,

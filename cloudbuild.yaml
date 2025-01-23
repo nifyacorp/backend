@@ -23,8 +23,7 @@ steps:
       - '--set-env-vars'
       - |
         NODE_ENV=production,
-        PORT=8080,
-        DB_SOCKET_PATH=/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db/.s.PGSQL.5432
+        PORT=8080
       - '--add-cloudsql-instances'
       - 'delta-entity-447812-p2:us-central1:delta-entity-447812-db'
       - '--service-account'
