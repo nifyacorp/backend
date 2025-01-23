@@ -8,7 +8,8 @@ import { errorHandler } from './middleware/error.js';
 import { DatabaseManager } from './database/manager.js';
 import logger from './utils/logger.js';
 
-const PORT = parseInt(process.env.PORT || '8080', 10);
+const port = parseInt(process.env.PORT || '8080', 10);
+const host = '0.0.0.0';
 
 async function startServer() {
   try {
@@ -43,8 +44,24 @@ async function startServer() {
     app.use(errorHandler);
 
     // Start server
-    app.listen(PORT, '0.0.0.0', () => {
-      logger.info(`Server listening on port ${PORT}`);
+    const server = app.listen(port, host, () => {
+      logger.info(`Server listening on ${host}:${port}`);
+    });
+
+    // Handle server errors
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      logger.error('Server error:', error);
+      process.exit(1);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      logger.info('SIGTERM received, shutting down gracefully');
+      server.close(async () => {
+        logger.info('Server closed');
+        await db.end();
+        process.exit(0);
+      });
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
