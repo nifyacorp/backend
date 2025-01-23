@@ -81,8 +81,8 @@ async function startServer() {
         error: error.message,
         code: error.code,
         syscall: error.syscall,
-        address: error.address,
-        port: error.port,
+        address: error?.address,
+        port: error?.port,
         stack: error.stack,
       });
       process.exit(1);
