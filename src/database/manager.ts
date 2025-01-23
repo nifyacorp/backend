@@ -5,6 +5,7 @@ import { join } from 'path';
 import logger from '../utils/logger.js';
 import type { initConfig } from '../config/index.js';
 import dns from 'dns';
+import { runDiagnostics } from './diagnostics.js';
 import { promisify } from 'util';
 
 const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
@@ -89,6 +90,9 @@ export class DatabaseManager {
   async init(): Promise<void> {
     try {
       logger.info('Starting database initialization...');
+      
+      // Run diagnostics first
+      await runDiagnostics();
 
       // Check DNS resolution
       await this.checkDNS();
