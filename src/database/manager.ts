@@ -165,7 +165,7 @@ export class DatabaseManager {
     }
   }
 
-  async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
+  async query<T extends QueryResultRow>(sql: string, params?: unknown[]): Promise<T[]> {
     const client = await this.pool.connect();
     const startTime = Date.now();
     try {
