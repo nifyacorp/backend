@@ -20,13 +20,13 @@ async function getSecret(name: string): Promise<string> {
 async function checkDatabaseConnection(): Promise<void> {
   logger.info('Testing database connection...');
   
-  logger.info('Fetching database secrets...');
+  logger.info('Fetching database credentials from Secret Manager...');
   const [dbName, dbUser, dbPassword] = await Promise.all([
     getSecret('DB_NAME'),
     getSecret('DB_USER'),
     getSecret('DB_PASSWORD'),
   ]);
-  logger.info('Database secrets retrieved successfully');
+  logger.info('Database credentials retrieved successfully');
 
   logger.info('Creating test connection pool...');
   const pool = new Pool({
@@ -35,11 +35,11 @@ async function checkDatabaseConnection(): Promise<void> {
     user: dbUser,
     password: dbPassword,
     ssl: false,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
     max: 1,
     idleTimeoutMillis: 5000
   });
-  logger.info('Test pool created, attempting connection...');
+  logger.info('Test pool created, attempting connection through Unix socket...');
 
   try {
     logger.info('Acquiring client from test pool...');
@@ -51,7 +51,8 @@ async function checkDatabaseConnection(): Promise<void> {
       connectionDetails: {
         database: dbName,
         user: dbUser,
-        socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db'
+        socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db',
+        connectionType: 'Unix domain socket'
       }
     });
     client.release();

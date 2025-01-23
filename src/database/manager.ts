@@ -5,7 +5,6 @@ import { join } from 'path';
 import logger from '../utils/logger.js';
 import type { initConfig } from '../config/index.js';
 import { runDiagnostics } from './diagnostics.js';
-import { promisify } from 'util';
 
 const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
 
@@ -165,7 +164,7 @@ export class DatabaseManager {
     }
   }
 
-  async query<T extends QueryResultRow>(sql: string, params?: unknown[]): Promise<T[]> {
+  async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
     const client = await this.pool.connect();
     const startTime = Date.now();
     try {
