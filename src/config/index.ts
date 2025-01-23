@@ -8,7 +8,7 @@ const secretManagerClient = new SecretManagerServiceClient();
 
 async function getSecret(name: string): Promise<string> {
   const [version] = await secretManagerClient.accessSecretVersion({
-    name: `projects/delta-entity-447812/secrets/${name}/versions/latest`,
+    name: `projects/delta-entity-447812-p2/secrets/${name}/versions/latest`,
   });
   return version.payload?.data?.toString() || '';
 }
