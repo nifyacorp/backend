@@ -21,10 +21,7 @@ steps:
       - '--platform'
       - 'managed'
       - '--set-env-vars'
-      - |
-        NODE_ENV=production,
-        PORT=8080,
-        DB_SOCKET_PATH=/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db
+      - 'NODE_ENV=production,PORT=8080,DB_NAME=nifya,DB_USER=postgres,DB_PASSWORD=your-password-here,AUTH_SERVICE_URL=https://authentication-service-415554190254.us-central1.run.app,JWT_SECRET=your-32-character-secret-key-here'
       - '--add-cloudsql-instances'
       - 'delta-entity-447812-p2:us-central1:delta-entity-447812-db'
       - '--service-account'
@@ -41,6 +38,7 @@ steps:
       - '--memory'
       - '512Mi'
       - '--execution-environment'
+      - 'gen2'
 
 images:
   - 'gcr.io/$PROJECT_ID/backend'

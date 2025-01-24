@@ -10,7 +10,6 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@google-cloud/secret-manager": "^5.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
     "express": "^4.18.2",

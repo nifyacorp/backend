@@ -29,15 +29,15 @@ async function checkDatabaseConnection(): Promise<void> {
   logger.info('Database credentials retrieved successfully');
 
   logger.info('Creating test connection pool...');
-  const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
+  const socketPath = '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
   const pool = new Pool({
     host: socketPath,
     database: dbName,
     user: dbUser,
     password: dbPassword,
-    ssl: false, // Not needed for Cloud SQL Unix domain socket
-    connectionTimeoutMillis: 10000,
+    ssl: false,
+    connectionTimeoutMillis: 20000,
     max: 1,
     idleTimeoutMillis: 5000,
     keepAlive: true
