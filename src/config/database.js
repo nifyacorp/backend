@@ -9,27 +9,25 @@ dotenv.config();
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Always use production mode
+process.env.NODE_ENV = 'production';
+
 // Log database configuration attempt
 console.log('🔌 Attempting database connection with config:', {
   socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
-  database: process.env.DB_NAME,
-  hasUser: !!process.env.DB_USER,
-  hasPassword: !!process.env.DB_PASSWORD
+  database: process.env.DB_NAME || 'nifya',
+  environment: process.env.NODE_ENV
 });
 
 // Log all environment variables (excluding sensitive data)
 console.log('📝 Environment variables check:', {
   DB_NAME_SET: !!process.env.DB_NAME,
-  DB_USER_SET: !!process.env.DB_USER,
-  DB_PASSWORD_SET: !!process.env.DB_PASSWORD,
   NODE_ENV: process.env.NODE_ENV
 });
 
 // Create connection pool
 const pool = new Pool({
   socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   // No SSL needed for Unix socket connection
   ssl: false
