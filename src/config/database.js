@@ -49,7 +49,7 @@ export async function initializeDatabase() {
   try {
     console.log('🔄 Starting database initialization check...', {
       timestamp: new Date().toISOString(),
-      migrationPath: path.join(__dirname, '../../supabase/migrations/20250124170000_remove_auth_dependency.sql')
+      migrationPath: path.join(__dirname, '../../supabase/migrations/20250124165130_wispy_meadow.sql')
     });
     
     // Check if tables exist
@@ -69,7 +69,7 @@ export async function initializeDatabase() {
       });
       
       // Read and execute migration SQL
-      const migrationPath = path.join(__dirname, '../../supabase/migrations/20250124170000_remove_auth_dependency.sql');
+      const migrationPath = path.join(__dirname, '../../supabase/migrations/20250124165130_wispy_meadow.sql');
       console.log('📄 Reading migration file...', {
         migrationPath,
         fileExists: fs.existsSync(migrationPath)
