@@ -25,21 +25,8 @@ steps:
       - '--service-account'
       - 'nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com'
       - '--allow-unauthenticated'
-      - '--min-instances'
-      - '1'
       - '--port'
       - '8080'
-      - '--timeout'
-      - '300s'
-      - '--cpu'
-      - '1'
-      - '--memory'
-      - '512Mi'
-      - '--execution-environment'
-      - 'gen2'
 
 images:
   - 'gcr.io/$PROJECT_ID/backend'
-
-options:
-  logging: CLOUD_LOGGING_ONLY
