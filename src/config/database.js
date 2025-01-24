@@ -27,7 +27,7 @@ console.log('📝 Environment variables check:', {
 
 // Create connection pool
 const pool = new Pool({
-  host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
+  socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
@@ -49,7 +49,7 @@ export async function initializeDatabase() {
   try {
     console.log('🔄 Starting database initialization check...', {
       timestamp: new Date().toISOString(),
-      migrationPath: path.join(__dirname, '../../supabase/migrations/20250124121309_bronze_plain.sql')
+      migrationPath: path.join(__dirname, '../../supabase/migrations/20250124170000_remove_auth_dependency.sql')
     });
     
     // Check if tables exist
@@ -69,7 +69,7 @@ export async function initializeDatabase() {
       });
       
       // Read and execute migration SQL
-      const migrationPath = path.join(__dirname, '../../supabase/migrations/20250124121309_bronze_plain.sql');
+      const migrationPath = path.join(__dirname, '../../supabase/migrations/20250124170000_remove_auth_dependency.sql');
       console.log('📄 Reading migration file...', {
         migrationPath,
         fileExists: fs.existsSync(migrationPath)
