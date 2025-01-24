@@ -1,9 +1,8 @@
-import pkg from 'pg';
+import { Pool, PoolClient } from 'pg';
 import logger from '../utils/logger.js';
 import dns from 'dns';
 import { promisify } from 'util';
 
-const { Pool } = pkg;
 const lookup = promisify(dns.lookup);
 
 async function checkSocketFile(): Promise<void> {
@@ -41,7 +40,7 @@ async function checkPoolCreation(): Promise<Pool> {
   }
 }
 
-async function checkClientAcquisition(pool: Pool): Promise<pkg.PoolClient> {
+async function checkClientAcquisition(pool: Pool): Promise<PoolClient> {
   logger.info('Step 3: Attempting to acquire client from pool...');
   try {
     const startTime = Date.now();
@@ -59,7 +58,7 @@ async function checkClientAcquisition(pool: Pool): Promise<pkg.PoolClient> {
   }
 }
 
-async function checkBasicQuery(client: pkg.PoolClient): Promise<void> {
+async function checkBasicQuery(client: PoolClient): Promise<void> {
   logger.info('Step 4: Testing basic query...');
   try {
     const startTime = Date.now();
@@ -77,7 +76,7 @@ async function checkBasicQuery(client: pkg.PoolClient): Promise<void> {
   }
 }
 
-async function checkServerVersion(client: pkg.PoolClient): Promise<void> {
+async function checkServerVersion(client: PoolClient): Promise<void> {
   logger.info('Step 5: Checking server version and connection details...');
   try {
     const startTime = Date.now();

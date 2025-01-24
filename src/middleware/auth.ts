@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { jwtVerify } from 'jose';
-import { getConfig } from '../config/index.js';
 import { User } from '../types/auth.js';
 
 declare global {
@@ -18,30 +16,8 @@ export const authenticate = async (
   next: NextFunction
 ) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        error: 'Missing or invalid authorization header',
-      });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const config = await getConfig();
-    const encoder = new TextEncoder();
-    
-    const { payload } = await jwtVerify(
-      token,
-      encoder.encode(config.JWT_SECRET)
-    );
-
-    // Validate payload structure
-    const user: User = {
-      id: payload.sub as string,
-      email: payload.email as string,
-      roles: (payload.roles as string[]) || []
-    };
-
-    req.user = user;
+    // Authentication will be handled by Cloud Run's built-in authentication
+    // For now, we'll pass through all requests
     next();
   } catch (error) {
     return res.status(StatusCodes.UNAUTHORIZED).json({
