@@ -9,6 +9,12 @@ export class DatabaseManager {
   private pool: PgPool;
 
   constructor() {
+    interface PoolState {
+      totalCount: number;
+      idleCount: number;
+      waitingCount: number;
+    }
+
     const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
     
     logger.info('Initializing database manager:', {
@@ -117,14 +123,10 @@ export class DatabaseManager {
       const duration = Date.now() - startTime;
       logger.info('Database connection successful:', {
         version: result[0].version,
-        database: result[0].current_database,
-        user: result[0].current_user,
+        database: result[0].current_database as string,
+        user: result[0].current_user as string,
         duration: `${duration}ms`,
-        poolState: {
-          totalCount: this.pool.totalCount,
-          idleCount: this.pool.idleCount,
-          waitingCount: this.pool.waitingCount
-        }
+        poolState: this.getPoolState()
       });
     } catch (error) {
       logger.error('Database connection check failed:', {
@@ -133,6 +135,20 @@ export class DatabaseManager {
       });
       throw error;
     }
+  }
+
+  private getPoolState(): { totalCount: number; idleCount: number; waitingCount: number } {
+    const pool = this.pool as unknown as {
+      totalCount: number;
+      idleCount: number;
+      waitingCount: number;
+    };
+
+    return {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+    };
   }
 
   async end(): Promise<void> {
