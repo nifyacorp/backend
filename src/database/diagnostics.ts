@@ -1,13 +1,9 @@
 import pkg from 'pg';
 import logger from '../utils/logger.js';
-import dns from 'dns';
-import { promisify } from 'util';
 
 const { Pool } = pkg;
 type PgPool = pkg.Pool;
 type PoolClient = pkg.PoolClient;
-
-const lookup = promisify(dns.lookup);
 
 async function checkSocketFile(): Promise<void> {
   logger.info('Step 1: Checking Unix socket file...');
@@ -28,13 +24,24 @@ async function checkSocketFile(): Promise<void> {
 async function checkPoolCreation(): Promise<PgPool> {
   logger.info('Step 2: Creating connection pool...');
   try {
+    const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql';
+    const instanceConnectionName = process.env.INSTANCE_CONNECTION_NAME || 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
+
     const pool: PgPool = new Pool({
+      host: `${socketPath}/${instanceConnectionName}`,
       ssl: false,
       max: 1, // Single connection for testing
       connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 10000
+      idleTimeoutMillis: 10000,
+      // Let Cloud Run handle authentication
+      user: undefined,
+      password: undefined,
+      database: undefined
     });
-    logger.info('Pool created successfully');
+    logger.info('Pool created successfully with Unix socket configuration:', {
+      socketPath,
+      instanceConnectionName
+    });
     return pool;
   } catch (error) {
     logger.error('Pool creation failed:', {
@@ -83,23 +90,14 @@ async function checkBasicQuery(client: PoolClient): Promise<void> {
 async function checkServerVersion(client: PoolClient): Promise<void> {
   logger.info('Step 5: Checking server version and connection details...');
   try {
-    const startTime = Date.now();
-    const result = await client.query(`
-      SELECT version(),
-             current_database(),
-             current_user,
-             inet_server_addr() as server_ip,
-             inet_server_port() as server_port,
-             pg_backend_pid() as backend_pid
-    `);
+    const startTime = Date.now(); 
+    const result = await client.query('SELECT version(), current_database(), current_user, pg_backend_pid() as backend_pid');
     const duration = Date.now() - startTime;
     logger.info('Server details retrieved:', {
       queryTime: `${duration}ms`,
       version: result.rows[0].version,
       database: result.rows[0].current_database,
       user: result.rows[0].current_user,
-      serverIp: result.rows[0].server_ip,
-      serverPort: result.rows[0].server_port,
       backendPid: result.rows[0].backend_pid
     });
   } catch (error) {
