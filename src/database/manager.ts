@@ -1,6 +1,7 @@
 import type { Pool as PgPool } from 'pg';
 import pkg from 'pg';
 import logger from '../utils/logger.js';
+import type { PoolState } from './types.js';
 import { runDiagnostics } from './diagnostics.js';
 
 const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
@@ -131,12 +132,8 @@ export class DatabaseManager {
     }
   }
 
-  private getPoolState(): { totalCount: number; idleCount: number; waitingCount: number } {
-    const pool = this.pool as unknown as {
-      totalCount: number;
-      idleCount: number;
-      waitingCount: number;
-    };
+  private getPoolState(): PoolState {
+    const pool = this.pool as ExtendedPool;
 
     return {
       totalCount: pool.totalCount,
