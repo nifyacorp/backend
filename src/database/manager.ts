@@ -14,16 +14,16 @@ export class DatabaseManager {
 
   constructor(config: Awaited<ReturnType<typeof initConfig>>) {
     this.config = config;
-    const socketDir = '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
+    const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
     logger.info('Initializing database connection:', {
-      socketDir,
+      socketPath,
       database: config.DB_NAME,
       user: config.DB_USER
     });
 
     this.pool = new Pool({
-      host: socketDir,
+      host: socketPath,
       database: config.DB_NAME || 'nifya',
       user: config.DB_USER,
       password: config.DB_PASSWORD,

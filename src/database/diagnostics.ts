@@ -29,10 +29,10 @@ async function checkDatabaseConnection(): Promise<void> {
   logger.info('Database credentials retrieved successfully');
 
   logger.info('Creating test connection pool...');
-  const socketDir = '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
+  const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
   const pool = new Pool({
-    host: socketDir,
+    host: socketPath,
     database: dbName,
     user: dbUser,
     password: dbPassword,
@@ -43,7 +43,7 @@ async function checkDatabaseConnection(): Promise<void> {
     keepAlive: true
   });
   logger.info('Test pool created, attempting connection:', {
-    socketDir,
+    socketPath,
     database: dbName,
     user: dbUser
   });
@@ -59,7 +59,7 @@ async function checkDatabaseConnection(): Promise<void> {
       connectionDetails: {
         database: dbName,
         user: dbUser,
-        socketDir,
+        socketPath,
         connectionType: 'Unix domain socket'
       }
     });
