@@ -1,13 +1,13 @@
-import type { Pool as PgPool } from 'pg';
+import type { Pool } from 'pg';
 import pkg from 'pg';
 import logger from '../utils/logger.js';
-import type { PoolState } from './types.js';
+import type { PoolState, ExtendedPool } from './types.js';
 import { runDiagnostics } from './diagnostics.js';
 
-const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
+const { Pool: PgPool } = pkg;
 
 export class DatabaseManager {
-  private pool: PgPool;
+  private pool: Pool;
 
   constructor() {
     const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
@@ -19,7 +19,7 @@ export class DatabaseManager {
       max: 5
     });
 
-    this.pool = new Pool({
+    this.pool = new PgPool({
       user: 'postgres',
       database: 'nifya',
       host: `/cloudsql/${instanceConnectionName}`,
