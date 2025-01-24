@@ -1,8 +1,11 @@
-import type { Pool as PgPool, PoolClient } from 'pg';
-import { Pool } from 'pg';
+import pkg from 'pg';
 import logger from '../utils/logger.js';
 import dns from 'dns';
 import { promisify } from 'util';
+
+const { Pool } = pkg;
+type PgPool = pkg.Pool;
+type PoolClient = pkg.PoolClient;
 
 const lookup = promisify(dns.lookup);
 
