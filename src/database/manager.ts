@@ -132,16 +132,16 @@ export class DatabaseManager {
   }
 
   private getPoolState(): { totalCount: number; idleCount: number; waitingCount: number } {
-    const poolState = this.pool as unknown as {
+    const pool = this.pool as unknown as {
       totalCount: number;
       idleCount: number;
       waitingCount: number;
     };
 
     return {
-          totalCount: poolState.totalCount,
-          idleCount: poolState.idleCount,
-          waitingCount: poolState.waitingCount
+      totalCount: pool.totalCount,
+      idleCount: pool.idleCount,
+      waitingCount: pool.waitingCount
     };
   }
 
