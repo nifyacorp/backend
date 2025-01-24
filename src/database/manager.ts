@@ -14,20 +14,18 @@ export class DatabaseManager {
     logger.info('Initializing database connection');
 
     // Cloud SQL Unix Domain Socket path
-    const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql';
-    const instanceConnectionName = process.env.INSTANCE_CONNECTION_NAME || 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
+    const socketPath = '/cloudsql';
+    const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
     this.pool = new Pool({
       host: `${socketPath}/${instanceConnectionName}`,
+      database: 'nifya',
+      user: 'postgres',
       ssl: false,
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 20000,
-      keepAlive: true,
-      // Let Cloud Run handle authentication
-      user: undefined,
-      password: undefined,
-      database: undefined
+      keepAlive: true
     });
 
     // Handle pool errors

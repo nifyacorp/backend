@@ -24,19 +24,17 @@ async function checkSocketFile(): Promise<void> {
 async function checkPoolCreation(): Promise<PgPool> {
   logger.info('Step 2: Creating connection pool...');
   try {
-    const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql';
-    const instanceConnectionName = process.env.INSTANCE_CONNECTION_NAME || 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
+    const socketPath = '/cloudsql';
+    const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
     const pool: PgPool = new Pool({
       host: `${socketPath}/${instanceConnectionName}`,
+      database: 'nifya',
+      user: 'postgres',
       ssl: false,
       max: 1, // Single connection for testing
       connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 10000,
-      // Let Cloud Run handle authentication
-      user: undefined,
-      password: undefined,
-      database: undefined
+      idleTimeoutMillis: 10000
     });
     logger.info('Pool created successfully with Unix socket configuration:', {
       socketPath,
