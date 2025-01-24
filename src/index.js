@@ -4,6 +4,7 @@ import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import { healthRoutes } from './routes/health.js';
 import { userRoutes } from './routes/users.js';
+import { initializePubSub } from './config/pubsub.js';
 
 const fastify = Fastify({
   logger: true
@@ -39,6 +40,9 @@ fastify.register(userRoutes, { prefix: '/users' });
 
 // Start server
 try {
+  // Initialize Pub/Sub subscription
+  await initializePubSub();
+
   await fastify.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' });
   console.log(`Server is running on ${fastify.server.address().port}`);
 } catch (err) {
