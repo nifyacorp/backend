@@ -1,21 +1,20 @@
-# Use Node.js 20 as the base image
-FROM node:20-alpine
+# Use the official Node.js image
+FROM node:20-slim
 
 # Create app directory
 WORKDIR /usr/src/app
 
-# Install dependencies first for better caching
+# Copy package files
 COPY package*.json ./
-RUN npm ci
 
-# Copy source files
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy app source
 COPY . .
 
-# Build TypeScript code
-RUN npm run build
+# Expose port
+EXPOSE 3000
 
-# Expose Cloud Run default port
-EXPOSE 8080
-
-# Start production server
+# Start the application
 CMD [ "npm", "start" ]
