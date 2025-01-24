@@ -1,72 +1,68 @@
 # Nifya Orchestration Service
 
-A Node.js microservice built with Express and TypeScript, handling orchestration and data management for the Nifya platform.
+A Node.js microservice built with Express and TypeScript, handling orchestration and data management for the Nifya platform. The service runs on Cloud Run and connects directly to Cloud SQL using Unix domain sockets.
 
 ## Features
 
 - TypeScript-based Express server
-- PostgreSQL database integration with connection pooling
-- Secure authentication using JWT
+- Direct Cloud SQL connection via Unix domain sockets
+- Cloud Run authentication integration
 - Rate limiting and security middleware
 - Structured logging with Pino
 - Docker containerization
 - Cloud Run deployment support
 - Cloud SQL integration
 
-## Authentication Service Integration
+## Cloud Run Configuration
 
-The service integrates with the authentication service at `https://authentication-service-415554190254.us-central1.run.app` which provides the following endpoints:
+The service is deployed to Cloud Run with the following configuration:
 
-### Authentication Endpoints
+- Minimum instances: 1
+- CPU: 1
+- Memory: 512Mi
+- Execution environment: Gen2
+- Port: 8080
+- Timeout: 300s
+- Service account: `nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com`
 
-#### User Registration and Authentication
+### Database Connection
 
-- `POST /api/auth/signup` ⚡ - Register new users
-- `POST /api/auth/login` ⚡ - Authenticate and get tokens
-- `POST /api/auth/logout` ⚡ - Invalidate current session
+The service connects to Cloud SQL using Unix domain sockets, which provides:
 
-#### Session Management
+1. Direct, secure connection without proxy
+2. Lower latency compared to TCP connections
+3. Automatic authentication using Cloud Run's service account
+4. No need for external credentials or SSL certificates
 
-- `GET /api/auth/me` ⚡ - Get current user profile
-- `POST /api/auth/refresh` ⚡ - Refresh access token
-- `POST /api/auth/revoke-all-sessions` ⚡ - Logout from all devices
+The connection is established through:
+- Socket path: `/cloudsql/<INSTANCE_CONNECTION_NAME>`
+- Instance connection name: `delta-entity-447812-p2:us-central1:delta-entity-447812-db`
 
-#### Password Management
+Cloud Run automatically mounts the Unix domain socket when the service is deployed with the `--add-cloudsql-instances` flag.
 
-- `POST /api/auth/forgot-password` ⚡ - Initiate password reset
-- `POST /api/auth/reset-password` ⚡ - Reset password using token
-- `POST /api/auth/change-password` ⚡ - Change password while logged in
+### Connection Pool Configuration
 
-#### Email Verification
+The database connection pool is configured for optimal performance:
+- Maximum connections: 10
+- Idle timeout: 30 seconds
+- Connection timeout: 20 seconds
+- Keep-alive enabled
+- SSL disabled (not needed for Unix socket connections)
 
-- `POST /api/auth/verify-email` ⚡ - Verify email address
+### Diagnostics
 
-#### OAuth Integration
+The service includes comprehensive database diagnostics that check:
+1. Unix socket file accessibility
+2. Connection pool creation
+3. Client acquisition
+4. Basic query execution
+5. Server version and connection details
 
-- `POST /api/auth/google/login` ⚡ - Initiate Google OAuth login
-- `GET /api/auth/google/callback` ⚡ - Handle Google OAuth callback
-
-## Environment Variables
+## Configuration
 
 ```bash
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-CORS_ORIGIN=http://localhost:5173
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX=100
-
-# Authentication
-AUTH_SERVICE_URL=http://localhost:3001
-JWT_SECRET=your-32-character-secret-key-here
-
-# Database Configuration
-DB_HOST=34.31.128.250
-DB_PORT=5432
-DB_NAME=nifya
-DB_USER=postgres
-DB_PASSWORD=your-password-here
-DB_INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:delta-entity-447812-db
+# All configuration is handled by Cloud Run
+# No environment variables needed locally
 ```
 
 ## Development
@@ -74,14 +70,13 @@ DB_INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:delta-entity-4478
 ### Prerequisites
 - Node.js 20 or higher
 - npm or yarn
-- Docker (for containerization)
-- Google Cloud CLI
+- Docker
+- Google Cloud CLI (gcloud)
 
 ### Google Cloud Setup
 
 1. Enable required APIs:
    ```bash
-   gcloud services enable secretmanager.googleapis.com --project=delta-entity-447812-p2
    gcloud services enable cloudsql.googleapis.com --project=delta-entity-447812-p2
    gcloud services enable run.googleapis.com --project=delta-entity-447812-p2
    ```
@@ -95,12 +90,6 @@ DB_INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:delta-entity-4478
 
 3. Grant necessary permissions:
    ```bash
-   # Secret Manager access
-   ```bash
-   gcloud projects add-iam-policy-binding delta-entity-447812-p2 \
-     --member="serviceAccount:nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com" \
-     --role="roles/secretmanager.secretAccessor"
-
    # Cloud SQL access
    gcloud projects add-iam-policy-binding delta-entity-447812-p2 \
      --member="serviceAccount:nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com" \
@@ -117,18 +106,6 @@ DB_INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:delta-entity-4478
      --role="roles/run.invoker"
    ```
 
-4. Create and configure secrets:
-   ```bash
-   # Create secrets
-   echo -n "34.31.128.250" | gcloud secrets create DB_HOST --data-file=- --project=delta-entity-447812-p2
-   echo -n "5432" | gcloud secrets create DB_PORT --data-file=- --project=delta-entity-447812-p2
-   echo -n "nifya" | gcloud secrets create DB_NAME --data-file=- --project=delta-entity-447812-p2
-   echo -n "postgres" | gcloud secrets create DB_USER --data-file=- --project=delta-entity-447812-p2
-   echo -n "your-password-here" | gcloud secrets create DB_PASSWORD --data-file=- --project=delta-entity-447812-p2
-   echo -n "delta-entity-447812-p2:us-central1:delta-entity-447812-db" | \
-     gcloud secrets create DB_INSTANCE_CONNECTION_NAME --data-file=- --project=delta-entity-447812-p2
-   ```
-
 ### Setup
 
 1. Clone the repository
@@ -136,8 +113,7 @@ DB_INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:delta-entity-4478
    ```bash
    npm install
    ```
-3. Set up environment variables (copy `.env.example` to `.env`)
-4. Start development server:
+3. Start development server:
    ```bash
    npm run dev
    ```
@@ -157,17 +133,17 @@ npm test
 ### Docker Build
 
 ```bash
-docker build -t nifya-orchestration .
+docker build -t gcr.io/delta-entity-447812-p2/backend .
 ```
 
 ## Deployment
 
-The service is configured for deployment to Google Cloud Run using Cloud Build. The deployment process is automated through the `cloudbuild.yaml` configuration.
+The service is deployed to Cloud Run using Cloud Build. The deployment process is automated through the `cloudbuild.yaml` configuration.
 
 ### Cloud Run Features
 - Automatic container builds
-- Cloud SQL connection
-- Environment variable management
+- Direct Cloud SQL connection via Unix socket
+- Automatic IAM authentication
 - HTTPS endpoints
 - Automatic scaling
 - Service account: `nifya-orchestration@delta-entity-447812-p2.iam.gserviceaccount.com`
@@ -175,9 +151,6 @@ The service is configured for deployment to Google Cloud Run using Cloud Build. 
 ### Required Permissions
 
 The service account requires the following permissions:
-- Secret Manager:
-  - `roles/secretmanager.secretAccessor`: Access to read secrets
-
 - Cloud SQL:
   - `roles/cloudsql.client`: Connect to Cloud SQL instances
   - `roles/cloudsql.editor`: Manage database schemas and users
@@ -185,11 +158,17 @@ The service account requires the following permissions:
 - Cloud Run:
   - `roles/run.invoker`: Invoke Cloud Run services
 
-These permissions allow the service to:
-1. Read configuration from Secret Manager
-2. Connect to Cloud SQL instances
-3. Create and modify database schemas
-4. Deploy and run on Cloud Run
+### Deployment Process
+
+The deployment is handled by Cloud Build and includes:
+1. Building the Docker container
+2. Pushing to Container Registry
+3. Deploying to Cloud Run with Cloud SQL connection
+
+To deploy manually:
+```bash
+gcloud builds submit
+```
 
 ## Database Schema
 
@@ -201,12 +180,14 @@ The service uses a PostgreSQL database with the following core tables:
 
 ## API Documentation
 
-Coming soon...
+### Health Check Endpoints
 
-## Status Icons
-- ❌ Not Implemented
-- ✅ Working
-- ⚡ Partially Implemented (needs database integration)
+- `GET /_health` - Basic health check
+- `GET /api/health` - Detailed API health status
+
+### Authentication
+
+Authentication is handled by Cloud Run's built-in authentication system.
 
 ## License
 

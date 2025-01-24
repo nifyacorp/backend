@@ -1,8 +1,9 @@
-import { Pool as PgPool, PoolClient } from 'pg';
+import pkg from 'pg';
 import logger from '../utils/logger.js';
 import dns from 'dns';
 import { promisify } from 'util';
 
+const { Pool } = pkg;
 const lookup = promisify(dns.lookup);
 
 async function checkSocketFile(): Promise<void> {
@@ -21,10 +22,10 @@ async function checkSocketFile(): Promise<void> {
   }
 }
 
-async function checkPoolCreation(): Promise<PgPool> {
+async function checkPoolCreation(): Promise<typeof Pool> {
   logger.info('Step 2: Creating connection pool...');
   try {
-    const pool = new PgPool({
+    const pool = new Pool({
       ssl: false,
       max: 1, // Single connection for testing
       connectionTimeoutMillis: 10000,
@@ -40,7 +41,7 @@ async function checkPoolCreation(): Promise<PgPool> {
   }
 }
 
-async function checkClientAcquisition(pool: PgPool): Promise<PoolClient> {
+async function checkClientAcquisition(pool: typeof Pool): Promise<pkg.PoolClient> {
   logger.info('Step 3: Attempting to acquire client from pool...');
   try {
     const startTime = Date.now();
@@ -58,7 +59,7 @@ async function checkClientAcquisition(pool: PgPool): Promise<PoolClient> {
   }
 }
 
-async function checkBasicQuery(client: PoolClient): Promise<void> {
+async function checkBasicQuery(client: pkg.PoolClient): Promise<void> {
   logger.info('Step 4: Testing basic query...');
   try {
     const startTime = Date.now();
@@ -76,7 +77,7 @@ async function checkBasicQuery(client: PoolClient): Promise<void> {
   }
 }
 
-async function checkServerVersion(client: PoolClient): Promise<void> {
+async function checkServerVersion(client: pkg.PoolClient): Promise<void> {
   logger.info('Step 5: Checking server version and connection details...');
   try {
     const startTime = Date.now();
@@ -107,8 +108,8 @@ async function checkServerVersion(client: PoolClient): Promise<void> {
 }
 
 async function checkDatabaseConnection(): Promise<void> {
-  let pool: PgPool | undefined;
-  let client: PoolClient | undefined;
+  let pool: typeof Pool | undefined;
+  let client: pkg.PoolClient | undefined;
 
   try {
     // Step 1: Check socket file
