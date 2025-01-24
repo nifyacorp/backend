@@ -11,11 +11,11 @@ console.log('Attempting database connection with config:', {
   database: process.env.DB_NAME,
   hasUser: !!process.env.DB_USER,
   hasPassword: !!process.env.DB_PASSWORD
-};
+});
 
 // Create connection pool
 const pool = new Pool({
-  host: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
+  host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
