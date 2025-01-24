@@ -33,14 +33,39 @@ const pool = new Pool({
   ssl: false
 });
 
+// Log pool configuration
+console.log('📊 Pool configuration:', {
+  socketPath: pool.options.socketPath,
+  database: pool.options.database,
+  host: pool.options.host,
+  port: pool.options.port,
+  timestamp: new Date().toISOString()
+});
+
 // Add pool error handler
 pool.on('error', (err) => {
-  console.error('❌ Unexpected database pool error:', err);
+  console.error('❌ Unexpected database pool error:', {
+    message: err.message,
+    code: err.code,
+    detail: err.detail,
+    hint: err.hint,
+    position: err.position,
+    where: err.where,
+    file: err.file,
+    line: err.line,
+    routine: err.routine,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Add pool connect handler
 pool.on('connect', () => {
-  console.log('✅ New client connected to database pool');
+  console.log('✅ New client connected to database pool', {
+    timestamp: new Date().toISOString(),
+    poolTotalCount: pool.totalCount,
+    poolIdleCount: pool.idleCount,
+    poolWaitingCount: pool.waitingCount
+  });
 });
 
 export async function initializeDatabase() {
