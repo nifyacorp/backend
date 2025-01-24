@@ -5,21 +5,24 @@ dotenv.config();
 
 const { Pool } = pg;
 
-// Log database configuration (safely)
-console.log('Database Configuration:', {
-  hasConnectionString: !!process.env.DB_CONNECTION_STRING,
-  ssl: {
-    rejectUnauthorized: false
-  }
+// Log database configuration attempt
+console.log('Attempting database connection with config:', {
+  socketPath: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
+  database: process.env.DB_NAME,
+  hasUser: !!process.env.DB_USER,
+  hasPassword: !!process.env.DB_PASSWORD
+};
+
+// Create connection pool
+const pool = new Pool({
+  host: process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  // No SSL needed for Unix socket connection
+  ssl: false
 });
 
-// Cloud Run provides database credentials through environment variables
-const pool = new Pool({
-  connectionString: process.env.DB_CONNECTION_STRING,
-  ssl: {
-    rejectUnauthorized: false // Required for Cloud Run's SSL connection
-  }
-});
 
 // Add pool error handler
 pool.on('error', (err) => {
