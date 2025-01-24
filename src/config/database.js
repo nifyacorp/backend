@@ -27,8 +27,7 @@ console.log('📝 Environment variables check:', {
 
 // Create connection pool
 const pool = new Pool({
-  socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
-  host: null,
+  host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
   database: process.env.DB_NAME,
   // No SSL needed for Unix socket connection
   ssl: false
@@ -36,9 +35,8 @@ const pool = new Pool({
 
 // Log pool configuration
 console.log('📊 Pool configuration:', {
-  socketPath: pool.options.socketPath,
-  database: pool.options.database,
   host: pool.options.host,
+  database: pool.options.database,
   port: pool.options.port,
   timestamp: new Date().toISOString()
 });
