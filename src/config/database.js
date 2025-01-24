@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Log database configuration attempt
 console.log('🔌 Attempting database connection with config:', {
-  host: process.env.DB_HOST,
+  socketPath: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
   database: process.env.DB_NAME,
   hasUser: !!process.env.DB_USER,
   hasPassword: !!process.env.DB_PASSWORD
@@ -27,11 +27,12 @@ console.log('📝 Environment variables check:', {
 
 // Create connection pool
 const pool = new Pool({
-  host: process.env.DB_HOST,
+  host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 5432
+  // No SSL needed for Unix socket connection
+  ssl: false
 });
 
 // Add pool error handler
