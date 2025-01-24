@@ -9,6 +9,7 @@ import { subscriptionRoutes } from './routes/subscriptions.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { authPlugin } from './plugins/auth.js';
 import { initializePubSub } from './config/pubsub.js';
+import { initializeDatabase } from './config/database.js';
 import { initializeAuth } from './config/auth.js';
 
 const fastify = Fastify({
@@ -51,6 +52,9 @@ fastify.register(notificationRoutes, { prefix: '/notifications' });
 
 // Start server
 try {
+  // Initialize database
+  await initializeDatabase();
+
   // Initialize auth configuration
   await initializeAuth();
   
