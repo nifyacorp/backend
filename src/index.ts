@@ -51,9 +51,11 @@ app.get('/_health', async (req, res) => {
 });
 
 const port = process.env.PORT || 8080;
-const host = process.env.HOST || '0.0.0.0';
 
-app.listen(port, host, () => {
-  logger.info(`Server listening on port ${port}`);
+// Ensure port is a number
+const portNumber = typeof port === 'string' ? parseInt(port, 10) : port;
+
+app.listen(portNumber, '0.0.0.0', () => {
+  logger.info(`Server listening on port ${portNumber}`);
   logger.info('Application startup complete');
 });
