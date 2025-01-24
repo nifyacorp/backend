@@ -3,7 +3,7 @@ FROM node:20-slim
 
 # Install the Cloud SQL Auth proxy
 RUN apt-get update && apt-get install -y wget && \
-    wget https://dl.google.com/cloudsql/cloud-sql-proxy.linux.amd64 -O /cloud-sql-proxy && \
+    wget https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.1/cloud-sql-proxy.linux.amd64 -O /cloud-sql-proxy && \
     chmod +x /cloud-sql-proxy
 
 # Create app directory
