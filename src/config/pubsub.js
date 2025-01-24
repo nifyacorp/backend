@@ -1,4 +1,5 @@
 import { PubSub } from '@google-cloud/pubsub';
+import { handleNewUser } from '../services/users.js';
 
 const pubsub = new PubSub();
 const subscriptionName = 'user-profile-creation';
@@ -33,8 +34,8 @@ export const initializePubSub = async () => {
         if (message.attributes.eventType === 'user.created') {
           const userData = JSON.parse(message.data.toString());
           await handleNewUser(userData);
-          message.ack();
           console.log('✅ Successfully processed user creation message');
+          message.ack();
         } else {
           console.log('⚠️ Ignoring message with unknown event type:', message.attributes.eventType);
           message.ack();
