@@ -14,14 +14,15 @@ export class DatabaseManager {
     logger.info('Initializing database connection');
 
     // Cloud SQL Unix Domain Socket path
-    const socketPath = '/cloudsql';
     const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
     this.pool = new Pool({
-      host: `${socketPath}/${instanceConnectionName}`,
+      host: '/cloudsql',
       database: 'nifya',
       user: 'postgres',
       ssl: false,
+      // Required for Cloud SQL Unix domain socket
+      options: `--project=delta-entity-447812-p2 --instance=${instanceConnectionName}`,
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 20000,

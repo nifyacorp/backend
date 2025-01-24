@@ -28,10 +28,12 @@ async function checkPoolCreation(): Promise<PgPool> {
     const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
     const pool: PgPool = new Pool({
-      host: `${socketPath}/${instanceConnectionName}`,
+      host: '/cloudsql',
       database: 'nifya',
       user: 'postgres',
       ssl: false,
+      // Required for Cloud SQL Unix domain socket
+      options: `--project=delta-entity-447812-p2 --instance=${instanceConnectionName}`,
       max: 1, // Single connection for testing
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 10000
