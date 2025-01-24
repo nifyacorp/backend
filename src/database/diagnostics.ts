@@ -36,7 +36,7 @@ async function checkDatabaseConnection(): Promise<void> {
     database: dbName,
     user: dbUser,
     password: dbPassword,
-    ssl: false,
+    ssl: false, // Not needed for Cloud SQL Unix domain socket
     connectionTimeoutMillis: 10000,
     max: 1,
     idleTimeoutMillis: 5000,

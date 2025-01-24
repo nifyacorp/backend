@@ -29,7 +29,7 @@ export async function initConfig() {
     jwtSecret,
     dbName,
     dbUser,
-    dbPassword,
+    dbPassword
   ] = await Promise.all([
     getSecret('SERVICE_URL_AUTH'),
     getSecret('JWT_SECRET'),
@@ -48,7 +48,7 @@ export async function initConfig() {
     ...config,
     DB_NAME: dbName,
     DB_USER: dbUser,
-    DB_PASSWORD: dbPassword,
+    DB_PASSWORD: dbPassword
   };
 }
 

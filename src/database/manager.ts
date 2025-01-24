@@ -15,7 +15,6 @@ export class DatabaseManager {
   constructor(config: Awaited<ReturnType<typeof initConfig>>) {
     this.config = config;
     const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql/delta-entity-447812-p2:us-central1:delta-entity-447812-db';
-
     logger.info('Initializing database connection:', {
       socketPath,
       database: config.DB_NAME,
@@ -27,7 +26,7 @@ export class DatabaseManager {
       database: config.DB_NAME || 'nifya',
       user: config.DB_USER,
       password: config.DB_PASSWORD,
-      ssl: false,
+      ssl: false, // Not needed for Cloud SQL Unix domain socket
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,

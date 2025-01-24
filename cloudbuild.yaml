@@ -41,11 +41,6 @@ steps:
       - '--memory'
       - '512Mi'
       - '--execution-environment'
-      - 'gen2'
-      - '--vpc-connector'
-      - 'projects/delta-entity-447812-p2/locations/us-central1/connectors/vpc-connector'
-      - '--vpc-egress'
-      - 'all-traffic'
 
 images:
   - 'gcr.io/$PROJECT_ID/backend'
