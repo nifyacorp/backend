@@ -9,12 +9,6 @@ export class DatabaseManager {
   private pool: PgPool;
 
   constructor() {
-    interface PoolState {
-      totalCount: number;
-      idleCount: number;
-      waitingCount: number;
-    }
-
     const instanceConnectionName = 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
     
     logger.info('Initializing database manager:', {
@@ -138,16 +132,16 @@ export class DatabaseManager {
   }
 
   private getPoolState(): { totalCount: number; idleCount: number; waitingCount: number } {
-    const pool = this.pool as unknown as {
+    const poolState = this.pool as unknown as {
       totalCount: number;
       idleCount: number;
       waitingCount: number;
     };
 
     return {
-          totalCount: this.pool.totalCount,
-          idleCount: this.pool.idleCount,
-          waitingCount: this.pool.waitingCount
+          totalCount: poolState.totalCount,
+          idleCount: poolState.idleCount,
+          waitingCount: poolState.waitingCount
     };
   }
 
