@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { initConfig } from './config/index.js';
-import authRoutes from './routes/auth.js';
 import { errorHandler } from './middleware/error.js';
 import { DatabaseManager } from './database/manager.js';
 import logger from './utils/logger.js';
@@ -51,15 +50,17 @@ async function startServer() {
     }));
     logger.info('Middleware setup completed');
 
-    // Health check endpoint
+    // Health check endpoints
     app.get('/_health', (req, res) => {
       res.status(200).json({ status: 'healthy' });
     });
 
-    // Routes
-    logger.info('Setting up routes...');
-    app.use('/api/auth', authRoutes);
-    logger.info('Routes setup completed');
+    app.get('/api/health', (req, res) => {
+      res.status(200).json({
+        status: 'healthy',
+        message: 'API server is running'
+      });
+    });
 
     // Error handling
     app.use(errorHandler);

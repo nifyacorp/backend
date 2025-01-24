@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool as PgPool, PoolClient } from 'pg';
 import logger from '../utils/logger.js';
 import dns from 'dns';
 import { promisify } from 'util';
@@ -21,10 +21,10 @@ async function checkSocketFile(): Promise<void> {
   }
 }
 
-async function checkPoolCreation(): Promise<Pool> {
+async function checkPoolCreation(): Promise<PgPool> {
   logger.info('Step 2: Creating connection pool...');
   try {
-    const pool = new Pool({
+    const pool = new PgPool({
       ssl: false,
       max: 1, // Single connection for testing
       connectionTimeoutMillis: 10000,
@@ -40,7 +40,7 @@ async function checkPoolCreation(): Promise<Pool> {
   }
 }
 
-async function checkClientAcquisition(pool: Pool): Promise<PoolClient> {
+async function checkClientAcquisition(pool: PgPool): Promise<PoolClient> {
   logger.info('Step 3: Attempting to acquire client from pool...');
   try {
     const startTime = Date.now();
@@ -107,8 +107,8 @@ async function checkServerVersion(client: PoolClient): Promise<void> {
 }
 
 async function checkDatabaseConnection(): Promise<void> {
-  let pool: Pool | undefined;
-  let client: pkg.PoolClient | undefined;
+  let pool: PgPool | undefined;
+  let client: PoolClient | undefined;
 
   try {
     // Step 1: Check socket file
