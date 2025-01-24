@@ -11,10 +11,10 @@ import { runDiagnostics } from './database/diagnostics.js';
 
 logger.info('Starting application initialization...');
 
-const port = parseInt(process.env.PORT || '8080', 10);
-const host = '0.0.0.0';
+const PORT = 8080;
+const HOST = '0.0.0.0';
 
-logger.info('Configuration:', { port, host });
+logger.info('Configuration:', { PORT, HOST });
 
 async function startServer() {
   try {
@@ -40,9 +40,9 @@ async function startServer() {
     // Middleware
     logger.info('Setting up middleware...');
     app.use(express.json());
-    app.use(cors({
-      origin: ['https://nifya.com', 'https://webcontainer.io'],
-      credentials: true,
+    app.use(cors({ 
+      origin: config.CORS_ORIGIN,
+      credentials: true
     }));
     app.use(helmet());
     app.use(rateLimit({
@@ -66,10 +66,10 @@ async function startServer() {
 
     // Start server
     logger.info('Attempting to start server...');
-    const server = app.listen(port, host, () => {
+    const server = app.listen(PORT, HOST, () => {
       logger.info('Server startup successful', {
-        host,
-        port,
+        host: HOST,
+        port: PORT,
         pid: process.pid,
         nodeVersion: process.version,
         memoryUsage: process.memoryUsage(),

@@ -3,81 +3,55 @@ import pkg from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import logger from '../utils/logger.js';
-import type { initConfig } from '../config/index.js';
-import { runDiagnostics } from './diagnostics.js';
+import type { Config } from '../config/index.js';
 
 const { Pool } = pkg as unknown as { Pool: new (config: any) => PgPool };
 
 export class DatabaseManager {
   private pool: PgPool;
-  private config: Awaited<ReturnType<typeof initConfig>>;
 
-  constructor(config: Awaited<ReturnType<typeof initConfig>>) {
-    this.config = config;
-    logger.info('Initializing database connection:', {
-      database: config.DB_NAME,
-      user: config.DB_USER
-    });
+  constructor(config: Config) {
+    logger.info('Initializing database connection');
+
+    // Cloud SQL Unix Domain Socket path
+    const socketPath = process.env.DB_SOCKET_PATH || '/cloudsql';
+    const instanceConnectionName = process.env.INSTANCE_CONNECTION_NAME || 'delta-entity-447812-p2:us-central1:delta-entity-447812-db';
 
     this.pool = new Pool({
-      database: config.DB_NAME || 'nifya',
-      user: config.DB_USER,
-      password: config.DB_PASSWORD,
+      host: `${socketPath}/${instanceConnectionName}`,
       ssl: false,
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 20000,
-      keepAlive: true
+      keepAlive: true,
+      // Let Cloud Run handle authentication
+      user: undefined,
+      password: undefined,
+      database: undefined
     });
 
     // Handle pool errors
     this.pool.on('error', (err: Error) => {
       logger.error('Pool error occurred:', {
         error: err.message,
-        stack: err.stack,
-        code: (err as any).code,
-        detail: (err as any).detail,
-        hint: (err as any).hint
+        stack: err.stack
       });
       process.exit(-1);
     });
 
-    // Add pool event listeners for debugging
     this.pool.on('connect', () => {
       logger.info('New client connected to pool');
-    });
-
-    this.pool.on('acquire', () => {
-      logger.debug('Client acquired from pool', {
-        totalCount: this.pool.totalCount,
-        idleCount: this.pool.idleCount,
-        waitingCount: this.pool.waitingCount
-      });
-    });
-
-    this.pool.on('remove', () => {
-      logger.debug('Client removed from pool', {
-        totalCount: this.pool.totalCount,
-        idleCount: this.pool.idleCount,
-        waitingCount: this.pool.waitingCount
-      });
     });
   }
 
   private async checkConnection(): Promise<void> {
-    logger.info('Attempting to check database connection...');
     const client = await this.pool.connect();
-    logger.info('Successfully acquired client from pool');
     try {
-      const startTime = Date.now();
       const result = await client.query('SELECT version(), current_database(), current_user');
-      const endTime = Date.now();
-
       logger.info('Database connection details:', {
         version: result.rows[0].version,
         database: result.rows[0].current_database,
         user: result.rows[0].current_user,
-        connectionTime: `${endTime - startTime}ms`,
         poolState: {
           totalCount: this.pool.totalCount,
           idleCount: this.pool.idleCount,
@@ -92,57 +66,36 @@ export class DatabaseManager {
   async init(): Promise<void> {
     try {
       logger.info('Starting database initialization...');
-      logger.info('Checking connection before schema application...');
       await this.checkConnection();
-      logger.info('Connection check successful');
-
-      // Apply initial schema if needed
-      logger.info('Beginning schema application...');
       await this.applySchema();
-      logger.info('Schema application completed');
-
       logger.info('Database initialization completed successfully');
     } catch (error) {
       logger.error('Failed to initialize database connection:', {
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        database: this.config.DB_NAME,
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
   }
 
   private async applySchema(): Promise<void> {
-    logger.info('Attempting to acquire client for schema application...');
     const client = await this.pool.connect();
-    logger.info('Successfully acquired client for schema application');
     try {
-      // Check if schema already exists
-      logger.info('Checking if users table exists...');
       const tableExists = await client.query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_name = 'users'
         );
       `);
-      logger.info('Table existence check result:', { exists: tableExists.rows[0].exists });
 
       if (!tableExists.rows[0].exists) {
-        logger.info('Users table does not exist, beginning schema creation...');
         await client.query('BEGIN');
-        logger.info('Transaction started');
-
         const schemaSQL = readFileSync(
           join(process.cwd(), 'dist/database/migrations/20250123130842_wooden_coast.sql'),
           'utf-8'
         );
-        logger.info('Schema SQL file loaded successfully');
-
         await client.query(schemaSQL);
-        logger.info('Schema SQL executed successfully');
         await client.query('COMMIT');
-        logger.info('Transaction committed');
-        
         logger.info('Initial schema applied successfully');
       } else {
         logger.info('Schema already exists, skipping initialization');
@@ -160,24 +113,15 @@ export class DatabaseManager {
 
   async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
     const client = await this.pool.connect();
-    const startTime = Date.now();
     try {
       const result = await client.query(sql, params);
-      const endTime = Date.now();
-      logger.debug('Query executed:', {
-        sql,
-        params,
-        rowCount: result.rowCount,
-        executionTime: `${endTime - startTime}ms`,
-      });
       return result.rows as T[];
     } catch (error) {
       logger.error('Database query failed:', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         sql,
-        params,
-        database: this.config.DB_NAME,
+        params
       });
       throw error;
     } finally {

@@ -14,15 +14,8 @@ COPY . .
 # Build TypeScript code
 RUN npm run build
 
-# Clean up dev dependencies
-RUN npm prune --production
-
-# Set production environment
-ENV NODE_ENV=production
-
 # Expose Cloud Run default port
 EXPOSE 8080
-ENV PORT=8080
 
 # Start production server
 CMD [ "npm", "start" ]
