@@ -4,35 +4,38 @@ A Node.js backend service built with Fastify for managing user subscriptions and
 
 ## 🚀 Features
 
-- User authentication and profile management
+- JWT-based authentication with Google Cloud Secret Manager
 - Subscription management for BOE and real estate updates
-- Real-time notifications via Google Cloud Pub/Sub
+- User profile creation via Google Cloud Pub/Sub
 - PostgreSQL database with row-level security
 - Swagger API documentation
-- Health monitoring endpoints
+- Structured logging throughout the application
 
 ## 🛠 Tech Stack
 
-- **Runtime**: Node.js
+- **Runtime**: Node.js 20
 - **Framework**: Fastify
 - **Database**: PostgreSQL
 - **Authentication**: JWT
 - **Cloud Services**:
-  - Google Cloud Pub/Sub
-  - Google Cloud Secret Manager
-  - Google Cloud SQL
+  - Google Cloud Secret Manager (JWT secret management)
+  - Google Cloud Pub/Sub (user profile events)
+  - Google Cloud SQL (PostgreSQL hosting)
 - **Documentation**: Swagger/OpenAPI
 
 ## 📋 Prerequisites
 
 - Node.js 20 or higher
 - PostgreSQL database
-- Google Cloud project with required services enabled
+- Google Cloud project with:
+  - Secret Manager enabled
+  - Pub/Sub enabled
+  - Cloud SQL configured
 - Environment variables configured (see `.env.example`)
 
 ## 🔧 Configuration
 
-Copy `.env.example` to `.env` and configure the following variables:
+Copy `.env.example` to `.env` and configure:
 
 ```bash
 # Database Configuration
@@ -48,108 +51,130 @@ PORT=3000
 .
 ├── src/
 │   ├── config/           # Configuration modules
-│   │   ├── auth.js       # JWT verification and Secret Manager integration
-│   │   ├── database.js   # PostgreSQL connection and query handling
-│   │   └── pubsub.js     # Google Cloud Pub/Sub event handling
-│   ├── plugins/          # Fastify plugins
+│   │   ├── auth.js       # JWT verification with Secret Manager
+│   │   ├── database.js   # PostgreSQL connection pool
+│   │   └── pubsub.js     # Pub/Sub event handling
+│   ├── plugins/
 │   │   └── auth.js       # JWT authentication middleware
-│   ├── routes/           # API routes
-│   │   ├── auth.js       # Authentication routes
-│   │   ├── health.js     # Health check endpoints
-│   │   ├── notifications.js  # Notification management
-│   │   ├── subscriptions.js  # Subscription handling
-│   │   └── users.js         # User profile management
-│   ├── services/         # Business logic
-│   │   └── users.js      # User-related business logic
-│   └── index.js          # Server initialization and route setup
-├── supabase/migrations/  # PostgreSQL schema migrations
-├── Dockerfile           # Container configuration
-├── package.json         # Project dependencies and scripts
-└── .env.example         # Environment variable template
+│   ├── routes/
+│   │   └── subscriptions.js  # Subscription management
+│   ├── services/
+│   │   └── users.js      # User creation handling
+│   └── index.js          # Application entry point
+├── supabase/
+│   └── migrations/       # Database schema
+├── Dockerfile
+└── package.json
 ```
 
 ## 🔑 Authentication
 
-All protected endpoints require a valid JWT token in the Authorization header:
-```
-Authorization: Bearer <token>
-```
+Protected endpoints require:
+1. JWT token in Authorization header:
+   ```
+   Authorization: Bearer <token>
+   ```
+2. User ID in custom header:
+   ```
+   X-User-ID: <user-id>
+   ```
 
-The JWT token is verified using Google Cloud Secret Manager for secure key management.
+JWT tokens are verified using Google Cloud Secret Manager.
 
 ## 🚦 API Endpoints
 
-### Authentication (`/api/auth`)
-- `GET /me` - Get current user profile
-
-### Users (`/users`)
-- `GET /:id` - Get user profile
-- `PATCH /:id/preferences` - Update user preferences
-
 ### Subscriptions (`/subscriptions`)
 - `GET /` - List user subscriptions
+  - Returns active and inactive subscriptions
+  - Supports filtering by type (BOE/real estate)
+  - Requires authentication
 
-### Notifications (`/notifications`)
-- `GET /count` - Get unread notification counts
-- `GET /recent` - Get recent notifications
+## 🔄 Event Processing
 
-### Health (`/health`)
-- `GET /` - Service health check
+### User Creation Flow
+1. Pub/Sub receives user creation event
+2. Event triggers user profile creation
+3. Profile stored in PostgreSQL database
+4. Automatic error handling and retries
 
 ## 🏃‍♂️ Running the Service
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+### Development
+```bash
+npm install
+npm run dev
+```
 
-2. Set up environment variables:
-   - Copy `.env.example` to `.env`
-   - Configure required variables
+### Production
+```bash
+npm install --production
+npm start
+```
 
-3. Start the service:
-   - Development: `npm run dev`
-   - Production: `npm start`
-   - Docker: `docker build -t nifya-orchestration-service . && docker run -p 3000:3000 nifya-orchestration-service`
+### Docker
+```bash
+docker build -t nifya-orchestration-service .
+docker run -p 3000:3000 nifya-orchestration-service
+```
 
-## 🔒 Security
+## 🔒 Security Features
 
-- JWT authentication using Google Cloud Secret Manager
-- PostgreSQL with row-level security
+- JWT verification using Google Cloud Secret Manager
+- Secret rotation support (24-hour cache)
+- Row-level security in PostgreSQL
 - CORS protection
-- Request validation using Fastify schemas
+- Request validation via Fastify schemas
 
 ## 📝 Database Schema
 
-The database schema is managed through migrations in `supabase/migrations/`:
-- `users`: User profiles and preferences
-- `subscriptions`: BOE and real estate monitoring settings
-- `notifications`: User notification management
-- `activity_logs`: User action tracking
-- `subscription_templates`: Reusable subscription configurations
-- `feedback`: User feedback on notifications
+Key tables in the current implementation:
 
-## 🔄 Event Flow
+### Users
+- Profile information
+- Notification preferences
+- Row-level security enabled
 
-1. Authentication via JWT
-2. Subscription management through REST API
-3. Real-time updates via Google Cloud Pub/Sub
-4. Notification delivery based on user preferences
+### Subscriptions
+- BOE and real estate monitoring
+- User-specific settings
+- Frequency configuration
+- Row-level security enabled
 
 ## 📊 Monitoring
 
 - Structured logging with timestamps
+- Request/response logging
 - Database query monitoring
-- Connection pool stats
-- Health checks
+- Pub/Sub event tracking
+- Authentication attempt logging
 
-## 🤝 Contributing
+## 🔍 Example Usage
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+```javascript
+// Fetch subscriptions
+async function fetchSubscriptions() {
+  try {
+    const response = await fetch('http://localhost:3000/subscriptions', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer your-jwt-token',
+        'X-User-ID': 'your-user-id',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.subscriptions;
+  } catch (error) {
+    console.error('Failed to fetch subscriptions:', error);
+    throw error;
+  }
+}
+```
 
 ## 📄 License
 

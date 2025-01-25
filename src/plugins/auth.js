@@ -60,11 +60,16 @@ export async function authPlugin(fastify, options) {
       // 3. Verify token
       const decoded = verifyToken(token);
       
-      // 4. Set user context from header
-      request.user = { id: userId };
+      // 4. Set user context from header before proceeding
+      if (!request.user) {
+        request.user = {};
+      }
+      request.user.id = userId;
 
       console.log('✅ Authentication successful:', {
         userId,
+        hasUser: !!request.user,
+        hasUserId: !!request.user.id,
         path: request.url,
         timestamp: new Date().toISOString()
       });
