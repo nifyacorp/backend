@@ -49,9 +49,11 @@ class AuthService {
   verifyToken(token) {
     console.log('🔑 Verifying JWT token...', {
       hasToken: !!token,
-      tokenFormat: token ? `${token.substring(0, 10)}...` : 'none',
+      tokenFormat: token ? `${token.substring(0, 20)}...` : 'none',
       hasSecret: !!this.JWT_SECRET,
       secretLength: this.JWT_SECRET?.length,
+      secretFirstChar: this.JWT_SECRET ? this.JWT_SECRET[0] : null,
+      secretLastChar: this.JWT_SECRET ? this.JWT_SECRET[this.JWT_SECRET.length - 1] : null,
       timestamp: new Date().toISOString()
     });
 
@@ -70,11 +72,22 @@ class AuthService {
       const decodedHeader = jwt.decode(token, { complete: true });
       console.log('🔍 Token structure:', {
         hasHeader: !!decodedHeader?.header,
+        headerComplete: JSON.stringify(decodedHeader?.header),
         algorithm: decodedHeader?.header?.alg,
         tokenType: decodedHeader?.header?.typ,
+        payloadClaims: decodedHeader?.payload ? Object.keys(decodedHeader.payload) : [],
+        issuer: decodedHeader?.payload?.iss,
         timestamp: new Date().toISOString()
       });
 
+      // Log token parts for debugging
+      const [headerB64, payloadB64, signature] = token.split('.');
+      console.log('🔍 Token parts:', {
+        headerLength: headerB64?.length,
+        payloadLength: payloadB64?.length,
+        signatureLength: signature?.length,
+        timestamp: new Date().toISOString()
+      });
       const decoded = jwt.verify(token, this.JWT_SECRET);
       
       if (!decoded || !decoded.sub) {
