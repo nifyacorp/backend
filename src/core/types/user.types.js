@@ -20,7 +20,7 @@ export const USER_ERRORS = {
     message: 'Invalid language selection'
   }
 };
-
+};
 export const USER_PREFERENCES = {
   THEMES: ['light', 'dark', 'system'],
   LANGUAGES: ['es', 'en', 'ca']
