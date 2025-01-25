@@ -7,23 +7,36 @@ class AuthService {
   constructor() {
     this.secretClient = new SecretManagerServiceClient();
     this.JWT_SECRET = null;
-    this.SECRET_EXPIRY = null;
-    this.CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+    this.secretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/JWT_SECRET/versions/latest`;
+    console.log('🔐 Initializing auth service with secret:', {
+      project: process.env.GOOGLE_CLOUD_PROJECT,
+      hasSecretClient: !!this.secretClient,
+      timestamp: new Date().toISOString()
+    });
   }
 
   async initialize() {
-    if (this.JWT_SECRET && this.SECRET_EXPIRY && Date.now() < this.SECRET_EXPIRY) {
-      return;
-    }
-
     try {
+      console.log('📦 Fetching JWT secret...');
+      
       const [version] = await this.secretClient.accessSecretVersion({
-        name: 'projects/delta-entity-447812-p2/secrets/JWT_SECRET/versions/latest'
+        name: this.secretName
       });
       
       this.JWT_SECRET = version.payload.data.toString();
-      this.SECRET_EXPIRY = Date.now() + this.CACHE_DURATION;
+      
+      console.log('✅ JWT secret loaded successfully', {
+        secretLength: this.JWT_SECRET.length,
+        timestamp: new Date().toISOString()
+      });
+      
     } catch (error) {
+      console.error('❌ Failed to load JWT secret:', {
+        error: error.message,
+        name: error.name,
+        timestamp: new Date().toISOString()
+      });
+      
       throw new AppError(
         AUTH_ERRORS.SECRET_ERROR.code,
         'Failed to initialize JWT secret',
@@ -34,12 +47,20 @@ class AuthService {
   }
 
   verifyToken(token) {
-    if (!this.JWT_SECRET || !this.SECRET_EXPIRY || Date.now() >= this.SECRET_EXPIRY) {
+    console.log('🔑 Verifying JWT token...', {
+      hasToken: !!token,
+      tokenLength: token?.length,
+      hasSecret: !!this.JWT_SECRET,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!this.JWT_SECRET) {
+      console.error('❌ JWT verification failed: Secret not initialized');
       throw new AppError(
         AUTH_ERRORS.SECRET_ERROR.code,
         'JWT secret not initialized or expired',
         500,
-        { secretInitialized: !!this.JWT_SECRET, secretExpired: Date.now() >= this.SECRET_EXPIRY }
+        { secretInitialized: !!this.JWT_SECRET }
       );
     }
 
