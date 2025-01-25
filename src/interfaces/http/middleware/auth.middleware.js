@@ -31,7 +31,18 @@ export async function authenticate(request, reply) {
       path: request.url
     });
 
-    const token = request.headers.authorization?.replace('Bearer ', '');
+    // Extract token, ensuring proper Bearer format
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new AppError(
+        AUTH_ERRORS.MISSING_HEADERS.code,
+        'Invalid Authorization header format. Must be: Bearer <token>',
+        401,
+        { providedHeader: authHeader }
+      );
+    }
+
+    const token = authHeader.split(' ')[1];
     const userId = request.headers['x-user-id'];
 
     if (!token || !userId) {
@@ -42,6 +53,13 @@ export async function authenticate(request, reply) {
         { missingToken: !token, missingUserId: !userId }
       );
     }
+
+    // Log token details for debugging (excluding sensitive parts)
+    console.log('🔑 Token verification attempt:', {
+      tokenLength: token?.length,
+      hasUserId: !!userId,
+      timestamp: new Date().toISOString()
+    });
 
     const decoded = authService.verifyToken(token);
     

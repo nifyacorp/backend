@@ -49,8 +49,9 @@ class AuthService {
   verifyToken(token) {
     console.log('🔑 Verifying JWT token...', {
       hasToken: !!token,
-      tokenLength: token?.length,
+      tokenFormat: token ? `${token.substring(0, 10)}...` : 'none',
       hasSecret: !!this.JWT_SECRET,
+      secretLength: this.JWT_SECRET?.length,
       timestamp: new Date().toISOString()
     });
 
@@ -65,6 +66,15 @@ class AuthService {
     }
 
     try {
+      // First decode without verification to check structure
+      const decodedHeader = jwt.decode(token, { complete: true });
+      console.log('🔍 Token structure:', {
+        hasHeader: !!decodedHeader?.header,
+        algorithm: decodedHeader?.header?.alg,
+        tokenType: decodedHeader?.header?.typ,
+        timestamp: new Date().toISOString()
+      });
+
       const decoded = jwt.verify(token, this.JWT_SECRET);
       
       if (!decoded || !decoded.sub) {
