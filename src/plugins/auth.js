@@ -25,31 +25,40 @@ export async function authPlugin(fastify, options) {
       });
 
       // Extract and verify token
-      const token = extractToken(request.headers.authorization);
-      const decoded = await verifyToken(token);
+      try {
+        const token = extractToken(request.headers.authorization);
+        const decoded = await verifyToken(token);
 
-      if (!decoded.sub) {
-        throw new Error('Invalid token: missing sub claim');
+        if (!decoded.sub) {
+          throw new Error('Invalid token: missing sub claim');
+        }
+
+        // Verify user exists in database
+        const result = await query(
+          'SELECT id FROM users WHERE id = $1',
+          [decoded.sub]
+        );
+
+        if (result.rows.length === 0) {
+          throw new Error('User not found');
+        }
+
+        // Set user on request
+        request.user = { id: result.rows[0].id };
+
+        console.log('✅ Authentication successful:', {
+          userId: request.user.id,
+          path: request.url,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('❌ Token verification failed:', {
+          error: error.message,
+          path: request.url,
+          timestamp: new Date().toISOString()
+        });
+        throw error;
       }
-
-      // Verify user exists in database
-      const result = await query(
-        'SELECT id FROM users WHERE id = $1',
-        [decoded.sub]
-      );
-
-      if (result.rows.length === 0) {
-        throw new Error('User not found');
-      }
-
-      // Set user on request
-      request.user = { id: result.rows[0].id };
-
-      console.log('✅ Authentication successful:', {
-        userId: request.user.id,
-        path: request.url,
-        timestamp: new Date().toISOString()
-      });
 
     } catch (error) {
       console.error('❌ Authentication error:', {

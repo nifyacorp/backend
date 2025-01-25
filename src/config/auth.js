@@ -31,7 +31,7 @@ export async function initializeAuth() {
   }
 }
 
-export function verifyToken(token) {
+export async function verifyToken(token) {
   console.log('🔑 Verifying JWT token...', {
     hasToken: !!token,
     tokenLength: token?.length || 0,
@@ -50,6 +50,11 @@ export function verifyToken(token) {
   }
 
   try {
+    // Ensure JWT_SECRET is loaded
+    if (!JWT_SECRET) {
+      await initializeAuth();
+    }
+
     // First decode without verification to log token structure
     const decoded = jwt.decode(token, { complete: true });
     
