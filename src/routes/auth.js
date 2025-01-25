@@ -12,7 +12,11 @@ export async function authRoutes(fastify, options) {
               properties: {
                 id: { type: 'string', format: 'uuid' },
                 name: { type: 'string' },
-                email: { type: 'string', format: 'email' }
+                email: { type: 'string', format: 'email' },
+                preferences: { type: 'object' },
+                notification_settings: { type: 'object' },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' }
               }
             }
           }
@@ -35,7 +39,7 @@ export async function authRoutes(fastify, options) {
       });
 
       const result = await query(
-        'SELECT id, name, email FROM users WHERE id = $1',
+        'SELECT id, name, email, preferences, notification_settings, created_at, updated_at FROM users WHERE id = $1',
         [request.user.id]
       );
 
@@ -50,6 +54,8 @@ export async function authRoutes(fastify, options) {
 
       console.log('✅ User profile retrieved:', {
         userId: result.rows[0].id,
+        hasPreferences: !!result.rows[0].preferences,
+        hasNotificationSettings: !!result.rows[0].notification_settings,
         timestamp: new Date().toISOString()
       });
 
