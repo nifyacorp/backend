@@ -72,25 +72,31 @@ export async function authenticate(request, reply) {
     }
 
     // Decorate request with user context
-    request.user = {
-      id: userId,
-      token: decoded
-    };
+    if (!request.user) {
+      request.user = {};
+    }
+    request.user.id = userId;
+    request.user.token = decoded;
 
     console.log('✅ Authentication successful:', {
       userId,
       hasUser: !!request.user,
       userIdMatch: request.user?.id === userId,
+      userObject: {
+        hasId: !!request.user?.id,
+        hasToken: !!request.user?.token
+      },
       path: request.url,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
     logAuthError(error, request);
-    return reply.code(401).send({
+    reply.code(401).send({
       error: 'Unauthorized',
       code: error.code || 'AUTH_ERROR',
       message: error.message
     });
+    return reply;
   }
 }
