@@ -4,6 +4,11 @@ export async function authPlugin(fastify, options) {
   fastify.decorateRequest('user', null);
 
   fastify.addHook('preHandler', async (request, reply) => {
+    // Skip auth for health check and documentation
+    if (request.url === '/health' || request.url.startsWith('/documentation')) {
+      return;
+    }
+    
     // Skip auth for health check
     if (request.url === '/health') return;
     
@@ -30,16 +35,11 @@ export async function authPlugin(fastify, options) {
 
       // 2. Check for required headers
       const token = request.headers.authorization?.replace('Bearer ', '');
-      // Get user ID header case-insensitively
-      const userIdKey = Object.keys(request.headers)
-        .find(key => key.toLowerCase() === 'x-user-id');
-      const userId = userIdKey ? request.headers[userIdKey] : null;
+      const userId = request.headers['x-user-id'];
       
       // Debug header extraction
       console.log('🔑 Header Extraction:', {
-        foundKey: userIdKey,
         extractedUserId: userId,
-        allHeaderKeys: Object.keys(request.headers),
         timestamp: new Date().toISOString()
       });
 
@@ -47,6 +47,7 @@ export async function authPlugin(fastify, options) {
         console.log('❌ Missing required headers:', {
           hasToken: !!token,
           hasUserId: !!userId,
+          headers: Object.keys(request.headers),
           timestamp: new Date().toISOString()
         });
         throw { 
@@ -60,11 +61,8 @@ export async function authPlugin(fastify, options) {
       // 3. Verify token
       const decoded = verifyToken(token);
       
-      // 4. Set user context from header before proceeding
-      if (!request.user) {
-        request.user = {};
-      }
-      request.user.id = userId;
+      // 4. Set user context
+      request.user = { id: userId };
 
       console.log('✅ Authentication successful:', {
         userId,
