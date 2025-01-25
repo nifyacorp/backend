@@ -1,51 +1,114 @@
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import jwt from 'jsonwebtoken';
+import { query } from '../config/database.js';
 
-// Secret cache with expiration
-let JWT_SECRET;
-let SECRET_EXPIRY;
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-const secretClient = new SecretManagerServiceClient();
-
-export async function initializeAuth() {
-  // Return if secret is still valid
-  if (JWT_SECRET && SECRET_EXPIRY && Date.now() < SECRET_EXPIRY) {
-    return;
-  }
-
-  try {
-    const [version] = await secretClient.accessSecretVersion({
-      name: 'projects/delta-entity-447812-p2/secrets/JWT_SECRET/versions/latest'
-    });
-    
-    JWT_SECRET = version.payload.data.toString();
-    SECRET_EXPIRY = Date.now() + CACHE_DURATION;
-    
-  } catch (error) {
-    console.error('Failed to load JWT secret:', error.message);
-    throw new Error('JWT secret initialization failed');
-  }
+// Helper to create structured log entries
+function createLogEntry(step, details) {
+  return {
+    service: 'subscription-service',
+    endpoint: 'GET /subscriptions',
+    step,
+    timestamp: new Date().toISOString(),
+    ...details
+  };
 }
 
-function getSecret() {
-  if (!JWT_SECRET || !SECRET_EXPIRY || Date.now() >= SECRET_EXPIRY) {
-    throw new Error('JWT secret not initialized or expired');
-  }
-  return JWT_SECRET;
-}
+export async function subscriptionRoutes(fastify, options) {
+  fastify.get('/', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            subscriptions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  type: { type: 'string', enum: ['boe', 'real-estate'] },
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  prompts: { 
+                    type: 'array',
+                    items: { type: 'string' }
+                  },
+                  frequency: { type: 'string', enum: ['immediate', 'daily'] },
+                  active: { type: 'boolean' },
+                  created_at: { type: 'string', format: 'date-time' },
+                  updated_at: { type: 'string', format: 'date-time' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      console.log(createLogEntry('start', {
+        requestId: request.id,
+        hasUser: !!request.user,
+        hasUserId: !!request.user?.id
+      }));
 
-export function verifyToken(token) {
-  try {
-    const secret = getSecret();
-    return jwt.verify(token, secret);
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      throw { code: 'TOKEN_EXPIRED', message: 'Token has expired' };
+      if (!request.user) {
+        console.log(createLogEntry('error', {
+          requestId: request.id,
+          error: 'no_user_object',
+          message: 'No user object in request'
+        }));
+        reply.code(401).send({ error: 'Unauthorized - No user object' });
+        return;
+      }
+
+      if (!request.user.id) {
+        console.log(createLogEntry('error', {
+          requestId: request.id,
+          error: 'no_user_id',
+          message: 'No user ID in request'
+        }));
+        reply.code(401).send({ error: 'Unauthorized - No user ID' });
+        return;
+      }
+
+      console.log(createLogEntry('database_query_start', {
+        requestId: request.id,
+        userId: request.user.id
+      }));
+
+      const result = await query(
+        `SELECT 
+          id,
+          type,
+          name,
+          description,
+          prompts,
+          frequency,
+          status = 'active' as active,
+          created_at,
+          updated_at
+        FROM subscriptions 
+        WHERE user_id = $1
+        ORDER BY created_at DESC`,
+        [request.user.id]
+      );
+
+      console.log(createLogEntry('database_query_complete', {
+        requestId: request.id,
+        userId: request.user.id,
+        rowCount: result.rows.length
+      }));
+
+      return { subscriptions: result.rows };
+    } catch (error) {
+      console.log(createLogEntry('error', {
+        requestId: request.id,
+        userId: request.user?.id,
+        error: error.code || 'unknown_error',
+        message: error.message,
+        stack: error.stack
+      }));
+      request.log.error('Failed to fetch subscriptions:', error);
+      throw error;
     }
-    if (error.message === 'JWT secret not initialized or expired') {
-      throw { code: 'SECRET_ERROR', message: 'Authentication service unavailable' };
-    }
-    throw { code: 'INVALID_TOKEN', message: 'Invalid token' };
-  }
+  });
 }
