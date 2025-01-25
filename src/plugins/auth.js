@@ -20,9 +20,9 @@ export async function authPlugin(fastify, options) {
       // 2. Check for required headers
       const token = request.headers.authorization?.replace('Bearer ', '');
       // Get user ID header case-insensitively
-      const userId = Object.keys(request.headers)
-        .find(key => key.toLowerCase() === 'x-user-id')
-        ?.map(key => request.headers[key])[0];
+      const userIdKey = Object.keys(request.headers)
+        .find(key => key.toLowerCase() === 'x-user-id');
+      const userId = userIdKey ? request.headers[userIdKey] : null;
 
       if (!token || !userId) {
         console.log('❌ Missing required headers:', {
@@ -32,7 +32,9 @@ export async function authPlugin(fastify, options) {
         });
         throw { 
           code: 'MISSING_HEADERS', 
-          message: 'Authorization token and x-user-id header required' 
+          message: 'Authorization token and x-user-id header required',
+          hasToken: !!token,
+          hasUserId: !!userId
         };
       }
 
