@@ -48,109 +48,100 @@ PORT=3000
 .
 ├── src/
 │   ├── config/           # Configuration modules
-│   │   ├── auth.js       # Authentication setup
-│   │   ├── database.js   # Database connection
-│   │   └── pubsub.js     # Google Cloud Pub/Sub setup
+│   │   ├── auth.js       # JWT verification and Secret Manager integration
+│   │   ├── database.js   # PostgreSQL connection and query handling
+│   │   └── pubsub.js     # Google Cloud Pub/Sub event handling
 │   ├── plugins/          # Fastify plugins
-│   │   └── auth.js       # Authentication plugin
+│   │   └── auth.js       # JWT authentication middleware
 │   ├── routes/           # API routes
 │   │   ├── auth.js       # Authentication routes
 │   │   ├── health.js     # Health check endpoints
-│   │   ├── notifications.js
-│   │   ├── subscriptions.js
-│   │   └── users.js
+│   │   ├── notifications.js  # Notification management
+│   │   ├── subscriptions.js  # Subscription handling
+│   │   └── users.js         # User profile management
 │   ├── services/         # Business logic
-│   │   └── users.js
-│   └── index.js          # Application entry point
-├── supabase/
-│   └── migrations/       # Database migrations
+│   │   └── users.js      # User-related business logic
+│   └── index.js          # Server initialization and route setup
+├── supabase/migrations/  # PostgreSQL schema migrations
 ├── Dockerfile           # Container configuration
-└── package.json
+├── package.json         # Project dependencies and scripts
+└── .env.example         # Environment variable template
 ```
+
+## 🔑 Authentication
+
+All protected endpoints require a valid JWT token in the Authorization header:
+```
+Authorization: Bearer <token>
+```
+
+The JWT token is verified using Google Cloud Secret Manager for secure key management.
 
 ## 🚦 API Endpoints
 
-### Authentication
-- `GET /api/auth/me` - Get current user profile
+### Authentication (`/api/auth`)
+- `GET /me` - Get current user profile
 
-### Users
-- `GET /users/:id` - Get user profile
-- `PATCH /users/:id/preferences` - Update user preferences
+### Users (`/users`)
+- `GET /:id` - Get user profile
+- `PATCH /:id/preferences` - Update user preferences
 
-### Subscriptions
-- `GET /subscriptions` - List user subscriptions
+### Subscriptions (`/subscriptions`)
+- `GET /` - List user subscriptions
 
-### Notifications
-- `GET /notifications/count` - Get unread notification counts
-- `GET /notifications/recent` - Get recent notifications
+### Notifications (`/notifications`)
+- `GET /count` - Get unread notification counts
+- `GET /recent` - Get recent notifications
 
-### Health
-- `GET /health` - Service health check
+### Health (`/health`)
+- `GET /` - Service health check
 
 ## 🏃‍♂️ Running the Service
 
-### Local Development
-```bash
-# Install dependencies
-npm install
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-# Start development server
-npm run dev
-```
+2. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Configure required variables
 
-### Production
-```bash
-# Start production server
-npm start
-```
-
-### Docker
-```bash
-# Build container
-docker build -t nifya-orchestration-service .
-
-# Run container
-docker run -p 3000:3000 nifya-orchestration-service
-```
+3. Start the service:
+   - Development: `npm run dev`
+   - Production: `npm start`
+   - Docker: `docker build -t nifya-orchestration-service . && docker run -p 3000:3000 nifya-orchestration-service`
 
 ## 🔒 Security
 
-- JWT-based authentication
-- Row-level security in PostgreSQL
-- Secure secret management via Google Cloud Secret Manager
-- CORS enabled with proper configuration
+- JWT authentication using Google Cloud Secret Manager
+- PostgreSQL with row-level security
+- CORS protection
+- Request validation using Fastify schemas
 
 ## 📝 Database Schema
 
-### Users
-- Profile information
-- Notification preferences
-- Row-level security enabled
-
-### Subscriptions
-- BOE and real estate monitoring
-- Customizable notification frequency
-- User-specific settings
-
-### Notifications
-- Real-time updates
-- Read/unread status tracking
-- Source URL tracking
+The database schema is managed through migrations in `supabase/migrations/`:
+- `users`: User profiles and preferences
+- `subscriptions`: BOE and real estate monitoring settings
+- `notifications`: User notification management
+- `activity_logs`: User action tracking
+- `subscription_templates`: Reusable subscription configurations
+- `feedback`: User feedback on notifications
 
 ## 🔄 Event Flow
 
-1. User creates subscription
-2. System monitors sources based on subscription settings
-3. New matches trigger Pub/Sub events
-4. Service processes events and creates notifications
-5. Users receive updates based on their notification preferences
+1. Authentication via JWT
+2. Subscription management through REST API
+3. Real-time updates via Google Cloud Pub/Sub
+4. Notification delivery based on user preferences
 
 ## 📊 Monitoring
 
-- Detailed logging with timestamps and contextual information
-- Database query performance tracking
-- Connection pool monitoring
-- Health check endpoint for service status
+- Structured logging with timestamps
+- Database query monitoring
+- Connection pool stats
+- Health checks
 
 ## 🤝 Contributing
 
