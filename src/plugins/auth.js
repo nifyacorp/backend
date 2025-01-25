@@ -46,7 +46,7 @@ export async function authPlugin(fastify, options) {
       }
 
       // Verify JWT token
-      const decoded = verifyToken(token);
+      const decoded = await verifyToken(token);
 
       if (!decoded.sub) {
         console.log('❌ Token missing sub claim:', {
