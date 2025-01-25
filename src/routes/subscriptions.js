@@ -44,6 +44,17 @@ export async function subscriptionRoutes(fastify, options) {
     }
   }, async (request, reply) => {
     try {
+      // Debug full request state
+      console.log('📦 Subscription Request Debug:', {
+        headers: {
+          ...request.headers,
+          authorization: request.headers.authorization ? '[REDACTED]' : undefined
+        },
+        user: request.user,
+        requestId: request.id,
+        timestamp: new Date().toISOString()
+      });
+
       console.log(createLogEntry('start', {
         requestId: request.id,
         hasUser: !!request.user,

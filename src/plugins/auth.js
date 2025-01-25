@@ -6,6 +6,17 @@ export async function authPlugin(fastify, options) {
   fastify.addHook('preHandler', async (request, reply) => {
     // Skip auth for health check
     if (request.url === '/health') return;
+    
+    // Debug full request details
+    console.log('🔍 Incoming Request Debug:', {
+      headers: {
+        ...request.headers,
+        authorization: request.headers.authorization ? '[REDACTED]' : undefined
+      },
+      url: request.url,
+      method: request.method,
+      timestamp: new Date().toISOString()
+    });
 
     try {
       // 1. Log incoming request
@@ -23,6 +34,14 @@ export async function authPlugin(fastify, options) {
       const userIdKey = Object.keys(request.headers)
         .find(key => key.toLowerCase() === 'x-user-id');
       const userId = userIdKey ? request.headers[userIdKey] : null;
+      
+      // Debug header extraction
+      console.log('🔑 Header Extraction:', {
+        foundKey: userIdKey,
+        extractedUserId: userId,
+        allHeaderKeys: Object.keys(request.headers),
+        timestamp: new Date().toISOString()
+      });
 
       if (!token || !userId) {
         console.log('❌ Missing required headers:', {
