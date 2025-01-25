@@ -8,22 +8,52 @@ export async function authPlugin(fastify, options) {
     if (request.url === '/health') return;
 
     try {
-      // 1. Extract token
+      // 1. Log incoming request
+      console.log('🔒 Auth check:', {
+        path: request.url,
+        method: request.method,
+        hasAuthHeader: !!request.headers.authorization,
+        hasUserIdHeader: !!request.headers['x-user-id'],
+        timestamp: new Date().toISOString()
+      });
+
+      // 2. Check for required headers
       const token = request.headers.authorization?.replace('Bearer ', '');
-      if (!token) {
-        throw { code: 'NO_TOKEN', message: 'Authorization token required' };
+      // Handle case-insensitive header
+      const userId = request.headers['x-user-id'] || request.headers['X-User-ID'];
+
+      if (!token || !userId) {
+        console.log('❌ Missing required headers:', {
+          hasToken: !!token,
+          hasUserId: !!userId,
+          timestamp: new Date().toISOString()
+        });
+        throw { 
+          code: 'MISSING_HEADERS', 
+          message: 'Authorization token and X-User-ID header required' 
+        };
       }
 
-      // 2. Verify token and get user
+      // 3. Verify token
       const decoded = verifyToken(token);
-      if (!decoded.sub) {
-        throw { code: 'INVALID_TOKEN', message: 'Invalid token format' };
-      }
+      
+      // 4. Set user context from header
+      request.user = { id: userId };
 
-      // 3. Set user context
-      request.user = { id: decoded.sub };
+      console.log('✅ Authentication successful:', {
+        userId,
+        path: request.url,
+        timestamp: new Date().toISOString()
+      });
 
     } catch (error) {
+      console.error('❌ Authentication error:', {
+        code: error.code || 'AUTH_ERROR',
+        message: error.message,
+        path: request.url,
+        timestamp: new Date().toISOString()
+      });
+
       reply.code(401).send({
         error: 'Unauthorized',
         code: error.code || 'AUTH_ERROR',
