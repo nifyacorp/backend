@@ -73,7 +73,12 @@ export async function authPlugin(fastify, options) {
           sub: decoded.sub,
           timestamp: new Date().toISOString()
         });
-        throw new Error('User not found');
+        reply.code(401).send({ 
+          error: 'Unauthorized',
+          code: 'USER_NOT_FOUND',
+          message: 'User not found in database'
+        });
+        return;
       }
 
       request.user = { id: result.rows[0].id };
@@ -84,16 +89,32 @@ export async function authPlugin(fastify, options) {
         timestamp: new Date().toISOString()
       });
     } catch (error) {
+      let errorResponse = {
+        error: 'Unauthorized',
+        code: 'AUTHENTICATION_FAILED',
+        message: 'Authentication failed'
+      };
+
+      if (error.name === 'JsonWebTokenError') {
+        errorResponse.code = 'INVALID_TOKEN';
+        errorResponse.message = 'Invalid token format or signature';
+      } else if (error.name === 'TokenExpiredError') {
+        errorResponse.code = 'TOKEN_EXPIRED';
+        errorResponse.message = 'Token has expired';
+      } else if (error.message === 'No authorization header') {
+        errorResponse.code = 'NO_TOKEN';
+        errorResponse.message = 'No authorization token provided';
+      }
+
       console.error('❌ Authentication error:', {
         error: error.message,
+        errorCode: errorResponse.code,
         path: request.url,
         method: request.method,
         timestamp: new Date().toISOString()
       });
-      reply.code(401).send({ 
-        error: 'Unauthorized',
-        message: error.message
-      });
+      
+      reply.code(401).send(errorResponse);
     }
   });
 }
