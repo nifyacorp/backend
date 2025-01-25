@@ -37,6 +37,14 @@ export async function authPlugin(fastify, options) {
       const token = request.headers.authorization?.replace('Bearer ', '');
       const userId = request.headers['x-user-id'];
       
+      // Log detailed header information
+      console.log('🔍 Auth Headers:', {
+        token: token ? '[REDACTED]' : undefined,
+        userId,
+        allHeaders: Object.keys(request.headers),
+        timestamp: new Date().toISOString()
+      });
+      
       // Debug header extraction
       console.log('🔑 Header Extraction:', {
         extractedUserId: userId,
@@ -61,8 +69,22 @@ export async function authPlugin(fastify, options) {
       // 3. Verify token
       const decoded = verifyToken(token);
       
+      // Log token verification result
+      console.log('🔑 Token verified:', {
+        decodedUserId: decoded.sub,
+        headerUserId: userId,
+        timestamp: new Date().toISOString()
+      });
+      
       // 4. Set user context
       request.user = { id: userId };
+      
+      // Log user context setup
+      console.log('👤 User context set:', {
+        userId: request.user.id,
+        path: request.url,
+        timestamp: new Date().toISOString()
+      });
 
       console.log('✅ Authentication successful:', {
         userId,

@@ -45,13 +45,22 @@ export async function subscriptionRoutes(fastify, options) {
   }, async (request, reply) => {
     try {
       // Debug full request state
-      console.log('📦 Subscription Request Debug:', {
+      const requestDebug = {
         headers: {
           ...request.headers,
           authorization: request.headers.authorization ? '[REDACTED]' : undefined
         },
         user: request.user,
+        userId: request.user?.id,
         requestId: request.id,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('📦 Subscription Request Debug:', requestDebug);
+      console.log('🔍 User Context Check:', {
+        hasUser: !!request.user,
+        userId: request.user?.id,
+        headerUserId: request.headers['x-user-id'],
         timestamp: new Date().toISOString()
       });
 
@@ -64,6 +73,7 @@ export async function subscriptionRoutes(fastify, options) {
       if (!request.user) {
         console.log(createLogEntry('error', {
           requestId: request.id,
+          headers: Object.keys(request.headers),
           error: 'no_user_object',
           message: 'No user object in request'
         }));
@@ -74,6 +84,8 @@ export async function subscriptionRoutes(fastify, options) {
       if (!request.user.id) {
         console.log(createLogEntry('error', {
           requestId: request.id,
+          user: request.user,
+          headers: Object.keys(request.headers),
           error: 'no_user_id',
           message: 'No user ID in request'
         }));
