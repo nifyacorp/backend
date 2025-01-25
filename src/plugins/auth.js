@@ -5,7 +5,11 @@ function extractToken(authHeader) {
   if (!authHeader) {
     throw new Error('No authorization header');
   }
-  return authHeader.replace('Bearer ', '');
+  const [type, token] = authHeader.split(' ');
+  if (type !== 'Bearer') {
+    throw new Error('Invalid authorization type');
+  }
+  return token;
 }
 
 export async function authPlugin(fastify, options) {
@@ -13,61 +17,52 @@ export async function authPlugin(fastify, options) {
 
   fastify.addHook('preHandler', async (request, reply) => {
     try {
-      // Log incoming request auth details
-      console.log('🔒 Auth check:', {
+      console.log('🔒 Processing authentication:', {
         hasAuthHeader: !!request.headers.authorization,
         path: request.url,
         method: request.method,
         timestamp: new Date().toISOString()
       });
 
-      const authHeader = request.headers.authorization;
-      const token = extractToken(authHeader);
-
-      // Verify JWT token
-      const decoded = verifyToken(token);
-
-      // Log decoded token info (excluding sensitive data)
-      console.log('🔑 Token verification:', {
-        hasSub: !!decoded.sub,
-        tokenType: decoded.type,
-        timestamp: new Date().toISOString()
-      });
+      // Extract and verify token
+      const token = extractToken(request.headers.authorization);
+      const decoded = await verifyToken(token);
 
       if (!decoded.sub) {
-        console.log('❌ Token missing sub claim:', {
-          decodedKeys: Object.keys(decoded),
-          timestamp: new Date().toISOString()
-        });
         throw new Error('Invalid token: missing sub claim');
       }
 
-      // Verify the user exists in our database
+      // Verify user exists in database
       const result = await query(
         'SELECT id FROM users WHERE id = $1',
         [decoded.sub]
       );
 
-      console.log('👤 User verification:', {
-        userId: decoded.sub,
-        found: result.rows.length > 0,
-        timestamp: new Date().toISOString()
-      });
-
       if (result.rows.length === 0) {
         throw new Error('User not found');
       }
 
+      // Set user on request
       request.user = { id: result.rows[0].id };
+
+      console.log('✅ Authentication successful:', {
+        userId: request.user.id,
+        path: request.url,
+        timestamp: new Date().toISOString()
+      });
+
     } catch (error) {
       console.error('❌ Authentication error:', {
         error: error.message,
-        stack: error.stack,
+        type: error.name,
         path: request.url,
         method: request.method,
         timestamp: new Date().toISOString()
       });
-      reply.code(401).send({ error: 'Unauthorized' });
+      reply.code(401).send({ 
+        error: 'Unauthorized',
+        message: error.message
+      });
     }
   });
 }
