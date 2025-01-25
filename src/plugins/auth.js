@@ -4,13 +4,10 @@ export async function authPlugin(fastify, options) {
   fastify.decorateRequest('user', null);
 
   fastify.addHook('preHandler', async (request, reply) => {
-    // Skip auth for health check and documentation
+    // Skip auth for health check
     if (request.url === '/health' || request.url.startsWith('/documentation')) {
       return;
     }
-    
-    // Skip auth for health check
-    if (request.url === '/health') return;
     
     // Debug full request details
     console.log('🔍 Incoming Request Debug:', {
@@ -36,20 +33,6 @@ export async function authPlugin(fastify, options) {
       // 2. Check for required headers
       const token = request.headers.authorization?.replace('Bearer ', '');
       const userId = request.headers['x-user-id'];
-      
-      // Log detailed header information
-      console.log('🔍 Auth Headers:', {
-        token: token ? '[REDACTED]' : undefined,
-        userId,
-        allHeaders: Object.keys(request.headers),
-        timestamp: new Date().toISOString()
-      });
-      
-      // Debug header extraction
-      console.log('🔑 Header Extraction:', {
-        extractedUserId: userId,
-        timestamp: new Date().toISOString()
-      });
 
       if (!token || !userId) {
         console.log('❌ Missing required headers:', {
@@ -65,6 +48,14 @@ export async function authPlugin(fastify, options) {
           hasUserId: !!userId
         };
       }
+      
+      // Log detailed header information
+      console.log('🔍 Auth Headers:', {
+        token: token ? '[REDACTED]' : undefined,
+        userId,
+        allHeaders: Object.keys(request.headers),
+        timestamp: new Date().toISOString()
+      });
 
       // 3. Verify token
       const decoded = verifyToken(token);
@@ -79,13 +70,6 @@ export async function authPlugin(fastify, options) {
       // 4. Set user context
       request.user = { id: userId };
       
-      // Log user context setup
-      console.log('👤 User context set:', {
-        userId: request.user.id,
-        path: request.url,
-        timestamp: new Date().toISOString()
-      });
-
       console.log('✅ Authentication successful:', {
         userId,
         hasUser: !!request.user,
