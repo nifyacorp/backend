@@ -15,6 +15,7 @@ export async function authPlugin(fastify, options) {
       if (!authHeader?.startsWith('Bearer ')) {
         throw { code: 'NO_TOKEN', message: 'Valid Bearer token required' };
       }
+      const token = authHeader.slice(7);
 
       // Step 2: Verify JWT and get user ID
       const decoded = await verifyToken(token);
