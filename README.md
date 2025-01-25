@@ -4,12 +4,12 @@ A Node.js backend service built with Fastify for managing user subscriptions and
 
 ## 🚀 Features
 
+- Clean, domain-driven architecture
 - JWT-based authentication with Google Cloud Secret Manager
 - Subscription management for BOE and real estate updates
-- User profile creation via Google Cloud Pub/Sub
+- Structured error handling and logging
 - PostgreSQL database with row-level security
 - Swagger API documentation
-- Structured logging throughout the application
 
 ## 🛠 Tech Stack
 
@@ -19,7 +19,6 @@ A Node.js backend service built with Fastify for managing user subscriptions and
 - **Authentication**: JWT
 - **Cloud Services**:
   - Google Cloud Secret Manager (JWT secret management)
-  - Google Cloud Pub/Sub (user profile events)
   - Google Cloud SQL (PostgreSQL hosting)
 - **Documentation**: Swagger/OpenAPI
 
@@ -29,7 +28,6 @@ A Node.js backend service built with Fastify for managing user subscriptions and
 - PostgreSQL database
 - Google Cloud project with:
   - Secret Manager enabled
-  - Pub/Sub enabled
   - Cloud SQL configured
 - Environment variables configured (see `.env.example`)
 
@@ -50,19 +48,31 @@ PORT=3000
 ```
 .
 ├── src/
-│   ├── config/           # Configuration modules
-│   │   ├── auth.js       # JWT verification with Secret Manager
-│   │   ├── database.js   # PostgreSQL connection pool
-│   │   └── pubsub.js     # Pub/Sub event handling
-│   ├── plugins/
-│   │   └── auth.js       # JWT authentication middleware
-│   ├── routes/
-│   │   └── subscriptions.js  # Subscription management
-│   ├── services/
-│   │   └── users.js      # User creation handling
-│   └── index.js          # Application entry point
+│   ├── core/                    # Business logic
+│   │   ├── auth/               # Authentication domain
+│   │   │   └── auth.service.js
+│   │   ├── subscription/       # Subscription domain
+│   │   │   └── subscription.service.js
+│   │   └── types/             # Domain types
+│   │       ├── auth.types.js
+│   │       └── subscription.types.js
+│   ├── infrastructure/         # External services
+│   │   └── database/
+│   │       └── client.js      # Database client
+│   ├── interfaces/            # External interfaces
+│   │   └── http/
+│   │       ├── middleware/    # HTTP middleware
+│   │       │   └── auth.middleware.js
+│   │       └── routes/        # Route handlers
+│   │           └── subscription.routes.js
+│   ├── shared/               # Shared utilities
+│   │   ├── errors/          # Error handling
+│   │   │   └── AppError.js
+│   │   └── logging/         # Logging utilities
+│   │       └── logger.js
+│   └── index.js             # Application entry point
 ├── supabase/
-│   └── migrations/       # Database schema
+│   └── migrations/          # Database schema
 ├── Dockerfile
 └── package.json
 ```
@@ -79,23 +89,19 @@ Protected endpoints require:
    X-User-ID: <user-id>
    ```
 
-JWT tokens are verified using Google Cloud Secret Manager.
+Features:
+- JWT verification using Google Cloud Secret Manager
+- 24-hour secret caching with automatic rotation
+- User ID validation and matching
+- Structured error handling
 
 ## 🚦 API Endpoints
 
 ### Subscriptions (`/subscriptions`)
 - `GET /` - List user subscriptions
   - Returns active and inactive subscriptions
-  - Supports filtering by type (BOE/real estate)
   - Requires authentication
-
-## 🔄 Event Processing
-
-### User Creation Flow
-1. Pub/Sub receives user creation event
-2. Event triggers user profile creation
-3. Profile stored in PostgreSQL database
-4. Automatic error handling and retries
+  - Includes subscription details and status
 
 ## 🏃‍♂️ Running the Service
 
@@ -124,14 +130,12 @@ docker run -p 3000:3000 nifya-orchestration-service
 - Row-level security in PostgreSQL
 - CORS protection
 - Request validation via Fastify schemas
+- Structured error handling
 
 ## 📝 Database Schema
 
-Key tables in the current implementation:
-
 ### Users
 - Profile information
-- Notification preferences
 - Row-level security enabled
 
 ### Subscriptions
@@ -140,13 +144,19 @@ Key tables in the current implementation:
 - Frequency configuration
 - Row-level security enabled
 
-## 📊 Monitoring
+## 📊 Monitoring & Logging
 
-- Structured logging with timestamps
+Structured logging throughout the application:
 - Request/response logging
-- Database query monitoring
-- Pub/Sub event tracking
-- Authentication attempt logging
+- Authentication events
+- Error tracking
+- Database operations
+
+Each log entry includes:
+- Timestamp
+- Request ID
+- User context (when available)
+- Relevant operation details
 
 ## 🔍 Example Usage
 
@@ -173,6 +183,27 @@ async function fetchSubscriptions() {
     console.error('Failed to fetch subscriptions:', error);
     throw error;
   }
+}
+```
+
+## 🧪 Error Handling
+
+The service uses a structured error handling approach:
+- Custom `AppError` class for consistent error formatting
+- HTTP status codes mapping
+- Detailed error information for debugging
+- Error logging with context
+
+Example error response:
+```json
+{
+  "error": "INVALID_TOKEN",
+  "message": "Invalid authentication token",
+  "status": 401,
+  "details": {
+    "originalError": "jwt expired"
+  },
+  "timestamp": "2024-01-24T16:51:30.000Z"
 }
 ```
 

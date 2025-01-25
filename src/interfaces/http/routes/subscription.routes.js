@@ -1,6 +1,7 @@
-import { subscriptionService } from '../services/subscription.service.js';
+import { subscriptionService } from '../../../core/subscription/subscription.service.js';
+import { AppError } from '../../../shared/errors/AppError.js';
+import { logRequest, logError } from '../../../shared/logging/logger.js';
 
-// Response schema
 const subscriptionSchema = {
   type: 'object',
   properties: {
@@ -35,37 +36,47 @@ export async function subscriptionRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
     try {
-      console.log('📦 Processing subscription request:', {
+      logRequest(context, 'Processing subscription request', {
         hasUser: !!request.user,
         userId: request.user?.id,
         timestamp: new Date().toISOString()
       });
 
       if (!request.user?.id) {
-        console.error('❌ No user ID in request:', {
+        logError(context, new Error('No user ID in request'), {
           user: request.user,
           timestamp: new Date().toISOString()
         });
-        return reply.code(401).send({
-          error: 'Unauthorized',
-          message: 'No user ID available'
-        });
+        throw new AppError(
+          'UNAUTHORIZED',
+          'No user ID available',
+          401
+        );
       }
 
-      const subscriptions = await subscriptionService.getUserSubscriptions(request.user.id);
+      const subscriptions = await subscriptionService.getUserSubscriptions(
+        request.user.id,
+        context
+      );
+      
       return { subscriptions };
     } catch (error) {
-      console.error('❌ Failed to fetch subscriptions:', {
-        userId: request.user?.id,
-        error: error.message,
-        stack: error.stack,
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
         timestamp: new Date().toISOString()
-      });
-      return reply.code(500).send({
-        error: 'Internal Server Error',
-        message: 'Failed to fetch subscriptions'
-      });
+      };
+      reply.code(error.status || 500).send(response);
+      return reply;
     }
   });
 }
