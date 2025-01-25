@@ -1,7 +1,7 @@
 import { query } from '../config/database.js';
 
 export async function authRoutes(fastify, options) {
-  fastify.get('/api/auth/me', {
+  fastify.get('/me', {
     schema: {
       response: {
         200: {
