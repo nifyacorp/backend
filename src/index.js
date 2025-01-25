@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
+import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription.routes.js';
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
@@ -43,7 +44,8 @@ await fastify.register(swaggerUI, {
 // Register authentication middleware
 fastify.addHook('preHandler', authenticate);
 
-// Register routes
+// Register API routes
+fastify.register(userRoutes, { prefix: '/api/users' });
 fastify.register(subscriptionRoutes, { prefix: '/subscriptions' });
 
 // Start server

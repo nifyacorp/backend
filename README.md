@@ -1,12 +1,16 @@
 # Nifya Orchestration Service
 
-A Node.js backend service built with Fastify for managing user subscriptions and notifications.
+A Node.js backend service built with Fastify for managing flexible user subscriptions and notifications.
 
 ## 🚀 Features
 
 - Clean, domain-driven architecture
 - JWT-based authentication with Google Cloud Secret Manager
-- Subscription management for BOE and real estate updates
+- Flexible subscription system:
+  - Built-in types (BOE, Real Estate)
+  - Custom user-defined types
+  - Up to 3 prompts per subscription
+  - Immediate or daily frequency options
 - Structured error handling and logging
 - PostgreSQL database with row-level security
 - Swagger API documentation
@@ -38,9 +42,17 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Database Configuration
 DB_NAME=nifya
+DB_USER=nifya
+DB_PASSWORD=your-password-here
 
 # Server Configuration
 PORT=3000
+SERVICE_URL=your-cloud-run-url
+
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT=your-project-id
+INSTANCE_CONNECTION_NAME=your-instance-connection
+JWT_SECRET_NAME=projects/your-project/secrets/JWT_SECRET/versions/latest
 ```
 
 ## 🏗 Project Structure
@@ -68,8 +80,10 @@ PORT=3000
 │   ├── shared/               # Shared utilities
 │   │   ├── errors/          # Error handling
 │   │   │   └── AppError.js
-│   │   └── logging/         # Logging utilities
-│   │       └── logger.js
+│   │   ├── logging/         # Logging utilities
+│   │   │   └── logger.js
+│   │   └── utils/          # Utility functions
+│   │       └── env.js
 │   └── index.js             # Application entry point
 ├── supabase/
 │   └── migrations/          # Database schema
@@ -91,16 +105,21 @@ Protected endpoints require:
 
 Features:
 - JWT verification using Google Cloud Secret Manager
-- 24-hour secret caching with automatic rotation
+- Token signature validation
 - User ID validation and matching
 - Structured error handling
 
 ## 🚦 API Endpoints
 
-### Subscriptions (`/subscriptions`)
-- `GET /` - List user subscriptions
-  - Returns active and inactive subscriptions
+### Health Check
+- `GET /health` - Service health status
+  - Public endpoint
+  - Returns service status and timestamp
+
+### Subscriptions
+- `GET /subscriptions` - List user subscriptions
   - Requires authentication
+  - Returns active and inactive subscriptions
   - Includes subscription details and status
 
 ## 🏃‍♂️ Running the Service
@@ -126,31 +145,43 @@ docker run -p 3000:3000 nifya-orchestration-service
 ## 🔒 Security Features
 
 - JWT verification using Google Cloud Secret Manager
-- Secret rotation support (24-hour cache)
+- Structured authentication middleware
+- Public endpoints whitelist
 - Row-level security in PostgreSQL
 - CORS protection
 - Request validation via Fastify schemas
-- Structured error handling
+- Comprehensive error handling
 
 ## 📝 Database Schema
 
 ### Users
-- Profile information
-- Row-level security enabled
+- Basic info: id, email, name
+- Preferences: theme, language, avatar, bio
+- Notification settings
+- Security: Row-level protection
 
 ### Subscriptions
-- BOE and real estate monitoring
-- User-specific settings
-- Frequency configuration
-- Row-level security enabled
+- Flexible type system (built-in + custom)
+- Maximum 3 prompts per subscription
+- Frequency options: immediate/daily
+- Active status tracking
+- Type-specific metadata
+- Security: Row-level protection
+
+### Subscription Types
+- System types (BOE, Real Estate)
+- Custom user-defined types
+- Icon support (lucide-react)
+- Security: System/user separation
 
 ## 📊 Monitoring & Logging
 
 Structured logging throughout the application:
-- Request/response logging
+- Request/response logging via `logger.js`
 - Authentication events
-- Error tracking
+- Error tracking with stack traces
 - Database operations
+- Environment validation
 
 Each log entry includes:
 - Timestamp
@@ -160,15 +191,184 @@ Each log entry includes:
 
 ## 🔍 Example Usage
 
+### Fetch Subscription Types
 ```javascript
-// Fetch subscriptions
-async function fetchSubscriptions() {
+const response = await fetch('http://localhost:3000/subscriptions/types', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-User-ID': userId
+  }
+});
+
+const data = await response.json();
+// Returns: { types: [{ id, name, description, icon, isSystem, ... }] }
+```
+
+### Create Custom Type
+```javascript
+const response = await fetch('http://localhost:3000/subscriptions/types', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-User-ID': userId,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Custom Alerts',
+    description: 'My custom alert type',
+    icon: 'Bell'
+  })
+});
+```
+
+### Create Subscription
+```javascript
+const response = await fetch('http://localhost:3000/subscriptions', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-User-ID': userId,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    typeId: 'subscription-type-id',
+    name: 'My Subscription',
+    description: 'Custom alerts for specific topics',
+    prompts: ['topic 1', 'topic 2'],
+    frequency: 'daily'
+  })
+});
+```
+
+### Fetch User Subscriptions
+```javascript
+const response = await fetch('http://localhost:3000/subscriptions', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-User-ID': userId
+  }
+});
+
+const data = await response.json();
+// Returns: { subscriptions: [{ id, name, type, prompts, ... }] }
+```
+
+## 🔒 Security Features
+
+- JWT verification using Google Cloud Secret Manager
+- Structured authentication middleware
+- Public endpoints whitelist
+- Row-level security in PostgreSQL:
+  - Users can only access their own data
+  - System subscription types are protected
+  - Custom types are user-scoped
+
+## 📝 API Endpoints
+
+### Authentication Required
+
+#### Subscription Types
+- `GET /subscriptions/types` - List available types
+- `POST /subscriptions/types` - Create custom type
+
+#### Subscriptions
+- `GET /subscriptions` - List user subscriptions
+- `POST /subscriptions` - Create subscription
+
+#### User Profile
+- `GET /api/users/me` - Get user profile
+- `PATCH /api/users/me` - Update user profile
+
+### Public Endpoints
+- `GET /health` - Service health check
+- `GET /documentation` - API documentation
+
+## 🧪 Error Handling
+
+Structured error responses with consistent format:
+```json
+{
+  "error": "ERROR_CODE",
+  "message": "Human readable message",
+  "status": 400,
+  "details": {
+    "additionalInfo": "..."
+  },
+  "timestamp": "2024-01-25T16:51:30.000Z"
+}
+```
+
+Common error scenarios:
+- Invalid authentication
+- Subscription type not found
+- Maximum prompts exceeded
+- Invalid subscription parameters
+
+## 🚀 Running the Service
+
+### Development
+```bash
+npm install
+npm run dev
+```
+
+### Production
+```bash
+npm install --production
+npm start
+```
+
+### Docker
+```bash
+docker build -t nifya-orchestration-service .
+docker run -p 3000:3000 nifya-orchestration-service
+```
+
+## 📊 Monitoring & Logging
+
+Structured logging throughout the application:
+- Request/response logging
+- Authentication events
+- Error tracking with stack traces
+- Database operations
+- Environment validation
+
+Each log entry includes:
+- Timestamp
+- Request ID
+- User context (when available)
+- Relevant operation details
+
+## 🔐 Environment Setup
+
+Required environment variables:
+```bash
+# Database Configuration
+DB_NAME=nifya
+DB_USER=nifya
+DB_PASSWORD=your-password-here
+
+# Server Configuration
+PORT=3000
+SERVICE_URL=your-cloud-run-url
+
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT=your-project-id
+INSTANCE_CONNECTION_NAME=your-instance-connection
+JWT_SECRET_NAME=projects/your-project/secrets/JWT_SECRET/versions/latest
+```
+
+## 📄 License
+
+This project is private and confidential. All rights reserved.
   try {
     const response = await fetch('http://localhost:3000/subscriptions', {
       method: 'GET',
       headers: {
-        'Authorization': 'Bearer your-jwt-token',
-        'X-User-ID': 'your-user-id',
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': userId,
         'Content-Type': 'application/json'
       }
     });
@@ -201,9 +401,9 @@ Example error response:
   "message": "Invalid authentication token",
   "status": 401,
   "details": {
-    "originalError": "jwt expired"
+    "originalError": "invalid signature"
   },
-  "timestamp": "2024-01-24T16:51:30.000Z"
+  "timestamp": "2024-01-25T16:51:30.000Z"
 }
 ```
 
