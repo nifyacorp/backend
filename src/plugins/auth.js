@@ -1,120 +1,47 @@
 import { query } from '../config/database.js';
 import { verifyToken } from '../config/auth.js';
 
-function extractToken(authHeader) {
-  if (!authHeader) {
-    throw new Error('No authorization header');
-  }
-  const [type, token] = authHeader.split(' ');
-  if (type !== 'Bearer') {
-    throw new Error('Invalid authorization type');
-  }
-  if (!token) {
-    throw new Error('No token provided');
-  }
-  return token;
-}
-
 export async function authPlugin(fastify, options) {
   fastify.decorateRequest('user', null);
 
   fastify.addHook('preHandler', async (request, reply) => {
-    // Skip auth for health check
     if (request.url === '/health') {
       return;
     }
 
     try {
-      console.log('🔒 Processing authentication:', {
-        hasAuthHeader: !!request.headers.authorization,
-        authHeader: request.headers.authorization ? 'Bearer ...' : undefined,
-        path: request.url,
-        method: request.method,
-        timestamp: new Date().toISOString()
-      });
-
-      let token;
-      try {
-        token = extractToken(request.headers.authorization);
-      } catch (error) {
-        console.error('❌ Token extraction failed:', {
-          error: error.message,
-          path: request.url,
-          timestamp: new Date().toISOString()
-        });
-        throw error;
+      // Step 1: Get token from header
+      const authHeader = request.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        throw { code: 'NO_TOKEN', message: 'Valid Bearer token required' };
       }
 
-      // Verify JWT token
+      // Step 2: Verify JWT and get user ID
       const decoded = await verifyToken(token);
-
       if (!decoded.sub) {
-        console.log('❌ Token missing sub claim:', {
-          decodedKeys: Object.keys(decoded),
-          timestamp: new Date().toISOString()
-        });
-        throw new Error('Invalid token: missing sub claim');
+        throw { code: 'INVALID_TOKEN', message: 'Token missing user ID' };
       }
 
-      // Verify user exists in database
+      // Step 3: Check if user exists
       const result = await query(
         'SELECT id FROM users WHERE id = $1',
         [decoded.sub]
       );
 
-      console.log('👤 User verification:', {
-        userId: decoded.sub,
-        found: result.rows.length > 0, 
-        timestamp: new Date().toISOString()
-      });
-
       if (result.rows.length === 0) {
-        console.error('❌ User not found in database:', {
-          sub: decoded.sub,
-          timestamp: new Date().toISOString()
-        });
-        reply.code(401).send({ 
-          error: 'Unauthorized',
-          code: 'USER_NOT_FOUND',
-          message: 'User not found in database'
-        });
-        return;
+        throw { code: 'USER_NOT_FOUND', message: 'User not found in database' };
       }
 
+      // Step 4: Set user on request
       request.user = { id: result.rows[0].id };
-
-      console.log('✅ Authentication successful:', {
-        userId: request.user.id,
-        path: request.url,
-        timestamp: new Date().toISOString()
-      });
     } catch (error) {
-      let errorResponse = {
+      const response = {
         error: 'Unauthorized',
-        code: 'AUTHENTICATION_FAILED',
-        message: 'Authentication failed'
+        code: error.code || 'AUTH_ERROR',
+        message: error.message || 'Authentication failed'
       };
 
-      if (error.name === 'JsonWebTokenError') {
-        errorResponse.code = 'INVALID_TOKEN';
-        errorResponse.message = 'Invalid token format or signature';
-      } else if (error.name === 'TokenExpiredError') {
-        errorResponse.code = 'TOKEN_EXPIRED';
-        errorResponse.message = 'Token has expired';
-      } else if (error.message === 'No authorization header') {
-        errorResponse.code = 'NO_TOKEN';
-        errorResponse.message = 'No authorization token provided';
-      }
-
-      console.error('❌ Authentication error:', {
-        error: error.message,
-        errorCode: errorResponse.code,
-        path: request.url,
-        method: request.method,
-        timestamp: new Date().toISOString()
-      });
-      
-      reply.code(401).send(errorResponse);
+      reply.code(401).send(response);
     }
   });
 }

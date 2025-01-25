@@ -32,71 +32,16 @@ export async function initializeAuth() {
 }
 
 export async function verifyToken(token) {
-  console.log('🔑 Verifying JWT token...', {
-    hasToken: !!token,
-    tokenLength: token?.length || 0,
-    tokenStart: token?.substring(0, 20) + '...',
-    secretLoaded: SECRET_LOADED,
-    timestamp: new Date().toISOString()
-  });
-
   if (!SECRET_LOADED || !JWT_SECRET) {
-    console.error('❌ JWT verification failed: Secret not initialized', {
-      secretLoaded: SECRET_LOADED,
-      hasSecret: !!JWT_SECRET,
-      timestamp: new Date().toISOString()
-    });
-    throw new Error('JWT secret not initialized');
+    throw { code: 'CONFIG_ERROR', message: 'JWT secret not initialized' };
   }
 
   try {
-    // Ensure JWT_SECRET is loaded
-    if (!JWT_SECRET) {
-      await initializeAuth();
-    }
-
-    // First decode without verification to log token structure
-    const decoded = jwt.decode(token, { complete: true });
-    
-    if (!decoded) {
-      console.error('❌ Failed to decode token:', {
-        token: token?.substring(0, 20) + '...',
-        timestamp: new Date().toISOString()
-      });
-      throw new Error('Invalid token format');
-    }
-    
-    console.log('🔍 Token structure:', {
-      header: decoded?.header,
-      algorithm: decoded?.header?.alg,
-      claims: {
-        ...decoded?.payload,
-        sub: decoded?.payload?.sub ? '[REDACTED]' : undefined,
-        type: decoded?.payload?.type,
-        iat: decoded?.payload?.iat,
-        exp: decoded?.payload?.exp
-      },
-      timestamp: new Date().toISOString()
-    });
-
-    // Now verify the token
-    const verified = jwt.verify(token, JWT_SECRET);
-    console.log('✅ Token verified successfully', {
-      hasSub: !!verified.sub,
-      type: verified.type,
-      timestamp: new Date().toISOString()
-    });
-
-    return verified;
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
-    console.error('❌ JWT verification failed:', {
-      error: error.message,
-      name: error.name,
-      code: error.code,
-      expiredAt: error.expiredAt,
-      stack: error.stack?.split('\n')[0],
-      timestamp: new Date().toISOString()
-    });
-    throw error;
+    if (error.name === 'TokenExpiredError') {
+      throw { code: 'TOKEN_EXPIRED', message: 'Token has expired' };
+    }
+    throw { code: 'INVALID_TOKEN', message: 'Invalid token' };
   }
 }
