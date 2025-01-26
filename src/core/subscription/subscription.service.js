@@ -83,6 +83,7 @@ class SubscriptionService {
           s.name,
           s.description,
           s.prompts,
+          s.logo,
           s.frequency,
           s.status = 'active' as active,
           s.created_at as "createdAt",
@@ -130,14 +131,16 @@ class SubscriptionService {
           name,
           description,
           prompts,
+          logo,
           frequency,
           active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING 
           id,
           name,
           description,
           prompts,
+          logo,
           frequency,
           active,
           created_at as "createdAt",
@@ -148,6 +151,7 @@ class SubscriptionService {
           data.name,
           data.description,
           data.prompts,
+          data.logo,
           data.frequency,
           true
         ]
@@ -288,48 +292,6 @@ class SubscriptionService {
       );
     }
   }
-}
-
-  async getSubscriptionById(userId, subscriptionId, context) {
-    logRequest(context, 'Fetching subscription by ID', { userId, subscriptionId });
-
-    try {
-      const result = await query(
-        `SELECT 
-          s.id,
-          s.type_id,
-          s.name,
-          s.description,
-          s.prompts,
-          s.frequency,
-          s.active,
-          s.created_at as "createdAt",
-          s.updated_at as "updatedAt"
-        FROM subscriptions s 
-        WHERE s.user_id = $1 AND s.id = $2`,
-        [userId, subscriptionId]
-      );
-
-      if (result.rows.length === 0) {
-        throw new AppError(
-          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
-          SUBSCRIPTION_ERRORS.NOT_FOUND.message,
-          404,
-          { subscriptionId }
-        );
-      }
-
-      return result.rows[0];
-    } catch (error) {
-      logError(context, error);
-      if (error instanceof AppError) throw error;
-      throw new AppError(
-        SUBSCRIPTION_ERRORS.FETCH_ERROR.code,
-        'Failed to fetch subscription',
-        500
-      );
-    }
-  }
 
   async updateSubscription(userId, subscriptionId, data, context) {
     logRequest(context, 'Updating subscription', { userId, subscriptionId });
@@ -349,8 +311,9 @@ class SubscriptionService {
           name = COALESCE($3, name),
           description = COALESCE($4, description),
           prompts = COALESCE($5, prompts),
-          frequency = COALESCE($6, frequency),
-          active = COALESCE($7, active),
+          logo = COALESCE($6, logo),
+          frequency = COALESCE($7, frequency),
+          active = COALESCE($8, active),
           updated_at = now()
         WHERE id = $1 AND user_id = $2
         RETURNING 
@@ -359,6 +322,7 @@ class SubscriptionService {
           name,
           description,
           prompts,
+          logo,
           frequency,
           active,
           created_at as "createdAt",
@@ -369,6 +333,7 @@ class SubscriptionService {
           data.name || null,
           data.description || null,
           data.prompts || null,
+          data.logo || null,
           data.frequency || null,
           data.active === undefined ? null : data.active
         ]
@@ -506,5 +471,6 @@ class SubscriptionService {
       );
     }
   }
+}
 
 export const subscriptionService = new SubscriptionService();

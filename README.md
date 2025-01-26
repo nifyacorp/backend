@@ -145,12 +145,17 @@ docker run -p 3000:3000 nifya-orchestration-service
 ## 🔒 Security Features
 
 - JWT verification using Google Cloud Secret Manager
-- Structured authentication middleware
-- Public endpoints whitelist
-- Row-level security in PostgreSQL
-- CORS protection
-- Request validation via Fastify schemas
-- Comprehensive error handling
+- Authentication middleware with:
+  - JWT token validation
+  - User ID verification
+  - Token signature validation
+- Row-level security in PostgreSQL:
+  - Users can only access their own subscriptions
+  - System subscription types are protected
+  - Custom types are user-scoped
+- CORS protection with configurable origins
+- Request/response validation via Fastify schemas
+- Structured error handling with detailed responses
 
 ## 📝 Database Schema
 
@@ -163,6 +168,7 @@ docker run -p 3000:3000 nifya-orchestration-service
 ### Subscriptions
 - Flexible type system (built-in + custom)
 - Maximum 3 prompts per subscription
+- Optional logo URL support
 - Frequency options: immediate/daily
 - Active status tracking
 - Type-specific metadata
@@ -267,15 +273,251 @@ const data = await response.json();
 
 ## 📝 API Endpoints
 
-### Authentication Required
+### Subscription Endpoints
+
+All subscription endpoints require authentication with:
+- JWT token in `Authorization` header (Bearer format)
+- User ID in `X-User-ID` header
+
+#### Subscription Management
+
+##### Get Subscription Details
+```
+GET /api/v1/subscriptions/:id
+```
+
+Response:
+```json
+{
+  "subscription": {
+    "id": "uuid",
+    "name": "string",
+    "type": "string",
+    "description": "string",
+    "logo": "string (url)",
+    "prompts": ["string"],
+    "frequency": "immediate" | "daily",
+    "active": "boolean",
+    "createdAt": "date-time",
+    "updatedAt": "date-time"
+  }
+}
+```
+
+Error Responses:
+- 401: Unauthorized (missing/invalid token)
+- 404: Subscription not found
+- 500: Server error
+
+##### List User Subscriptions
+```
+GET /api/v1/subscriptions
+```
+
+Response:
+```json
+{
+  "subscriptions": [{
+    "id": "uuid",
+    "name": "string",
+    "type": "string",
+    "description": "string",
+    "logo": "string (url)",
+    "prompts": ["string"],
+    "frequency": "immediate" | "daily",
+    "active": "boolean",
+    "createdAt": "date-time",
+    "updatedAt": "date-time"
+  }]
+}
+```
+
+##### Create Subscription
+```
+POST /api/v1/subscriptions
+```
+
+Request Body:
+```json
+{
+  "typeId": "uuid",
+  "name": "string",
+  "description": "string",
+  "logo": "string (url)",
+  "prompts": ["string"],
+  "frequency": "immediate" | "daily"
+}
+```
+
+Validation:
+- Maximum 3 prompts allowed
+- Name max length: 100 characters
+- Logo must be a valid URL
+- Frequency must be either "immediate" or "daily"
+
+##### Update Subscription
+```
+PATCH /api/v1/subscriptions/:id
+```
+
+Request Body (all fields optional):
+```json
+{
+  "name": "string",
+  "description": "string",
+  "logo": "string (url)",
+  "prompts": ["string"],
+  "frequency": "immediate" | "daily",
+  "active": boolean
+}
+```
+
+##### Delete Subscription
+```
+DELETE /api/v1/subscriptions/:id
+```
+
+Response:
+```json
+{
+  "success": true
+}
+```
 
 #### Subscription Types
-- `GET /subscriptions/types` - List available types
-- `POST /subscriptions/types` - Create custom type
 
-#### Subscriptions
-- `GET /subscriptions` - List user subscriptions
-- `POST /subscriptions` - Create subscription
+##### List Types
+```
+GET /api/v1/subscriptions/types
+```
+
+Response:
+```json
+{
+  "types": [{
+    "id": "uuid",
+    "name": "string",
+    "description": "string",
+    "icon": "string",
+    "logo": "string (url)",
+    "isSystem": boolean,
+    "createdBy": "uuid",
+    "createdAt": "date-time",
+    "updatedAt": "date-time"
+  }]
+}
+```
+
+##### Create Custom Type
+```
+POST /api/v1/subscriptions/types
+```
+
+Request Body:
+```json
+{
+  "name": "string",
+  "description": "string",
+  "icon": "string",
+  "logo": "string (url)"
+}
+```
+
+#### Subscription Sharing
+
+##### Share Subscription
+```
+POST /api/v1/subscriptions/:id/share
+```
+
+Response:
+```json
+{
+  "template": {
+    "id": "uuid",
+    "type": "string",
+    "name": "string",
+    "description": "string",
+    "prompts": ["string"],
+    "createdAt": "date-time"
+  }
+}
+```
+
+##### Unshare Subscription
+```
+DELETE /api/v1/subscriptions/:id/share
+```
+
+Response:
+```json
+{
+  "success": true
+}
+```
+
+### Security Features
+
+- JWT verification using Google Cloud Secret Manager
+- Row-level security in PostgreSQL
+- User-scoped data access
+- Request validation via Fastify schemas
+- Comprehensive error handling
+
+### Error Responses
+
+All endpoints return consistent error responses:
+```json
+{
+  "error": "ERROR_CODE",
+  "message": "Human readable message",
+  "status": 400,
+  "details": {
+    "additionalInfo": "..."
+  },
+  "timestamp": "2024-01-25T16:51:30.000Z"
+}
+```
+
+Common Error Codes:
+- `UNAUTHORIZED`: Missing or invalid authentication
+- `SUBSCRIPTION_NOT_FOUND`: Requested subscription doesn't exist
+- `INVALID_PROMPTS`: Too many prompts (max 3)
+- `TYPE_NOT_FOUND`: Subscription type doesn't exist
+
+### Example Usage
+
+#### Fetch Subscription Details
+```javascript
+const response = await fetch('http://localhost:3000/api/v1/subscriptions/123', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-User-ID': userId
+  }
+});
+
+const { subscription } = await response.json();
+```
+
+#### Create Subscription
+```javascript
+const response = await fetch('http://localhost:3000/api/v1/subscriptions', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-User-ID': userId,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    typeId: 'subscription-type-id',
+    name: 'My Subscription',
+    description: 'Custom alerts for specific topics',
+    logo: 'https://example.com/logo.png',
+    prompts: ['topic 1', 'topic 2'],
+    frequency: 'daily'
+  })
+});
+```
 
 #### User Profile
 - `GET /api/users/me` - Get user profile

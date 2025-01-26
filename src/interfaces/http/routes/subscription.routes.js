@@ -9,6 +9,7 @@ const subscriptionTypeSchema = {
     name: { type: 'string', maxLength: 100 },
     description: { type: 'string' },
     icon: { type: 'string', maxLength: 50 },
+    logo: { type: 'string', format: 'uri', nullable: true },
     isSystem: { type: 'boolean' },
     createdBy: { type: 'string', format: 'uuid', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
@@ -23,6 +24,7 @@ const subscriptionSchema = {
     name: { type: 'string' },
     type: { type: 'string', enum: ['boe', 'real-estate', 'custom'] },
     description: { type: 'string' },
+    logo: { type: 'string', format: 'uri', nullable: true },
     prompts: { 
       type: 'array',
       items: { type: 'string' },
@@ -52,6 +54,7 @@ const createSubscriptionSchema = {
     typeId: { type: 'string', format: 'uuid' },
     name: { type: 'string', maxLength: 100 },
     description: { type: 'string' },
+    logo: { type: 'string', format: 'uri', nullable: true },
     prompts: { 
       type: 'array',
       items: { type: 'string' },
