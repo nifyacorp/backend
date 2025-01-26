@@ -88,41 +88,6 @@ class UserService {
 
       // Prepare preference updates
       const preferenceUpdates = {};
-      if (updates.theme !== undefined) preferenceUpdates.theme = updates.theme;
-      if (updates.bio !== undefined) preferenceUpdates.bio = updates.bio;
-      if (updates.language !== undefined) preferenceUpdates.language = updates.language;
-
-      // Prepare notification settings updates
-      const notificationUpdates = {};
-      if (updates.emailNotifications !== undefined) {
-        notificationUpdates.emailNotifications = updates.emailNotifications;
-      }
-      if (updates.notificationEmail !== undefined) {
-        notificationUpdates.notificationEmail = updates.notificationEmail;
-      }
-
-      // Validate theme if provided
-      if (updates.theme && !USER_PREFERENCES.THEMES.includes(updates.theme)) {
-        throw new AppError(
-          USER_ERRORS.INVALID_THEME.code,
-          USER_ERRORS.INVALID_THEME.message,
-          400,
-          { allowedThemes: USER_PREFERENCES.THEMES }
-        );
-      }
-
-      // Validate language if provided
-      if (updates.language && !USER_PREFERENCES.LANGUAGES.includes(updates.language)) {
-        throw new AppError(
-          USER_ERRORS.INVALID_LANGUAGE.code,
-          USER_ERRORS.INVALID_LANGUAGE.message,
-          400,
-          { allowedLanguages: USER_PREFERENCES.LANGUAGES }
-        );
-      }
-
-      // Prepare preference updates
-      const preferenceUpdates = {};
       if (updates.bio !== undefined) preferenceUpdates.bio = updates.bio;
       if (updates.theme !== undefined) preferenceUpdates.theme = updates.theme;
       if (updates.language !== undefined) preferenceUpdates.language = updates.language;
