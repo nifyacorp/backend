@@ -9,6 +9,18 @@ export const SUBSCRIPTION_FREQUENCIES = {
 };
 
 export const SUBSCRIPTION_ERRORS = {
+  NOT_FOUND: {
+    code: 'SUBSCRIPTION_NOT_FOUND',
+    message: 'Subscription not found'
+  },
+  FETCH_ERROR: {
+    code: 'SUBSCRIPTION_FETCH_ERROR',
+    message: 'Failed to fetch subscription'
+  },
+  TEMPLATE_NOT_FOUND: {
+    code: 'TEMPLATE_NOT_FOUND',
+    message: 'Template not found'
+  },
   TYPE_NOT_FOUND: {
     code: 'TYPE_NOT_FOUND',
     message: 'Subscription type not found'
@@ -28,5 +40,13 @@ export const SUBSCRIPTION_ERRORS = {
   DELETE_ERROR: {
     code: 'DELETE_ERROR',
     message: 'Failed to delete subscription'
-  }
+  },
+  SHARE_ERROR: {
+    code: 'SHARE_ERROR',
+    message: 'Failed to share subscription'
+  },
+  UNSHARE_ERROR: {
+    code: 'UNSHARE_ERROR',
+    message: 'Failed to unshare subscription'
+  },
 };

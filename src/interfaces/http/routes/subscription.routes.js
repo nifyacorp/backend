@@ -21,6 +21,7 @@ const subscriptionSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
+    type: { type: 'string', enum: ['boe', 'real-estate', 'custom'] },
     description: { type: 'string' },
     prompts: { 
       type: 'array',
@@ -30,12 +31,7 @@ const subscriptionSchema = {
     frequency: { type: 'string', enum: ['immediate', 'daily'] },
     active: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
-    updatedAt: { type: 'string', format: 'date-time' },
-    typeId: { type: 'string', format: 'uuid' },
-    typeName: { type: 'string' },
-    typeDescription: { type: 'string' },
-    typeIcon: { type: 'string' },
-    typeIsSystem: { type: 'boolean' }
+    updatedAt: { type: 'string', format: 'date-time' }
   }
 };
 
@@ -239,6 +235,250 @@ export async function subscriptionRoutes(fastify, options) {
         context
       );
       return { subscription };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Get subscription by ID
+  fastify.get('/:id', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            subscription: subscriptionSchema
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const subscription = await subscriptionService.getSubscriptionById(
+        request.user.id,
+        request.params.id,
+        context
+      );
+      return { subscription };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Update subscription
+  fastify.patch('/:id', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', maxLength: 100 },
+          description: { type: 'string' },
+          prompts: { 
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 3
+          },
+          frequency: { type: 'string', enum: ['immediate', 'daily'] },
+          active: { type: 'boolean' }
+        },
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            subscription: subscriptionSchema
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const subscription = await subscriptionService.updateSubscription(
+        request.user.id,
+        request.params.id,
+        request.body,
+        context
+      );
+      return { subscription };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Delete subscription
+  fastify.delete('/:id', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const result = await subscriptionService.deleteSubscription(
+        request.user.id,
+        request.params.id,
+        context
+      );
+      return result;
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Share subscription
+  fastify.post('/:id/share', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            template: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                type: { type: 'string' },
+                name: { type: 'string' },
+                description: { type: 'string' },
+                prompts: { 
+                  type: 'array',
+                  items: { type: 'string' }
+                },
+                createdAt: { type: 'string', format: 'date-time' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const template = await subscriptionService.shareSubscription(
+        request.user.id,
+        request.params.id,
+        context
+      );
+      return { template };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Unshare subscription
+  fastify.delete('/:id/share', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const result = await subscriptionService.unshareSubscription(
+        request.user.id,
+        request.params.id,
+        context
+      );
+      return result;
     } catch (error) {
       logError(context, error);
       const response = error instanceof AppError ? error.toJSON() : {

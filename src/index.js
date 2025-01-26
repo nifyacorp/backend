@@ -4,6 +4,7 @@ import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription.routes.js';
+import { templateRoutes } from './interfaces/http/routes/template.routes.js';
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
@@ -42,11 +43,16 @@ await fastify.register(swaggerUI, {
 });
 
 // Register authentication middleware
-fastify.addHook('preHandler', authenticate);
+fastify.register(async function (fastify) {
+  fastify.addHook('preHandler', authenticate);
+  
+  // Protected routes
+  fastify.register(userRoutes, { prefix: '/api/v1/users' });
+  fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
+});
 
-// Register API routes
-fastify.register(userRoutes, { prefix: '/api/users' });
-fastify.register(subscriptionRoutes, { prefix: '/subscriptions' });
+// Public routes
+fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
 
 // Start server
 try {
