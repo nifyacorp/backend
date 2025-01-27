@@ -172,11 +172,45 @@ class SubscriptionService {
   async getPublicTemplates(context, page = 1, limit = 10) {
     logRequest(context, 'Fetching public templates');
 
+    // Built-in templates
+    const builtInTemplates = [
+      {
+        id: 'boe-general',
+        name: 'BOE General',
+        description: 'Seguimiento general del Boletín Oficial del Estado',
+        type: 'boe',
+        prompts: ['disposición', 'ley', 'real decreto'],
+        frequency: 'daily',
+        isBuiltIn: true,
+        logo: 'https://www.boe.es/favicon.ico'
+      },
+      {
+        id: 'boe-subvenciones',
+        name: 'Subvenciones BOE',
+        description: 'Alertas de subvenciones y ayudas públicas',
+        type: 'boe',
+        prompts: ['subvención', 'ayuda', 'convocatoria'],
+        frequency: 'immediate',
+        isBuiltIn: true,
+        logo: 'https://www.boe.es/favicon.ico'
+      },
+      {
+        id: 'real-estate-rental',
+        name: 'Alquiler de Viviendas',
+        description: 'Búsqueda de alquileres en zonas específicas',
+        type: 'real-estate',
+        prompts: ['alquiler', 'piso', 'apartamento'],
+        frequency: 'immediate',
+        isBuiltIn: true,
+        logo: 'https://cdn-icons-png.flaticon.com/512/1040/1040993.png'
+      }
+    ];
+
     try {
       // Calculate offset
       const offset = (page - 1) * limit;
 
-      // Get total count first
+      // Get user templates count
       const countResult = await query(
         `SELECT COUNT(*) 
          FROM subscription_templates t 
@@ -184,9 +218,11 @@ class SubscriptionService {
         []
       );
 
-      const totalCount = parseInt(countResult.rows[0].count);
+      const userTemplatesCount = parseInt(countResult.rows[0].count);
+      const totalCount = userTemplatesCount + builtInTemplates.length;
       const totalPages = Math.ceil(totalCount / limit);
 
+      // Get user-created templates
       const result = await query(
         `SELECT 
           t.id,
@@ -206,14 +242,16 @@ class SubscriptionService {
       );
 
       logRequest(context, 'Public templates retrieved', {
-        count: result.rows.length,
+        count: templates.length,
+        builtInCount: builtInTemplates.length,
+        userCount: result.rows.length,
         page,
         totalPages,
         totalCount
       });
 
       return {
-        templates: result.rows,
+        templates,
         pagination: {
           page,
           limit,
@@ -234,6 +272,12 @@ class SubscriptionService {
 
   async getTemplateById(templateId, context) {
     logRequest(context, 'Fetching template by ID', { templateId });
+
+    // Check built-in templates first
+    const builtInTemplate = builtInTemplates.find(t => t.id === templateId);
+    if (builtInTemplate) {
+      return builtInTemplate;
+    }
 
     try {
       const result = await query(

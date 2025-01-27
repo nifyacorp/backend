@@ -15,6 +15,8 @@ const templateSchema = {
       items: { type: 'string' },
       maxItems: 3
     },
+    logo: { type: 'string', format: 'uri', nullable: true },
+    isBuiltIn: { type: 'boolean' },
     frequency: { type: 'string', enum: ['immediate', 'daily'] },
     createdBy: { type: 'string', format: 'uuid' },
     createdAt: { type: 'string', format: 'date-time' },
