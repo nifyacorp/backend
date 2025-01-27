@@ -193,3 +193,69 @@ class ContentProcessor {
 ## 📄 License
 
 Private and confidential. All rights reserved.
+
+
+1. Notification Processing Architecture
+A. Main Components:
+
+Scheduler Service
+
+Triggers processors at configured intervals
+Manages different schedules for immediate vs daily checks
+Subscription Manager
+
+Retrieves active subscriptions
+Groups by type and frequency
+Tracks last check timestamps
+Content Processors (one per type)
+
+DOGA Processor
+BOE Processor
+Each runs independently
+Notification Service
+
+Creates database records
+Publishes to Pub/Sub
+2. Processing Workflow
+A. Initialization Phase:
+
+Scheduler triggers processor
+Load active subscriptions
+Group by:
+Content type (DOGA, BOE)
+Frequency (immediate/daily)
+Last check timestamp
+B. Content Processing Phase:
+
+For each content type:
+Fetch new content since last check
+Group subscriptions by user to avoid duplicate processing
+Process each user's unique prompts once
+C. Notification Creation Phase:
+
+For each match:
+Create database record
+Send real-time notification via Pub/Sub
+Update last check timestamps
+3. Optimization Strategies
+A. Batch Processing:
+
+Process content once per type
+Group user prompts to minimize API calls
+Bulk insert notifications
+B. Caching:
+
+Cache content responses
+Cache prompt analysis results
+Share results across users with same prompts
+4. Error Handling
+A. Retry Mechanisms:
+
+API failures: Exponential backoff
+Database errors: Transaction rollback
+Partial success handling
+B. Monitoring:
+
+Processing status
+Error rates
+Performance metrics

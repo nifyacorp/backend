@@ -24,7 +24,18 @@ A Node.js backend service built with Fastify for managing flexible user subscrip
 - **Cloud Services**:
   - Google Cloud Secret Manager (JWT secret management)
   - Google Cloud SQL (PostgreSQL hosting)
+  - Google Cloud Run (Backend hosting)
 - **Documentation**: Swagger/OpenAPI
+
+## 🌐 Deployment Information
+
+### Backend Service
+- **URL**: `https://backend-415554190254.us-central1.run.app`
+- **Service Name**: `backend`
+- **Service Account**: 
+  - Deploy: `415554190254-compute@developer.gserviceaccount.com`
+  - Runtime: `backend@delta-entity-447812-p2.iam.gserviceaccount.com`
+- **Region**: `us-central1`
 
 ## 📋 Prerequisites
 

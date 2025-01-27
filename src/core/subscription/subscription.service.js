@@ -1,7 +1,8 @@
 import { query } from '../../infrastructure/database/client.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { SUBSCRIPTION_ERRORS } from '../types/subscription.types.js';
-import { logRequest, logError } from '../../shared/logging/logger.js';
+import { logRequest, logError, logPubSub } from '../../shared/logging/logger.js';
+import { publishEvent } from '../../infrastructure/pubsub/client.js';
 
 class SubscriptionService {
   async getSubscriptionTypes(context) {
@@ -156,6 +157,22 @@ class SubscriptionService {
           true
         ]
       );
+
+      // Publish subscription created event
+      await publishEvent('subscription-events', {
+        type: 'subscription-created',
+        data: {
+          userId,
+          subscriptionId: result.rows[0].id,
+          prompts: data.prompts,
+          frequency: data.frequency
+        }
+      });
+
+      logPubSub(context, 'Subscription created event published', {
+        userId,
+        subscriptionId: result.rows[0].id
+      });
 
       return result.rows[0];
     } catch (error) {
