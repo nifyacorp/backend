@@ -79,13 +79,13 @@ class SubscriptionService {
       const result = await query(
         `SELECT 
           s.id,
-          s.type,
+          s.type_id,
           s.name,
           s.description,
           s.prompts,
           s.logo,
           s.frequency,
-          s.status = 'active' as active,
+          s.active,
           s.created_at as "createdAt",
           s.updated_at as "updatedAt"
         FROM subscriptions s 
@@ -169,10 +169,24 @@ class SubscriptionService {
     }
   }
 
-  async getPublicTemplates(context) {
+  async getPublicTemplates(context, page = 1, limit = 10) {
     logRequest(context, 'Fetching public templates');
 
     try {
+      // Calculate offset
+      const offset = (page - 1) * limit;
+
+      // Get total count first
+      const countResult = await query(
+        `SELECT COUNT(*) 
+         FROM subscription_templates t 
+         WHERE t.is_public = true`,
+        []
+      );
+
+      const totalCount = parseInt(countResult.rows[0].count);
+      const totalPages = Math.ceil(totalCount / limit);
+
       const result = await query(
         `SELECT 
           t.id,
@@ -186,15 +200,28 @@ class SubscriptionService {
           t.updated_at as "updatedAt"
         FROM subscription_templates t
         WHERE t.is_public = true
-        ORDER BY t.created_at DESC`,
-        []
+        ORDER BY t.created_at DESC
+        LIMIT $1 OFFSET $2`,
+        [limit, offset]
       );
 
       logRequest(context, 'Public templates retrieved', {
-        count: result.rows.length
+        count: result.rows.length,
+        page,
+        totalPages,
+        totalCount
       });
 
-      return result.rows;
+      return {
+        templates: result.rows,
+        pagination: {
+          page,
+          limit,
+          totalPages,
+          totalCount,
+          hasMore: page < totalPages
+        }
+      };
     } catch (error) {
       logError(context, error);
       throw new AppError(

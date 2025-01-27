@@ -26,6 +26,13 @@ export async function templateRoutes(fastify, options) {
   // Public endpoint - List templates
   fastify.get('/', {
     schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 10 }
+        }
+      },
       response: {
         200: {
           type: 'object',
@@ -33,6 +40,16 @@ export async function templateRoutes(fastify, options) {
             templates: {
               type: 'array',
               items: templateSchema
+            },
+            pagination: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer' },
+                limit: { type: 'integer' },
+                totalPages: { type: 'integer' },
+                totalCount: { type: 'integer' },
+                hasMore: { type: 'boolean' }
+              }
             }
           }
         }
@@ -46,8 +63,11 @@ export async function templateRoutes(fastify, options) {
     };
 
     try {
-      const templates = await subscriptionService.getPublicTemplates(context);
-      return { templates };
+      const page = parseInt(request.query.page || '1');
+      const limit = parseInt(request.query.limit || '10');
+      
+      const result = await subscriptionService.getPublicTemplates(context, page, limit);
+      return result;
     } catch (error) {
       logError(context, error);
       const response = error instanceof AppError ? error.toJSON() : {
