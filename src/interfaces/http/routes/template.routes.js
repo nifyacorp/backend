@@ -77,7 +77,7 @@ export async function templateRoutes(fastify, options) {
       const page = parseInt(request.query.page || '1');
       const limit = parseInt(request.query.limit || '10');
       
-      const result = await subscriptionService.getPublicTemplates(context, page, limit);
+      const result = await templateService.getPublicTemplates(context, page, limit);
       return result;
     } catch (error) {
       logError(context, error);
@@ -112,7 +112,7 @@ export async function templateRoutes(fastify, options) {
     };
 
     try {
-      const template = await subscriptionService.getTemplateById(request.params.id, context);
+      const template = await templateService.getTemplateById(request.params.id, context);
       return { template };
     } catch (error) {
       logError(context, error);
@@ -166,7 +166,7 @@ export async function templateRoutes(fastify, options) {
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
 
-      const subscription = await subscriptionService.createFromTemplate(
+      const subscription = await templateService.createFromTemplate(
         request.user.id,
         request.params.id,
         context
