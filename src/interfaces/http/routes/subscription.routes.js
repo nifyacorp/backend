@@ -1,4 +1,4 @@
-import { subscriptionService } from '../../../core/subscription/subscription.service.js';
+import { subscriptionService, typeService } from '../../../core/subscription/index.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 

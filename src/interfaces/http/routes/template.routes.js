@@ -1,4 +1,4 @@
-import { subscriptionService } from '../../../core/subscription/subscription.service.js';
+import { templateService } from '../../../core/subscription/index.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 import { authenticate } from '../middleware/auth.middleware.js';
