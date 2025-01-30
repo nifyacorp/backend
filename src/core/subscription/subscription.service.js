@@ -199,7 +199,12 @@ class SubscriptionService {
         prompts: ['disposición', 'ley', 'real decreto'],
         frequency: 'daily',
         isBuiltIn: true,
-        logo: 'https://www.boe.es/favicon.ico'
+        icon: 'GanttChart',
+        logo: 'https://www.boe.es/favicon.ico',
+        metadata: {
+          category: 'government',
+          source: 'boe'
+        }
       },
       {
         id: 'boe-subvenciones',
@@ -209,7 +214,12 @@ class SubscriptionService {
         prompts: ['subvención', 'ayuda', 'convocatoria'],
         frequency: 'immediate',
         isBuiltIn: true,
-        logo: 'https://www.boe.es/favicon.ico'
+        icon: 'Coins',
+        logo: 'https://www.boe.es/favicon.ico',
+        metadata: {
+          category: 'government',
+          source: 'boe'
+        }
       },
       {
         id: 'real-estate-rental',
@@ -219,7 +229,12 @@ class SubscriptionService {
         prompts: ['alquiler', 'piso', 'apartamento'],
         frequency: 'immediate',
         isBuiltIn: true,
-        logo: 'https://cdn-icons-png.flaticon.com/512/1040/1040993.png'
+        icon: 'Key',
+        logo: 'https://cdn-icons-png.flaticon.com/512/1040/1040993.png',
+        metadata: {
+          category: 'real-estate',
+          source: 'property-listings'
+        }
       }
     ];
 
@@ -250,13 +265,19 @@ class SubscriptionService {
           t.frequency,
           t.created_by as "createdBy",
           t.created_at as "createdAt",
-          t.updated_at as "updatedAt"
+          t.updated_at as "updatedAt",
+          t.icon,
+          t.logo,
+          t.metadata
         FROM subscription_templates t
         WHERE t.is_public = true
         ORDER BY t.created_at DESC
         LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
+
+      // Combine built-in and user templates
+      const templates = [...builtInTemplates, ...result.rows];
 
       logRequest(context, 'Public templates retrieved', {
         count: templates.length,
@@ -307,7 +328,10 @@ class SubscriptionService {
           t.frequency,
           t.created_by as "createdBy",
           t.created_at as "createdAt",
-          t.updated_at as "updatedAt"
+          t.updated_at as "updatedAt",
+          t.icon,
+          t.logo,
+          t.metadata
         FROM subscription_templates t
         WHERE t.id = $1 AND t.is_public = true`,
         [templateId]
@@ -562,5 +586,3 @@ class SubscriptionService {
 }
 
 export const subscriptionService = new SubscriptionService();
-
-export { subscriptionService }
