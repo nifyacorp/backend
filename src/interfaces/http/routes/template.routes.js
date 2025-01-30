@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 const templateSchema = {
   type: 'object',
   properties: {
-    id: { type: 'string', format: 'uuid' },
+    id: { type: 'string' },
     name: { type: 'string', maxLength: 100 },
     description: { type: 'string' },
     type: { type: 'string', enum: ['boe', 'real-estate', 'custom'] },
@@ -15,12 +15,21 @@ const templateSchema = {
       items: { type: 'string' },
       maxItems: 3
     },
+    icon: { type: 'string' },
     logo: { type: 'string', format: 'uri', nullable: true },
+    metadata: { 
+      type: 'object',
+      properties: {
+        category: { type: 'string' },
+        source: { type: 'string' }
+      },
+      additionalProperties: true
+    },
     isBuiltIn: { type: 'boolean' },
     frequency: { type: 'string', enum: ['immediate', 'daily'] },
-    createdBy: { type: 'string', format: 'uuid' },
-    createdAt: { type: 'string', format: 'date-time' },
-    updatedAt: { type: 'string', format: 'date-time' }
+    createdBy: { type: 'string', format: 'uuid', nullable: true },
+    createdAt: { type: 'string', format: 'date-time', nullable: true },
+    updatedAt: { type: 'string', format: 'date-time', nullable: true }
   }
 };
 
@@ -118,11 +127,9 @@ export async function templateRoutes(fastify, options) {
     }
   });
 
-  // Protected endpoint - requires authentication
-  fastify.addHook('preHandler', authenticate);
-
-  // Create subscription from template
+  // Protected endpoint - Create subscription from template
   fastify.post('/:id/subscribe', {
+    preHandler: authenticate,
     schema: {
       response: {
         200: {
