@@ -52,7 +52,8 @@ export async function userRoutes(fastify, options) {
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.user?.token
     };
 
     try {
@@ -104,7 +105,8 @@ export async function userRoutes(fastify, options) {
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.user?.token
     };
 
     try {

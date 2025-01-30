@@ -18,6 +18,10 @@ export const USER_ERRORS = {
   INVALID_LANGUAGE: {
     code: 'INVALID_LANGUAGE',
     message: 'Invalid language selection'
+  },
+  INVALID_TOKEN: {
+    code: 'INVALID_TOKEN',
+    message: 'Invalid token format'
   }
 };
 

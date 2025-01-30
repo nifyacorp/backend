@@ -34,12 +34,65 @@ class UserService {
       );
 
       if (result.rows.length === 0) {
-        throw new AppError(
-          USER_ERRORS.NOT_FOUND.code,
-          USER_ERRORS.NOT_FOUND.message,
-          404,
-          { userId }
+        // User doesn't exist, try to get token info and create them
+        logRequest(context, 'User not found, attempting to create', { userId });
+        
+        // Get user info from token
+        const tokenInfo = context.token || {};
+        const email = tokenInfo.email;
+        const name = tokenInfo.name || email?.split('@')[0] || 'User';
+        
+        if (!email) {
+          throw new AppError(
+            USER_ERRORS.INVALID_TOKEN.code,
+            'Token missing required email claim',
+            401,
+            { userId }
+          );
+        }
+
+        // Create the user
+        const createResult = await query(
+          `INSERT INTO users (
+            id,
+            email,
+            name,
+            preferences,
+            notification_settings
+          ) VALUES ($1, $2, $3, $4, $5)
+          RETURNING 
+            id,
+            email,
+            name,
+            preferences->>'avatar' as avatar,
+            preferences->>'bio' as bio,
+            preferences->>'theme' as theme,
+            preferences->>'language' as language,
+            notification_settings->>'emailNotifications' as "emailNotifications",
+            notification_settings->>'notificationEmail' as "notificationEmail",
+            updated_at as "lastLogin",
+            true as "emailVerified"`,
+          [
+            userId,
+            email,
+            name,
+            JSON.stringify({}),
+            JSON.stringify({ emailNotifications: true, frequency: 'immediate' })
+          ]
         );
+
+        const newUser = createResult.rows[0];
+        newUser.subscriptionCount = 0;
+        newUser.notificationCount = 0;
+        newUser.lastNotification = null;
+        newUser.emailNotifications = true;
+
+        logRequest(context, 'User created successfully', { 
+          userId,
+          email: newUser.email
+        });
+
+        return newUser;
       }
 
       // Convert string boolean to actual boolean
