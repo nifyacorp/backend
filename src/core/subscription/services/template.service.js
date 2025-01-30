@@ -2,6 +2,7 @@ import { query } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 import { builtInTemplates } from '../data/built-in-templates.js';
+import { publishEvent } from '../../../infrastructure/pubsub/client.js';
 
 class TemplateService {
   async getPublicTemplates(context, page = 1, limit = 10) {
@@ -135,6 +136,105 @@ class TemplateService {
       throw new AppError(
         'TEMPLATE_FETCH_ERROR',
         'Failed to fetch template',
+        500
+      );
+    }
+  }
+
+  async createFromTemplate(userId, templateId, context) {
+    logRequest(context, 'Creating subscription from template', { userId, templateId });
+
+    try {
+      // Get template details
+      const template = await this.getTemplateById(templateId, context);
+      if (!template) {
+        throw new AppError(
+          'TEMPLATE_NOT_FOUND',
+          'Template not found',
+          404,
+          { templateId }
+        );
+      }
+
+      // Get subscription type ID for the template type
+      const typeResult = await query(
+        `SELECT id FROM subscription_types WHERE name = $1 AND is_system = true`,
+        [template.type.toUpperCase()]
+      );
+
+      if (typeResult.rows.length === 0) {
+        throw new AppError(
+          'TYPE_NOT_FOUND',
+          'Subscription type not found',
+          404,
+          { type: template.type }
+        );
+      }
+
+      const typeId = typeResult.rows[0].id;
+
+      // Create subscription from template
+      const result = await query(
+        `INSERT INTO subscriptions (
+          user_id,
+          type_id,
+          name,
+          description,
+          prompts,
+          logo,
+          frequency,
+          active,
+          settings
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
+        RETURNING 
+          id,
+          name,
+          description,
+          prompts,
+          logo,
+          frequency,
+          active,
+          created_at as "createdAt",
+          updated_at as "updatedAt"`,
+        [
+          userId,
+          typeId,
+          template.name,
+          template.description,
+          template.prompts,
+          template.logo,
+          template.frequency,
+          JSON.stringify(template.metadata || {})
+        ]
+      );
+
+      const subscription = result.rows[0];
+
+      // Publish subscription created event
+      await publishEvent('subscription-events', {
+        type: 'subscription-created',
+        data: {
+          userId,
+          subscriptionId: subscription.id,
+          templateId,
+          prompts: subscription.prompts,
+          frequency: subscription.frequency
+        }
+      });
+
+      logRequest(context, 'Subscription created from template', {
+        userId,
+        templateId,
+        subscriptionId: subscription.id
+      });
+
+      return subscription;
+    } catch (error) {
+      logError(context, error);
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        'SUBSCRIPTION_CREATE_ERROR',
+        'Failed to create subscription from template',
         500
       );
     }
