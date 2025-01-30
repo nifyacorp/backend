@@ -2,6 +2,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
+import { initializeMigrations } from './migrations.js';
 
 dotenv.config();
 
@@ -71,14 +72,20 @@ export async function query(text, params) {
 
 export async function initializeDatabase() {
   try {
+    // First verify connection
     const result = await query('SELECT current_database() as db_name');
     console.log('Database connection verified:', {
       database: result.rows[0].db_name,
       poolSize: pool.totalCount,
       timestamp: new Date().toISOString()
     });
-    console.log('Database connection established');
+
+    // Then run migrations
+    await initializeMigrations();
+    
+    console.log('Database initialization completed successfully');
   } catch (error) {
+    console.error('Failed to initialize database:', error);
     throw new AppError(
       'DATABASE_INIT_ERROR',
       'Failed to initialize database',
