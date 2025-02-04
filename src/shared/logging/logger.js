@@ -28,6 +28,15 @@ export function logPubSub(context, message, data = {}) {
   });
 }
 
+export function logProcessing(context, message, data = {}) {
+  console.log(`⚙️ ${message}:`, {
+    ...data,
+    requestId: context.requestId,
+    path: context.path,
+    timestamp: new Date().toISOString()
+  });
+}
+
 export function logAuth(context, message, data = {}) {
   console.log(`🔒 ${message}:`, {
     ...data,

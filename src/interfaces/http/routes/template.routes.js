@@ -131,6 +131,17 @@ export async function templateRoutes(fastify, options) {
   fastify.post('/:id/subscribe', {
     preHandler: authenticate,
     schema: {
+      body: {
+        type: 'object',
+        properties: {
+          prompts: { 
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 3
+          },
+          frequency: { type: 'string', enum: ['immediate', 'daily'] }
+        }
+      },
       response: {
         200: {
           type: 'object',
@@ -169,6 +180,7 @@ export async function templateRoutes(fastify, options) {
       const subscription = await templateService.createFromTemplate(
         request.user.id,
         request.params.id,
+        request.body, // Pass customization options
         context
       );
       return { subscription };
