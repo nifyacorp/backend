@@ -213,16 +213,9 @@ class SubscriptionService {
   async deleteSubscription(userId, subscriptionId, context) {
     logRequest(context, 'Deleting subscription', { userId, subscriptionId });
 
-    let client;
     try {
-      // Get a client for transaction
-      client = await pool.connect();
-      
-      // Start transaction
-      await client.query('BEGIN');
-      
-      // Delete processing record first (foreign key will prevent orphaned records)
-      const processingResult = await client.query(
+      // Start with deleting the processing record if it exists
+      const processingResult = await query(
         `DELETE FROM subscription_processing 
          WHERE subscription_id = $1
          RETURNING id`,
@@ -235,7 +228,7 @@ class SubscriptionService {
       });
       
       // Then delete the subscription
-      const result = await client.query(
+      const result = await query(
         `DELETE FROM subscriptions 
          WHERE id = $1 AND user_id = $2
          RETURNING id`,
@@ -243,7 +236,6 @@ class SubscriptionService {
       );
 
       if (result.rows.length === 0) {
-        await client.query('ROLLBACK');
         throw new AppError(
           SUBSCRIPTION_ERRORS.NOT_FOUND.code,
           SUBSCRIPTION_ERRORS.NOT_FOUND.message,
@@ -251,15 +243,9 @@ class SubscriptionService {
           { subscriptionId }
         );
       }
-      
-      // Commit transaction
-      await client.query('COMMIT');
 
       return { success: true };
     } catch (error) {
-      // Rollback on error
-      if (client) await client.query('ROLLBACK');
-      
       logError(context, error);
       if (error instanceof AppError) throw error;
       throw new AppError(
@@ -267,8 +253,6 @@ class SubscriptionService {
         'Failed to delete subscription',
         500
       );
-    } finally {
-      if (client) client.release();
     }
   }
 }
