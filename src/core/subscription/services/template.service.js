@@ -1,6 +1,6 @@
 import { query } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../../shared/errors/AppError.js';
-import { logRequest, logError } from '../../../shared/logging/logger.js';
+import { logRequest, logError, logProcessing } from '../../../shared/logging/logger.js';
 import { builtInTemplates } from '../data/built-in-templates.js';
 import { publishEvent } from '../../../infrastructure/pubsub/client.js';
 
