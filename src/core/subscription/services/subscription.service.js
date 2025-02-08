@@ -1,7 +1,7 @@
 import { query } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { SUBSCRIPTION_ERRORS } from '../types/subscription.types.js';
-import { logRequest, logError, logPubSub } from '../../../shared/logging/logger.js';
+import { logRequest, logError, logPubSub, logProcessing } from '../../../shared/logging/logger.js';
 import { publishEvent } from '../../../infrastructure/pubsub/client.js';
 
 class SubscriptionService {
@@ -88,6 +88,32 @@ class SubscriptionService {
           true
         ]
       );
+
+      // Create processing record
+      const processingResult = await query(
+        `INSERT INTO subscription_processing (
+          subscription_id,
+          status,
+          next_run_at,
+          metadata
+        ) VALUES ($1, $2, $3, $4)
+        RETURNING id`,
+        [
+          result.rows[0].id,
+          'pending',
+          data.frequency === 'immediate' ? new Date() : new Date(Date.now() + 24 * 60 * 60 * 1000), // Immediate or next day
+          JSON.stringify({
+            type: data.typeId,
+            frequency: data.frequency,
+            prompts: data.prompts
+          })
+        ]
+      );
+
+      logProcessing(context, 'Processing record created', {
+        subscriptionId: result.rows[0].id,
+        processingId: processingResult.rows[0].id
+      });
 
       // Publish subscription created event
       await publishEvent('subscription-events', {
@@ -188,10 +214,24 @@ class SubscriptionService {
     logRequest(context, 'Deleting subscription', { userId, subscriptionId });
 
     try {
+      // Start with deleting the processing record if it exists
+      const processingResult = await query(
+        `DELETE FROM subscription_processing 
+         WHERE subscription_id = $1
+         RETURNING id`,
+        [subscriptionId]
+      );
+      
+      logProcessing(context, 'Processing record deleted', {
+        subscriptionId,
+        processingId: processingResult.rows[0]?.id
+      });
+      
+      // Then delete the subscription
       const result = await query(
-        `DELETE FROM subscriptions
-        WHERE id = $1 AND user_id = $2
-        RETURNING id`,
+        `DELETE FROM subscriptions 
+         WHERE id = $1 AND user_id = $2
+         RETURNING id`,
         [subscriptionId, userId]
       );
 

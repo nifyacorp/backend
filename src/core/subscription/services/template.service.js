@@ -139,8 +139,12 @@ class TemplateService {
     }
   }
 
-  async createFromTemplate(userId, templateId, context) {
-    logRequest(context, 'Creating subscription from template', { userId, templateId });
+  async createFromTemplate(userId, templateId, customization = {}, context) {
+    logRequest(context, 'Creating subscription from template', { 
+      userId, 
+      templateId,
+      customization 
+    });
 
     try {
       // Get template details
@@ -171,6 +175,20 @@ class TemplateService {
 
       const typeId = typeResult.rows[0].id;
 
+      // Use customization options or template defaults
+      const prompts = customization.prompts || template.prompts;
+      const frequency = customization.frequency || template.frequency;
+
+      // Validate prompts length
+      if (prompts.length > 3) {
+        throw new AppError(
+          'INVALID_PROMPTS',
+          'Maximum 3 prompts allowed',
+          400,
+          { providedCount: prompts.length }
+        );
+      }
+
       // Create subscription from template
       const result = await query(
         `INSERT INTO subscriptions (
@@ -199,9 +217,9 @@ class TemplateService {
           typeId,
           template.name,
           template.description,
-          template.prompts,
+          prompts,
           template.logo,
-          template.frequency,
+          frequency,
           JSON.stringify(template.metadata || {})
         ]
       );
@@ -216,14 +234,16 @@ class TemplateService {
           subscriptionId: subscription.id,
           templateId,
           prompts: subscription.prompts,
-          frequency: subscription.frequency
+          frequency: subscription.frequency,
+          isCustomized: !!customization.prompts || !!customization.frequency
         }
       });
 
       logRequest(context, 'Subscription created from template', {
         userId,
         templateId,
-        subscriptionId: subscription.id
+        subscriptionId: subscription.id,
+        customized: !!customization.prompts || !!customization.frequency
       });
 
       return subscription;
