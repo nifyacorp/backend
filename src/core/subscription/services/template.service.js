@@ -226,6 +226,32 @@ class TemplateService {
 
       const subscription = result.rows[0];
 
+      // Create processing record
+      const processingResult = await query(
+        `INSERT INTO subscription_processing (
+          subscription_id,
+          status,
+          next_run_at,
+          metadata
+        ) VALUES ($1, $2, $3, $4)
+        RETURNING id`,
+        [
+          subscription.id,
+          'pending',
+          frequency === 'immediate' ? new Date() : new Date(Date.now() + 24 * 60 * 60 * 1000), // Immediate or next day
+          JSON.stringify({
+            type: template.type,
+            frequency,
+            prompts
+          })
+        ]
+      );
+
+      logProcessing(context, 'Processing record created', {
+        subscriptionId: subscription.id,
+        processingId: processingResult.rows[0].id
+      });
+
       // Publish subscription created event
       await publishEvent('subscription-events', {
         type: 'subscription-created',
