@@ -3,6 +3,33 @@ import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
+const createTemplateSchema = {
+  type: 'object',
+  required: ['name', 'description', 'type', 'prompts', 'frequency'],
+  properties: {
+    name: { type: 'string', maxLength: 100 },
+    description: { type: 'string' },
+    type: { type: 'string', enum: ['boe', 'real-estate', 'custom'] },
+    prompts: { 
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 3
+    },
+    icon: { type: 'string' },
+    logo: { type: 'string', format: 'uri', nullable: true },
+    metadata: { 
+      type: 'object',
+      properties: {
+        category: { type: 'string' },
+        source: { type: 'string' }
+      },
+      additionalProperties: true
+    },
+    frequency: { type: 'string', enum: ['immediate', 'daily'] },
+    isPublic: { type: 'boolean', default: false }
+  }
+};
+
 const templateSchema = {
   type: 'object',
   properties: {
@@ -113,6 +140,51 @@ export async function templateRoutes(fastify, options) {
 
     try {
       const template = await templateService.getTemplateById(request.params.id, context);
+      return { template };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Protected endpoint - Create new template
+  fastify.post('/', {
+    preHandler: authenticate,
+    schema: {
+      body: createTemplateSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            template: templateSchema
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const template = await templateService.createTemplate(
+        request.user.id,
+        request.body,
+        context
+      );
       return { template };
     } catch (error) {
       logError(context, error);

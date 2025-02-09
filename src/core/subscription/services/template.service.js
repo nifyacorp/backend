@@ -58,6 +58,36 @@ class TemplateService {
     }
   }
 
+  async createTemplate(userId, data, context) {
+    logRequest(context, 'Creating new template', { userId });
+
+    try {
+      // Validate prompts
+      if (data.prompts.length > 3) {
+        throw new AppError('INVALID_PROMPTS', 'Maximum 3 prompts allowed', 400);
+      }
+
+      // Create template
+      const result = await this.repository.createTemplate(userId, data);
+      
+      if (result.rows.length === 0) {
+        throw new AppError('TEMPLATE_CREATE_ERROR', 'Failed to create template', 500);
+      }
+
+      logRequest(context, 'Template created successfully', {
+        templateId: result.rows[0].id,
+        type: data.type,
+        isPublic: data.isPublic
+      });
+
+      return result.rows[0];
+    } catch (error) {
+      logError(context, error);
+      if (error instanceof AppError) throw error;
+      throw new AppError('TEMPLATE_CREATE_ERROR', 'Failed to create template', 500);
+    }
+  }
+
   async createFromTemplate(userId, templateId, customization = {}, context) {
     logRequest(context, 'Creating subscription from template', { userId, templateId, customization });
 

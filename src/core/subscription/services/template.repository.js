@@ -120,6 +120,48 @@ export class TemplateRepository {
       ]
     );
   }
+
+  async createTemplate(userId, data) {
+    return await query(
+      `INSERT INTO subscription_templates (
+        type,
+        name,
+        description,
+        prompts,
+        frequency,
+        icon,
+        logo,
+        metadata,
+        is_public,
+        created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING 
+        id,
+        name,
+        description,
+        type,
+        prompts,
+        frequency,
+        created_by as "createdBy",
+        created_at as "createdAt",
+        icon,
+        logo,
+        metadata,
+        is_public as "isPublic"`,
+      [
+        data.type,
+        data.name,
+        data.description,
+        data.prompts,
+        data.frequency,
+        data.icon || null,
+        data.logo || null,
+        JSON.stringify(data.metadata || {}),
+        data.isPublic || false,
+        userId
+      ]
+    );
+  }
 }
 
 export const templateRepository = new TemplateRepository();
