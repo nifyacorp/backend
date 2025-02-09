@@ -3,29 +3,45 @@ import { AppError } from '../../../shared/errors/AppError.js';
 import { SUBSCRIPTION_ERRORS } from '../types/subscription.types.js';
 import { logRequest, logError, logPubSub, logProcessing } from '../../../shared/logging/logger.js';
 import { publishEvent } from '../../../infrastructure/pubsub/client.js';
+import { subscriptionRepository } from './subscription.repository.js';
 
 class SubscriptionService {
+  constructor(repository) {
+    this.repository = repository;
+  }
+
+  async getSubscriptionById(userId, subscriptionId, context) {
+    logRequest(context, 'Fetching subscription by ID', { userId, subscriptionId });
+
+    try {
+      const result = await this.repository.getSubscriptionById(userId, subscriptionId);
+
+      if (result.rows.length === 0) {
+        throw new AppError(
+          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
+          SUBSCRIPTION_ERRORS.NOT_FOUND.message,
+          404,
+          { subscriptionId }
+        );
+      }
+
+      return result.rows[0];
+    } catch (error) {
+      logError(context, error);
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        SUBSCRIPTION_ERRORS.FETCH_ERROR.code,
+        'Failed to fetch subscription',
+        500
+      );
+    }
+  }
+
   async getUserSubscriptions(userId, context) {
     logRequest(context, 'Fetching user subscriptions', { userId });
 
     try {
-      const result = await query(
-        `SELECT 
-          s.id,
-          s.type_id,
-          s.name,
-          s.description,
-          s.prompts,
-          s.logo,
-          s.frequency,
-          s.active,
-          s.created_at as "createdAt",
-          s.updated_at as "updatedAt"
-        FROM subscriptions s 
-        WHERE s.user_id = $1
-        ORDER BY s.created_at DESC`,
-        [userId]
-      );
+      const result = await this.repository.getUserSubscriptions(userId);
 
       logRequest(context, 'Subscriptions retrieved', {
         userId,
@@ -257,4 +273,4 @@ class SubscriptionService {
   }
 }
 
-export const subscriptionService = new SubscriptionService();
+export const subscriptionService = new SubscriptionService(subscriptionRepository);

@@ -1,57 +1,25 @@
-import { query } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError, logProcessing } from '../../../shared/logging/logger.js';
 import { builtInTemplates } from '../data/built-in-templates.js';
 import { publishEvent } from '../../../infrastructure/pubsub/client.js';
+import { templateRepository } from './template.repository.js';
 
 class TemplateService {
+  constructor(repository) {
+    this.repository = repository;
+  }
+
   async getPublicTemplates(context, page = 1, limit = 10) {
     logRequest(context, 'Fetching public templates');
 
     try {
       const offset = (page - 1) * limit;
-
-      // Get user templates count
-      const countResult = await query(
-        `SELECT COUNT(*) 
-         FROM subscription_templates t 
-         WHERE t.is_public = true`,
-        []
-      );
-
-      const userTemplatesCount = parseInt(countResult.rows[0].count);
+      const userTemplatesCount = await this.repository.countPublicTemplates();
       const totalCount = userTemplatesCount + builtInTemplates.length;
       const totalPages = Math.ceil(totalCount / limit);
 
-      // Get user-created templates
-      const result = await query(
-        `SELECT 
-          t.id,
-          t.name,
-          t.description,
-          t.type,
-          t.prompts,
-          t.frequency,
-          t.created_by as "createdBy",
-          t.created_at as "createdAt",
-          t.icon,
-          t.logo,
-          t.metadata,
-          t.is_public as "isPublic"
-        FROM subscription_templates t
-        WHERE t.is_public = true
-        ORDER BY t.created_at DESC
-        LIMIT $1 OFFSET $2`,
-        [limit, offset]
-      );
-
-      // Transform user templates to match the format
-      const userTemplates = result.rows.map(template => ({
-        ...template,
-        isBuiltIn: false
-      }));
-
-      // Combine built-in and user templates
+      const result = await this.repository.getPublicTemplates(limit, offset);
+      const userTemplates = this._transformTemplates(result.rows);
       const templates = [...builtInTemplates, ...userTemplates];
 
       logRequest(context, 'Public templates retrieved', {
@@ -63,226 +31,145 @@ class TemplateService {
         totalCount
       });
 
-      return {
-        templates,
-        pagination: {
-          page,
-          limit,
-          totalPages,
-          totalCount,
-          hasMore: page < totalPages
-        }
-      };
+      return this._createPaginatedResponse(templates, page, limit, totalPages, totalCount);
     } catch (error) {
       logError(context, error);
-      throw new AppError(
-        'TEMPLATE_FETCH_ERROR',
-        'Failed to fetch public templates',
-        500
-      );
+      throw new AppError('TEMPLATE_FETCH_ERROR', 'Failed to fetch public templates', 500);
     }
   }
 
   async getTemplateById(templateId, context) {
     logRequest(context, 'Fetching template by ID', { templateId });
 
-    // Check built-in templates first
-    const builtInTemplate = builtInTemplates.find(t => t.id === templateId);
-    if (builtInTemplate) {
-      return builtInTemplate;
-    }
+    const builtInTemplate = this._findBuiltInTemplate(templateId);
+    if (builtInTemplate) return builtInTemplate;
 
     try {
-      const result = await query(
-        `SELECT 
-          t.id,
-          t.name,
-          t.description,
-          t.type,
-          t.prompts,
-          t.frequency,
-          t.created_by as "createdBy",
-          t.created_at as "createdAt",
-          t.icon,
-          t.logo,
-          t.metadata,
-          t.is_public as "isPublic"
-        FROM subscription_templates t
-        WHERE t.id = $1 AND t.is_public = true`,
-        [templateId]
-      );
-
+      const result = await this.repository.getTemplateById(templateId);
       if (result.rows.length === 0) {
-        throw new AppError(
-          'TEMPLATE_NOT_FOUND',
-          'Template not found',
-          404,
-          { templateId }
-        );
+        throw new AppError('TEMPLATE_NOT_FOUND', 'Template not found', 404, { templateId });
       }
 
-      // Transform to match the format
-      const template = {
-        ...result.rows[0],
-        isBuiltIn: false
-      };
-
-      return template;
+      return { ...result.rows[0], isBuiltIn: false };
     } catch (error) {
       logError(context, error);
       if (error instanceof AppError) throw error;
-      throw new AppError(
-        'TEMPLATE_FETCH_ERROR',
-        'Failed to fetch template',
-        500
-      );
+      throw new AppError('TEMPLATE_FETCH_ERROR', 'Failed to fetch template', 500);
     }
   }
 
   async createFromTemplate(userId, templateId, customization = {}, context) {
-    logRequest(context, 'Creating subscription from template', { 
-      userId, 
-      templateId,
-      customization 
-    });
+    logRequest(context, 'Creating subscription from template', { userId, templateId, customization });
 
     try {
-      // Get template details
       const template = await this.getTemplateById(templateId, context);
       if (!template) {
-        throw new AppError(
-          'TEMPLATE_NOT_FOUND',
-          'Template not found',
-          404,
-          { templateId }
-        );
+        throw new AppError('TEMPLATE_NOT_FOUND', 'Template not found', 404, { templateId });
       }
 
-      // Get subscription type ID for the template type
-      const typeResult = await query(
-        `SELECT id FROM subscription_types WHERE name = $1 AND is_system = true`,
-        [template.type.toUpperCase()]
-      );
-
+      const typeResult = await this.repository.getSubscriptionTypeId(template.type);
       if (typeResult.rows.length === 0) {
-        throw new AppError(
-          'TYPE_NOT_FOUND',
-          'Subscription type not found',
-          404,
-          { type: template.type }
-        );
+        throw new AppError('TYPE_NOT_FOUND', 'Subscription type not found', 404, { type: template.type });
       }
 
-      const typeId = typeResult.rows[0].id;
-
-      // Use customization options or template defaults
-      const prompts = customization.prompts || template.prompts;
-      const frequency = customization.frequency || template.frequency;
-
-      // Validate prompts length
-      if (prompts.length > 3) {
-        throw new AppError(
-          'INVALID_PROMPTS',
-          'Maximum 3 prompts allowed',
-          400,
-          { providedCount: prompts.length }
-        );
-      }
-
-      // Create subscription from template
-      const result = await query(
-        `INSERT INTO subscriptions (
-          user_id,
-          type_id,
-          name,
-          description,
-          prompts,
-          logo,
-          frequency,
-          active,
-          settings
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
-        RETURNING 
-          id,
-          name,
-          description,
-          prompts,
-          logo,
-          frequency,
-          active,
-          created_at as "createdAt",
-          updated_at as "updatedAt"`,
-        [
-          userId,
-          typeId,
-          template.name,
-          template.description,
-          prompts,
-          template.logo,
-          frequency,
-          JSON.stringify(template.metadata || {})
-        ]
+      const { prompts, frequency } = this._validateAndGetCustomization(template, customization);
+      const subscription = await this._createSubscriptionFromTemplate(
+        userId, 
+        typeResult.rows[0].id, 
+        template, 
+        prompts, 
+        frequency,
+        context
       );
 
-      const subscription = result.rows[0];
-
-      // Create processing record
-      const processingResult = await query(
-        `INSERT INTO subscription_processing (
-          subscription_id,
-          status,
-          next_run_at,
-          metadata
-        ) VALUES ($1, $2, $3, $4)
-        RETURNING id`,
-        [
-          subscription.id,
-          'pending',
-          frequency === 'immediate' ? new Date() : new Date(Date.now() + 24 * 60 * 60 * 1000), // Immediate or next day
-          JSON.stringify({
-            type: template.type,
-            frequency,
-            prompts
-          })
-        ]
-      );
-
-      logProcessing(context, 'Processing record created', {
-        subscriptionId: subscription.id,
-        processingId: processingResult.rows[0].id
-      });
-
-      // Publish subscription created event
-      await publishEvent('subscription-events', {
-        type: 'subscription-created',
-        data: {
-          userId,
-          subscriptionId: subscription.id,
-          templateId,
-          prompts: subscription.prompts,
-          frequency: subscription.frequency,
-          isCustomized: !!customization.prompts || !!customization.frequency
-        }
-      });
-
-      logRequest(context, 'Subscription created from template', {
-        userId,
-        templateId,
-        subscriptionId: subscription.id,
-        customized: !!customization.prompts || !!customization.frequency
-      });
+      await this._publishSubscriptionCreated(userId, subscription.id, templateId, prompts, frequency, customization);
 
       return subscription;
     } catch (error) {
       logError(context, error);
       if (error instanceof AppError) throw error;
-      throw new AppError(
-        'SUBSCRIPTION_CREATE_ERROR',
-        'Failed to create subscription from template',
-        500
-      );
+      throw new AppError('SUBSCRIPTION_CREATE_ERROR', 'Failed to create subscription from template', 500);
     }
+  }
+
+  _transformTemplates(templates) {
+    return templates.map(template => ({
+      ...template,
+      isBuiltIn: false
+    }));
+  }
+
+  _createPaginatedResponse(templates, page, limit, totalPages, totalCount) {
+    return {
+      templates,
+      pagination: {
+        page,
+        limit,
+        totalPages,
+        totalCount,
+        hasMore: page < totalPages
+      }
+    };
+  }
+
+  _findBuiltInTemplate(templateId) {
+    return builtInTemplates.find(t => t.id === templateId);
+  }
+
+  _validateAndGetCustomization(template, customization) {
+    const prompts = customization.prompts || template.prompts;
+    const frequency = customization.frequency || template.frequency;
+
+    if (prompts.length > 3) {
+      throw new AppError('INVALID_PROMPTS', 'Maximum 3 prompts allowed', 400, { providedCount: prompts.length });
+    }
+
+    return { prompts, frequency };
+  }
+
+  async _createSubscriptionFromTemplate(userId, typeId, template, prompts, frequency, context) {
+    const result = await this.repository.createSubscription(
+      userId,
+      typeId,
+      template,
+      prompts,
+      frequency,
+      template.metadata
+    );
+
+    const subscription = result.rows[0];
+    
+    const processingResult = await this.repository.createProcessingRecord(
+      subscription.id,
+      frequency,
+      {
+        type: template.type,
+        frequency,
+        prompts
+      }
+    );
+
+    logProcessing(context, 'Processing record created', {
+      subscriptionId: subscription.id,
+      processingId: processingResult.rows[0].id
+    });
+
+    return subscription;
+  }
+
+  async _publishSubscriptionCreated(userId, subscriptionId, templateId, prompts, frequency, customization) {
+    await publishEvent('subscription-events', {
+      type: 'subscription-created',
+      data: {
+        userId,
+        subscriptionId,
+        templateId,
+        prompts,
+        frequency,
+        isCustomized: !!customization.prompts || !!customization.frequency
+      }
+    });
   }
 }
 
-export const templateService = new TemplateService();
+export const templateService = new TemplateService(templateRepository);
