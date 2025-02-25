@@ -1,6 +1,7 @@
 import { subscriptionService, typeService } from '../../../core/subscription/index.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
+import axios from 'axios';
 
 const subscriptionTypeSchema = {
   type: 'object',
@@ -340,6 +341,72 @@ export async function subscriptionRoutes(fastify, options) {
         context
       );
       return { subscription };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
+  // Process subscription manually
+  fastify.post('/:id/process', {
+    schema: {
+      response: {
+        202: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            message: { type: 'string' },
+            subscription_id: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+
+      const subscriptionId = request.params.id;
+      
+      // First verify that the subscription belongs to the user
+      const subscription = await subscriptionService.getSubscriptionById(
+        request.user.id,
+        subscriptionId,
+        context
+      );
+      
+      if (!subscription) {
+        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
+      }
+      
+      // Call the subscription-worker service to process this subscription
+      const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
+      const processingResponse = await axios.post(
+        `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
+        {},
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      // Return the processing service response
+      reply.code(202).send(processingResponse.data);
     } catch (error) {
       logError(context, error);
       const response = error instanceof AppError ? error.toJSON() : {
