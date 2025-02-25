@@ -10,8 +10,9 @@ RUN apk add --no-cache python3 make g++
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && \
+# Install dependencies and generate lock file
+RUN npm install --no-audit --no-fund && \
+    npm prune --production && \
     npm cache clean --force
 
 # Copy app source
