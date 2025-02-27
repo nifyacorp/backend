@@ -162,9 +162,76 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   }
 };
 
+/**
+ * Delete a notification
+ * @param {string} notificationId - The notification ID
+ * @param {string} userId - The user's ID
+ * @returns {Promise<boolean>} - True if the notification was deleted
+ */
+const deleteNotification = async (notificationId, userId) => {
+  try {
+    const query = `
+      DELETE FROM notifications
+      WHERE id = $1 AND user_id = $2
+      RETURNING id
+    `;
+    
+    const result = await dbPool.query(query, [notificationId, userId]);
+    
+    if (result.rows.length === 0) {
+      throw new Error('Notification not found or not owned by user');
+    }
+    
+    return true;
+  } catch (error) {
+    logger.error('Error in deleteNotification', {
+      notificationId,
+      userId,
+      error: error.message
+    });
+    throw error;
+  }
+};
+
+/**
+ * Delete all notifications for a user
+ * @param {string} userId - The user's ID
+ * @param {string|null} [subscriptionId=null] - Optional subscription ID to filter by
+ * @returns {Promise<number>} - Number of notifications deleted
+ */
+const deleteAllNotifications = async (userId, subscriptionId = null) => {
+  try {
+    let query = `
+      DELETE FROM notifications
+      WHERE user_id = $1
+    `;
+    
+    const queryParams = [userId];
+    
+    if (subscriptionId) {
+      query += ` AND subscription_id = $2`;
+      queryParams.push(subscriptionId);
+    }
+    
+    query += ` RETURNING id`;
+    
+    const result = await dbPool.query(query, queryParams);
+    return result.rows.length;
+  } catch (error) {
+    logger.error('Error in deleteAllNotifications', {
+      userId,
+      subscriptionId,
+      error: error.message
+    });
+    throw error;
+  }
+};
+
 export default {
   getUserNotifications,
   getNotificationCount,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  deleteNotification,
+  deleteAllNotifications
 }; 

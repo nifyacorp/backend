@@ -98,8 +98,76 @@ const markAllAsRead = async (req, res) => {
   }
 };
 
+/**
+ * Delete a notification
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
+const deleteNotification = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { notificationId } = req.params;
+    
+    if (!notificationId) {
+      return res.status(400).json({ error: 'Notification ID is required' });
+    }
+    
+    const result = await notificationService.deleteNotification(notificationId, userId);
+    
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error('Error in notification controller deleteNotification', {
+      userId: req.user?.id,
+      notificationId: req.params.notificationId,
+      error: error.message
+    });
+    
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ 
+        error: 'Notification not found', 
+        message: error.message 
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: 'Failed to delete notification', 
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * Delete all notifications for a user
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
+const deleteAllNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { subscriptionId } = req.query;
+    
+    const result = await notificationService.deleteAllNotifications(userId, subscriptionId);
+    
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error('Error in notification controller deleteAllNotifications', {
+      userId: req.user?.id,
+      subscriptionId: req.query.subscriptionId,
+      error: error.message
+    });
+    return res.status(500).json({ 
+      error: 'Failed to delete notifications', 
+      message: error.message 
+    });
+  }
+};
+
 export default {
   getUserNotifications,
   markAsRead,
-  markAllAsRead
+  markAllAsRead,
+  deleteNotification,
+  deleteAllNotifications
 }; 

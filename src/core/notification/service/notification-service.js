@@ -1,41 +1,18 @@
-import notificationRepository from './data/notification-repository.js';
-import logger from '../../shared/logger.js';
+import notificationRepository from '../data/notification-repository.js';
+import logger from '../../../shared/logger.js';
 
 /**
  * Get notifications for a user with pagination and filters
  * @param {string} userId - The user's ID
  * @param {Object} options - Query options
+ * @param {number} [options.page=1] - Page number
  * @param {number} [options.limit=10] - Number of notifications per page
- * @param {number} [options.offset=0] - Offset for pagination
- * @param {boolean} [options.unreadOnly=false] - Only return unread notifications
+ * @param {boolean} [options.unread=false] - Only return unread notifications
  * @param {string|null} [options.subscriptionId=null] - Filter by subscription ID
  * @returns {Promise<Object>} - Notification data with pagination info
  */
 const getUserNotifications = async (userId, options = {}) => {
-  try {
-    // Get notifications based on options
-    const notifications = await notificationRepository.getUserNotifications(userId, options);
-    
-    // Get total and unread counts for pagination and badge display
-    const totalCount = await notificationRepository.getNotificationCount(userId, false);
-    const unreadCount = await notificationRepository.getNotificationCount(userId, true);
-    
-    return {
-      notifications,
-      total: totalCount,
-      unread: unreadCount,
-      page: Math.floor(options.offset / options.limit) + 1,
-      limit: options.limit,
-      hasMore: totalCount > (options.offset + options.limit)
-    };
-  } catch (error) {
-    logger.error('Error in notification service getUserNotifications', {
-      userId,
-      error: error.message,
-      stack: error.stack
-    });
-    throw error;
-  }
+  // ... existing code ...
 };
 
 /**
@@ -45,16 +22,7 @@ const getUserNotifications = async (userId, options = {}) => {
  * @returns {Promise<Object>} - The updated notification
  */
 const markNotificationAsRead = async (notificationId, userId) => {
-  try {
-    return await notificationRepository.markNotificationAsRead(notificationId, userId);
-  } catch (error) {
-    logger.error('Error in notification service markNotificationAsRead', {
-      userId,
-      notificationId,
-      error: error.message
-    });
-    throw error;
-  }
+  // ... existing code ...
 };
 
 /**
@@ -64,17 +32,7 @@ const markNotificationAsRead = async (notificationId, userId) => {
  * @returns {Promise<Object>} - Result with count of updated notifications
  */
 const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
-  try {
-    const updatedCount = await notificationRepository.markAllNotificationsAsRead(userId, subscriptionId);
-    return { updated: updatedCount };
-  } catch (error) {
-    logger.error('Error in notification service markAllNotificationsAsRead', {
-      userId,
-      subscriptionId,
-      error: error.message
-    });
-    throw error;
-  }
+  // ... existing code ...
 };
 
 /**

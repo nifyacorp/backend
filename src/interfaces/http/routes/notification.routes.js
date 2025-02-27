@@ -97,4 +97,57 @@ router.post('/:notificationId/read', authMiddleware, notificationController.mark
  */
 router.post('/read-all', authMiddleware, notificationController.markAllAsRead);
 
+/**
+ * @swagger
+ * /notifications/{notificationId}:
+ *   delete:
+ *     summary: Delete a notification
+ *     description: Deletes a specific notification for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the notification to delete
+ *     responses:
+ *       200:
+ *         description: Notification deleted successfully
+ *       400:
+ *         description: Invalid notification ID
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Notification not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/:notificationId', authMiddleware, notificationController.deleteNotification);
+
+/**
+ * @swagger
+ * /notifications/delete-all:
+ *   delete:
+ *     summary: Delete all notifications
+ *     description: Deletes all notifications for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: subscriptionId
+ *         schema:
+ *           type: string
+ *         description: Filter to delete only notifications from specific subscription
+ *     responses:
+ *       200:
+ *         description: All notifications deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.delete('/delete-all', authMiddleware, notificationController.deleteAllNotifications);
+
 export const notificationRoutes = router; 
