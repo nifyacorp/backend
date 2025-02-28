@@ -140,17 +140,29 @@ const deleteNotification = async (request, reply) => {
     const userId = request.user.id;
     const { notificationId } = request.params;
     
-    if (!notificationId) {
-      return reply.status(400).send({ error: 'Notification ID is required' });
+    // Log the deletion attempt for debugging
+    logger.logProcessing({ controller: 'notification-controller', method: 'deleteNotification' }, 'Processing notification deletion', {
+      userId,
+      notificationId,
+      params: request.params,
+      url: request.url
+    });
+    
+    if (!notificationId || notificationId === 'undefined') {
+      return reply.status(400).send({ 
+        error: 'Invalid notification ID', 
+        message: 'Notification ID is required and cannot be undefined' 
+      });
     }
     
     const result = await notificationService.deleteNotification(notificationId, userId);
     
     return reply.status(200).send(result);
   } catch (error) {
-    logger.logError({ requestId: request.id, path: request.url }, error, {
+    logger.logError({ controller: 'notification-controller', method: 'deleteNotification' }, error, {
       userId: request.user?.id,
-      notificationId: request.params.notificationId
+      notificationId: request.params.notificationId,
+      url: request.url
     });
     
     if (error.message.includes('not found')) {

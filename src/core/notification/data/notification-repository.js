@@ -20,9 +20,12 @@ const getUserNotifications = async (userId, options = {}) => {
   } = options;
 
   try {
-    // Restore JOIN with subscriptions table to include subscription_name and entity_type
+    // Explicitly select notification.id to ensure it's properly returned
     let sqlQuery = `
-      SELECT n.*, s.name as subscription_name, s.entity_type
+      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, 
+             n.source_url as "sourceUrl", n.read, n.metadata,
+             n.created_at as "createdAt", n.read_at as "readAt",
+             s.name as subscription_name, s.entity_type
       FROM notifications n
       LEFT JOIN subscriptions s ON n.subscription_id = s.id
       WHERE n.user_id = $1
@@ -59,6 +62,16 @@ const getUserNotifications = async (userId, options = {}) => {
       rowCount: result.rowCount,
       timestamp: new Date().toISOString()
     });
+    
+    // Log the first result for debugging if available
+    if (result.rows.length > 0) {
+      console.log('First notification data:', {
+        id: result.rows[0].id,
+        hasId: !!result.rows[0].id,
+        idType: typeof result.rows[0].id,
+        keys: Object.keys(result.rows[0])
+      });
+    }
     
     return result.rows;
   } catch (error) {

@@ -11,12 +11,36 @@ import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 
 const fastify = Fastify({
-  logger: true
+  logger: true,
+  // Add global configuration for request handling
+  bodyLimit: 1048576, // 1MiB
+  // Configure to accept DELETE requests with empty bodies
+  exposeHeadRoutes: true,
+  // Set default for content type parsing to be more lenient
+  ignoreTrailingSlash: true,
+  // Optional: Add a handler for cases where Content-Type doesn't match request
+  onProtoPoisoning: 'remove',
+  onConstructorPoisoning: 'remove'
 });
 
 // Register plugins
 await fastify.register(cors, {
   origin: true
+});
+
+// Configure empty bodies for DELETE requests
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
+  if (req.method === 'DELETE' && (!body || body === '')) {
+    done(null, {});
+  } else {
+    try {
+      const json = JSON.parse(body || '{}');
+      done(null, json);
+    } catch (err) {
+      err.statusCode = 400;
+      done(err, undefined);
+    }
+  }
 });
 
 // Swagger documentation

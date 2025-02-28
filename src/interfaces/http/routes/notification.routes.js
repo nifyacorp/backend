@@ -75,6 +75,9 @@ export async function notificationRoutes(fastify, options) {
         },
         required: ['notificationId']
       }
+    },
+    config: {
+      allowEmptyBody: true
     }
   }, notificationController.deleteNotification);
 
@@ -89,6 +92,9 @@ export async function notificationRoutes(fastify, options) {
           subscriptionId: { type: 'string' }
         }
       }
+    },
+    config: {
+      allowEmptyBody: true
     }
   }, notificationController.deleteAllNotifications);
 } 
