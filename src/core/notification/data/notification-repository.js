@@ -20,10 +20,11 @@ const getUserNotifications = async (userId, options = {}) => {
   } = options;
 
   try {
-    // Start with a simpler query without JOIN to isolate potential issues
+    // Restore JOIN with subscriptions table to include subscription_name and entity_type
     let sqlQuery = `
-      SELECT n.*
+      SELECT n.*, s.name as subscription_name, s.entity_type
       FROM notifications n
+      LEFT JOIN subscriptions s ON n.subscription_id = s.id
       WHERE n.user_id = $1
     `;
     
@@ -101,11 +102,20 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
       queryParams.push(subscriptionId);
     }
     
+    // Log the count query for debugging
+    console.log('Executing notification count query:', {
+      query: sqlQuery,
+      params: queryParams,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
     const result = await query(sqlQuery, queryParams);
     return parseInt(result.rows[0].count);
   } catch (error) {
-    logger.logError({ repository: 'notification-repository', method: 'getUnreadCount' }, error, {
+    logger.logError({ repository: 'notification-repository', method: 'getNotificationCount' }, error, {
       userId,
+      unreadOnly,
       subscriptionId
     });
     throw error;

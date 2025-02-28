@@ -34,7 +34,7 @@ const mockNotifications = [
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
     readAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
     subscription_name: 'Alertas Inmobiliarias',
-    entity_type: 'INMOBILIARIA',
+    entity_type: 'REAL_ESTATE',
     metadata: { prompt: 'Madrid centro 2 habitaciones', matchConfidence: 0.85 }
   },
   {
