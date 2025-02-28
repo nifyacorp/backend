@@ -25,7 +25,7 @@ const getUserNotifications = async (userId, options = {}) => {
       SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, 
              n.source_url as "sourceUrl", n.read, n.metadata,
              n.created_at as "createdAt", n.read_at as "readAt",
-             s.name as subscription_name, s.entity_type
+             s.name as subscription_name
       FROM notifications n
       LEFT JOIN subscriptions s ON n.subscription_id = s.id
       WHERE n.user_id = $1
