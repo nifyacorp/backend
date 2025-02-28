@@ -43,7 +43,7 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
  */
 const deleteNotification = async (notificationId, userId) => {
   try {
-    logger.logInfo({ service: 'notification-service', method: 'deleteNotification' }, 'Deleting notification', { notificationId, userId });
+    logger.logProcessing({ service: 'notification-service', method: 'deleteNotification' }, 'Deleting notification', { notificationId, userId });
     
     const deleted = await notificationRepository.deleteNotification(notificationId, userId);
     
@@ -69,7 +69,7 @@ const deleteNotification = async (notificationId, userId) => {
  */
 const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
-    logger.logInfo({ service: 'notification-service', method: 'deleteAllNotifications' }, 'Deleting all notifications', {
+    logger.logProcessing({ service: 'notification-service', method: 'deleteAllNotifications' }, 'Deleting all notifications', {
       userId,
       subscriptionId
     });

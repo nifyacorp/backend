@@ -75,7 +75,7 @@ const getUserNotifications = async (userId, options = {}) => {
   try {
     // In development mode, return mock data
     if (process.env.NODE_ENV === 'development') {
-      logger.logInfo({ service: 'notification-service', method: 'getUserNotifications' }, 'Using mock notification data in development mode', {
+      logger.logProcessing({ service: 'notification-service', method: 'getUserNotifications' }, 'Using mock notification data in development mode', {
         userId,
         options
       });
@@ -140,7 +140,7 @@ const markNotificationAsRead = async (notificationId, userId) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.logInfo({ service: 'notification-service', method: 'markAsRead' }, 'Mock: Marking notification as read', {
+      logger.logProcessing({ service: 'notification-service', method: 'markAsRead' }, 'Mock: Marking notification as read', {
         notificationId,
         userId
       });
@@ -176,7 +176,7 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.logInfo({ service: 'notification-service', method: 'markAllAsRead' }, 'Mock: Marking all notifications as read', {
+      logger.logProcessing({ service: 'notification-service', method: 'markAllAsRead' }, 'Mock: Marking all notifications as read', {
         userId
       });
       
@@ -213,7 +213,7 @@ const deleteNotification = async (notificationId, userId) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.logInfo({ service: 'notification-service', method: 'deleteNotification' }, 'Mock: Deleting notification', {
+      logger.logProcessing({ service: 'notification-service', method: 'deleteNotification' }, 'Mock: Deleting notification', {
         notificationId,
         userId
       });
@@ -249,7 +249,7 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.logInfo({ service: 'notification-service', method: 'deleteAllNotifications' }, 'Mock: Deleting all notifications', {
+      logger.logProcessing({ service: 'notification-service', method: 'deleteAllNotifications' }, 'Mock: Deleting all notifications', {
         userId,
         subscriptionId
       });
