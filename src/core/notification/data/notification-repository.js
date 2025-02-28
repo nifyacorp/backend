@@ -20,7 +20,7 @@ const getUserNotifications = async (userId, options = {}) => {
   } = options;
 
   try {
-    let query = `
+    let sqlQuery = `
       SELECT n.*, s.name as subscription_name, s.entity_type
       FROM notifications n
       JOIN subscriptions s ON n.subscription_id = s.id
@@ -31,19 +31,19 @@ const getUserNotifications = async (userId, options = {}) => {
     let paramIndex = 2;
     
     if (unreadOnly) {
-      query += ` AND n.read = false`;
+      sqlQuery += ` AND n.read = false`;
     }
     
     if (subscriptionId) {
-      query += ` AND n.subscription_id = $${paramIndex}`;
+      sqlQuery += ` AND n.subscription_id = $${paramIndex}`;
       queryParams.push(subscriptionId);
       paramIndex++;
     }
     
-    query += ` ORDER BY n.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    sqlQuery += ` ORDER BY n.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limit, offset);
     
-    const result = await query(query, queryParams);
+    const result = await query(sqlQuery, queryParams);
     return result.rows;
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'getUserNotifications' }, error, {
@@ -63,7 +63,7 @@ const getUserNotifications = async (userId, options = {}) => {
  */
 const getNotificationCount = async (userId, unreadOnly = false, subscriptionId = null) => {
   try {
-    let query = `
+    let sqlQuery = `
       SELECT COUNT(*) as count
       FROM notifications n
       WHERE n.user_id = $1
@@ -73,15 +73,15 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
     let paramIndex = 2;
     
     if (unreadOnly) {
-      query += ` AND n.read = false`;
+      sqlQuery += ` AND n.read = false`;
     }
     
     if (subscriptionId) {
-      query += ` AND n.subscription_id = $${paramIndex}`;
+      sqlQuery += ` AND n.subscription_id = $${paramIndex}`;
       queryParams.push(subscriptionId);
     }
     
-    const result = await query(query, queryParams);
+    const result = await query(sqlQuery, queryParams);
     return parseInt(result.rows[0].count);
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'getUnreadCount' }, error, {
@@ -100,14 +100,14 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
  */
 const markNotificationAsRead = async (notificationId, userId) => {
   try {
-    const query = `
+    const sqlQuery = `
       UPDATE notifications
       SET read = true, read_at = NOW()
       WHERE id = $1 AND user_id = $2
       RETURNING *
     `;
     
-    const result = await query(query, [notificationId, userId]);
+    const result = await query(sqlQuery, [notificationId, userId]);
     
     if (result.rows.length === 0) {
       throw new Error('Notification not found or not owned by user');
@@ -131,7 +131,7 @@ const markNotificationAsRead = async (notificationId, userId) => {
  */
 const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   try {
-    let query = `
+    let sqlQuery = `
       UPDATE notifications
       SET read = true, read_at = NOW()
       WHERE user_id = $1 AND read = false
@@ -140,13 +140,13 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
     const queryParams = [userId];
     
     if (subscriptionId) {
-      query += ` AND subscription_id = $2`;
+      sqlQuery += ` AND subscription_id = $2`;
       queryParams.push(subscriptionId);
     }
     
-    query += ` RETURNING id`;
+    sqlQuery += ` RETURNING id`;
     
-    const result = await query(query, queryParams);
+    const result = await query(sqlQuery, queryParams);
     return result.rows.length;
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'markAllNotificationsAsRead' }, error, {
@@ -166,13 +166,13 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
  */
 const deleteNotification = async (notificationId, userId) => {
   try {
-    const query = `
+    const sqlQuery = `
       DELETE FROM notifications
       WHERE id = $1 AND user_id = $2
       RETURNING id
     `;
     
-    const result = await query(query, [notificationId, userId]);
+    const result = await query(sqlQuery, [notificationId, userId]);
     
     if (result.rows.length === 0) {
       throw new Error('Notification not found or not owned by user');
@@ -196,7 +196,7 @@ const deleteNotification = async (notificationId, userId) => {
  */
 const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
-    let query = `
+    let sqlQuery = `
       DELETE FROM notifications
       WHERE user_id = $1
     `;
@@ -204,13 +204,13 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
     const queryParams = [userId];
     
     if (subscriptionId) {
-      query += ` AND subscription_id = $2`;
+      sqlQuery += ` AND subscription_id = $2`;
       queryParams.push(subscriptionId);
     }
     
-    query += ` RETURNING id`;
+    sqlQuery += ` RETURNING id`;
     
-    const result = await query(query, queryParams);
+    const result = await query(sqlQuery, queryParams);
     return result.rows.length;
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'deleteAllNotifications' }, error, {
