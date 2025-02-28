@@ -13,7 +13,7 @@ const getUserNotifications = async (request, reply) => {
     const userId = request.user.id;
     
     // Log incoming request details for debugging
-    logger.logInfo({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Processing notification request', {
+    logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Processing notification request', {
       userId,
       query: request.query,
       path: request.url

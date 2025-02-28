@@ -123,7 +123,7 @@ const getUserNotifications = async (userId, options = {}) => {
       const unreadCount = await notificationRepository.getNotificationCount(userId, true);
       
       // Log successful retrieval
-      logger.logInfo({ service: 'notification-service', method: 'getUserNotifications' }, 'Successfully retrieved notifications', {
+      logger.logProcessing({ service: 'notification-service', method: 'getUserNotifications' }, 'Successfully retrieved notifications', {
         userId,
         count: notifications.length,
         totalCount,
