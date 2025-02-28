@@ -20,7 +20,7 @@ export async function authenticate(request, reply) {
 
   // Check if path is public
   if (PUBLIC_PATHS.some(path => request.url === path || request.url.startsWith(path))) {
-    logger.info('Skipping auth for public path', { 
+    logger.logInfo({ requestId: request.id, path: request.url }, 'Skipping auth for public path', { 
       path: request.url,
       requestId: request.id
     });
@@ -28,7 +28,7 @@ export async function authenticate(request, reply) {
   }
 
   try {
-    logger.info('Processing authentication', {
+    logger.logInfo({ requestId: request.id, path: request.url }, 'Processing authentication', {
       hasAuth: !!request.headers.authorization,
       hasUserId: !!request.headers['x-user-id'],
       path: request.url,
@@ -59,7 +59,7 @@ export async function authenticate(request, reply) {
     }
 
     // Log token details for debugging (excluding sensitive parts)
-    logger.info('Token verification attempt', {
+    logger.logInfo({ requestId: request.id, path: request.url }, 'Token verification attempt', {
       tokenLength: token?.length,
       hasUserId: !!userId,
       requestId: request.id
@@ -81,7 +81,7 @@ export async function authenticate(request, reply) {
       token: decoded
     };
 
-    logger.info('Authentication successful', { 
+    logger.logInfo({ requestId: request.id, path: request.url }, 'Authentication successful', { 
       userId,
       requestId: request.id
     });

@@ -75,7 +75,7 @@ const getUserNotifications = async (userId, options = {}) => {
   try {
     // In development mode, return mock data
     if (process.env.NODE_ENV === 'development') {
-      logger.info('Using mock notification data in development mode', {
+      logger.logInfo({ service: 'notification-service', method: 'getUserNotifications' }, 'Using mock notification data in development mode', {
         userId,
         options
       });
@@ -140,7 +140,7 @@ const markNotificationAsRead = async (notificationId, userId) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.info('Mock: Marking notification as read', {
+      logger.logInfo({ service: 'notification-service', method: 'markAsRead' }, 'Mock: Marking notification as read', {
         notificationId,
         userId
       });
@@ -176,9 +176,8 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.info('Mock: Marking all notifications as read', {
-        userId,
-        subscriptionId
+      logger.logInfo({ service: 'notification-service', method: 'markAllAsRead' }, 'Mock: Marking all notifications as read', {
+        userId
       });
       
       let count = 0;
@@ -214,7 +213,7 @@ const deleteNotification = async (notificationId, userId) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.info('Mock: Deleting notification', {
+      logger.logInfo({ service: 'notification-service', method: 'deleteNotification' }, 'Mock: Deleting notification', {
         notificationId,
         userId
       });
@@ -250,7 +249,7 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
     // In development mode, mock the operation
     if (process.env.NODE_ENV === 'development') {
-      logger.info('Mock: Deleting all notifications', {
+      logger.logInfo({ service: 'notification-service', method: 'deleteAllNotifications' }, 'Mock: Deleting all notifications', {
         userId,
         subscriptionId
       });
