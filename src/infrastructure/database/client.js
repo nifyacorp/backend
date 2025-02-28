@@ -66,12 +66,24 @@ pool.on('error', (err) => {
 
 export async function query(text, params) {
   const start = Date.now();
+  let client;
+  
   try {
-    const res = await pool.query(text, params);
+    // Get client from pool
+    client = await pool.connect();
+    
+    console.log('Database connection obtained for query:', { 
+      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+      paramCount: params ? params.length : 0,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Execute query
+    const res = await client.query(text, params);
     const duration = Date.now() - start;
     
-    console.log('Query executed:', { 
-      text,
+    console.log('Query executed successfully:', { 
+      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
       duration: `${duration}ms`,
       rowCount: res.rowCount,
       timestamp: new Date().toISOString()
@@ -79,18 +91,45 @@ export async function query(text, params) {
     
     return res;
   } catch (error) {
+    const duration = Date.now() - start;
+    
     console.error('Database query error:', {
       error: error.message,
-      query: text,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint,
+      position: error.position,
+      query: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+      params: params ? `${params.length} parameters` : 'no parameters',
+      duration: `${duration}ms`,
       timestamp: new Date().toISOString()
     });
     
     throw new AppError(
       'DATABASE_ERROR',
-      'Database operation failed',
+      `Database operation failed: ${error.message}`,
       500,
-      { originalError: error.message }
+      { 
+        originalError: error.message,
+        code: error.code,
+        detail: error.detail
+      }
     );
+  } finally {
+    // Release client back to pool
+    if (client) {
+      try {
+        client.release();
+        console.log('Database connection released', {
+          timestamp: new Date().toISOString()
+        });
+      } catch (releaseError) {
+        console.error('Error releasing database connection', {
+          error: releaseError.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
   }
 }
 

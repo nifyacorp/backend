@@ -73,7 +73,14 @@ const mockNotifications = [
  */
 const getUserNotifications = async (userId, options = {}) => {
   try {
-    // In development mode, return mock data
+    // Log request parameters for better debugging
+    logger.logProcessing({ service: 'notification-service', method: 'getUserNotifications' }, 'Fetching user notifications', {
+      userId,
+      options,
+      timestamp: new Date().toISOString()
+    });
+
+    // In development mode, use mock data
     if (process.env.NODE_ENV === 'development') {
       logger.logProcessing({ service: 'notification-service', method: 'getUserNotifications' }, 'Using mock notification data in development mode', {
         userId,
@@ -107,24 +114,47 @@ const getUserNotifications = async (userId, options = {}) => {
     }
     
     // In production mode, use the database repository
-    // Get notifications based on options
-    const notifications = await notificationRepository.getUserNotifications(userId, options);
-    
-    // Get total and unread counts for pagination and badge display
-    const totalCount = await notificationRepository.getNotificationCount(userId, false);
-    const unreadCount = await notificationRepository.getNotificationCount(userId, true);
-    
-    return {
-      notifications,
-      total: totalCount,
-      unread: unreadCount,
-      page: Math.floor(options.offset / options.limit) + 1,
-      limit: options.limit,
-      hasMore: totalCount > (options.offset + options.limit)
-    };
+    try {
+      // Get notifications based on options
+      const notifications = await notificationRepository.getUserNotifications(userId, options);
+      
+      // Get total and unread counts for pagination and badge display
+      const totalCount = await notificationRepository.getNotificationCount(userId, false);
+      const unreadCount = await notificationRepository.getNotificationCount(userId, true);
+      
+      // Log successful retrieval
+      logger.logInfo({ service: 'notification-service', method: 'getUserNotifications' }, 'Successfully retrieved notifications', {
+        userId,
+        count: notifications.length,
+        totalCount,
+        unreadCount
+      });
+      
+      return {
+        notifications,
+        total: totalCount,
+        unread: unreadCount,
+        page: Math.floor(options.offset / options.limit) + 1,
+        limit: options.limit,
+        hasMore: totalCount > (options.offset + options.limit)
+      };
+    } catch (dbError) {
+      // Provide detailed error for database-specific failures
+      logger.logError({ service: 'notification-service', method: 'getUserNotifications', subMethod: 'database' }, dbError, {
+        userId,
+        options,
+        errorCode: dbError.code,
+        errorMessage: dbError.message
+      });
+      throw dbError;
+    }
   } catch (error) {
+    // Add comprehensive error logging
     logger.logError({ service: 'notification-service', method: 'getUserNotifications' }, error, {
       userId,
+      options,
+      errorType: error.constructor.name,
+      timestamp: new Date().toISOString()
     });
     throw error;
   }

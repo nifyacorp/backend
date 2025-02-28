@@ -20,10 +20,10 @@ const getUserNotifications = async (userId, options = {}) => {
   } = options;
 
   try {
+    // Start with a simpler query without JOIN to isolate potential issues
     let sqlQuery = `
-      SELECT n.*, s.name as subscription_name, s.entity_type
+      SELECT n.*
       FROM notifications n
-      JOIN subscriptions s ON n.subscription_id = s.id
       WHERE n.user_id = $1
     `;
     
@@ -43,12 +43,32 @@ const getUserNotifications = async (userId, options = {}) => {
     sqlQuery += ` ORDER BY n.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limit, offset);
     
+    // Log the query for debugging
+    console.log('Executing notification query:', {
+      query: sqlQuery,
+      params: queryParams,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
     const result = await query(sqlQuery, queryParams);
+    
+    // Log the query result summary for debugging
+    console.log('Query result summary:', {
+      rowCount: result.rowCount,
+      timestamp: new Date().toISOString()
+    });
+    
     return result.rows;
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'getUserNotifications' }, error, {
       userId,
-      options
+      options,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      }
     });
     throw error;
   }
@@ -151,8 +171,7 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'markAllNotificationsAsRead' }, error, {
       userId,
-      subscriptionId,
-      conditions
+      subscriptionId
     });
     throw error;
   }
@@ -215,8 +234,7 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'deleteAllNotifications' }, error, {
       userId,
-      subscriptionId,
-      conditions
+      subscriptionId
     });
     throw error;
   }

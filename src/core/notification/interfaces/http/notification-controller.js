@@ -12,30 +12,63 @@ const getUserNotifications = async (request, reply) => {
     // The userId comes from the authenticated user
     const userId = request.user.id;
     
-    // Parse query parameters
-    const limit = parseInt(request.query.limit) || 10;
-    const page = parseInt(request.query.page) || 1;
+    // Log incoming request details for debugging
+    logger.logInfo({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Processing notification request', {
+      userId,
+      query: request.query,
+      path: request.url
+    });
+    
+    // Parse and validate query parameters with defaults and safeguards
+    const limit = Math.min(parseInt(request.query.limit) || 10, 100); // Cap max limit at 100
+    const page = Math.max(parseInt(request.query.page) || 1, 1); // Ensure page is at least 1
     const offset = (page - 1) * limit;
     const unreadOnly = request.query.unread === 'true';
     const subscriptionId = request.query.subscriptionId || null;
     
-    // Get notifications using the service
-    const result = await notificationService.getUserNotifications(userId, {
+    // Log parsed options for debugging
+    logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Parsed query parameters', {
       limit,
+      page,
       offset,
       unreadOnly,
-      subscriptionId
+      subscriptionId,
+      userId
     });
     
-    return reply.status(200).send(result);
+    // Get notifications using the service
+    try {
+      const result = await notificationService.getUserNotifications(userId, {
+        limit,
+        offset,
+        unreadOnly,
+        subscriptionId
+      });
+      
+      return reply.status(200).send(result);
+    } catch (serviceError) {
+      logger.logError({ controller: 'notification-controller', method: 'getUserNotifications' }, serviceError, {
+        userId,
+        query: request.query,
+        message: 'Error calling notification service'
+      });
+      
+      return reply.status(500).send({
+        error: 'Failed to retrieve notifications',
+        message: 'An error occurred while retrieving your notifications'
+      });
+    }
   } catch (error) {
-    logger.logError({ requestId: request.id, path: request.url }, error, {
-      userId: userId
+    logger.logError({ controller: 'notification-controller', method: 'getUserNotifications' }, error, {
+      path: request.url,
+      query: request.query,
+      error: error.message,
+      stack: error.stack
     });
     
-    reply.status(500).send({ 
-      error: 'Failed to fetch notifications',
-      message: error.message 
+    return reply.status(500).send({
+      error: 'Server error',
+      message: 'An unexpected error occurred'
     });
   }
 };
