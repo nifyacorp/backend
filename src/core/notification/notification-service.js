@@ -118,6 +118,51 @@ const getUserNotifications = async (userId, options = {}) => {
       // Get notifications based on options
       const notifications = await notificationRepository.getUserNotifications(userId, options);
       
+      // Enhanced debugging to check notifications before returning them
+      console.log('----NOTIFICATION SERVICE DEBUGGING START----');
+      console.log(`Preparing to return ${notifications.length} notifications to client`);
+      
+      // Check for any notifications with missing IDs
+      const missingIds = notifications.filter(n => !n.id);
+      if (missingIds.length > 0) {
+        console.log(`WARNING: Found ${missingIds.length} notifications with missing IDs at service level`);
+        
+        // Log the first problematic notification
+        if (missingIds.length > 0) {
+          console.log('Example notification with missing ID:', JSON.stringify(missingIds[0]));
+        }
+      }
+      
+      // Convert fields to match frontend expectations
+      console.log('Converting notification fields to match frontend expectations');
+      const processedNotifications = notifications.map(notification => {
+        // Ensure the ID is present and correctly cased
+        const processedNotification = {
+          ...notification,
+          // Ensure id is present (should be, but just in case)
+          id: notification.id || '',
+          // Convert user_id to userId if needed
+          userId: notification.userId || notification.user_id,
+          // Convert subscription_id to subscriptionId if needed
+          subscriptionId: notification.subscriptionId || notification.subscription_id
+        };
+        
+        // Remove any duplicate/case-variant keys
+        if (notification.user_id && notification.userId) delete processedNotification.user_id;
+        if (notification.subscription_id && notification.subscriptionId) delete processedNotification.subscription_id;
+        
+        return processedNotification;
+      });
+      
+      // Log a sample of processed notifications
+      if (processedNotifications.length > 0) {
+        console.log('Sample processed notification:', JSON.stringify(processedNotifications[0]));
+        console.log('Keys in processed notification:', Object.keys(processedNotifications[0]));
+        console.log('ID present in sample?', !!processedNotifications[0].id);
+      }
+      
+      console.log('----NOTIFICATION SERVICE DEBUGGING END----');
+      
       // Get total and unread counts for pagination and badge display
       const totalCount = await notificationRepository.getNotificationCount(userId, false);
       const unreadCount = await notificationRepository.getNotificationCount(userId, true);
@@ -125,13 +170,13 @@ const getUserNotifications = async (userId, options = {}) => {
       // Log successful retrieval
       logger.logProcessing({ service: 'notification-service', method: 'getUserNotifications' }, 'Successfully retrieved notifications', {
         userId,
-        count: notifications.length,
+        count: processedNotifications.length,
         totalCount,
         unreadCount
       });
       
       return {
-        notifications,
+        notifications: processedNotifications,
         total: totalCount,
         unread: unreadCount,
         page: Math.floor(options.offset / options.limit) + 1,

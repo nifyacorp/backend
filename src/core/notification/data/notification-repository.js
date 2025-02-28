@@ -63,15 +63,35 @@ const getUserNotifications = async (userId, options = {}) => {
       timestamp: new Date().toISOString()
     });
     
-    // Log the first result for debugging if available
-    if (result.rows.length > 0) {
-      console.log('First notification data:', {
-        id: result.rows[0].id,
-        hasId: !!result.rows[0].id,
-        idType: typeof result.rows[0].id,
-        keys: Object.keys(result.rows[0])
+    // Enhanced logging for debugging
+    console.log('----NOTIFICATION DEBUGGING START----');
+    console.log(`Retrieved ${result.rows.length} notifications from database`);
+    
+    // Log each notification ID and structure
+    result.rows.forEach((notification, index) => {
+      console.log(`Notification #${index + 1}:`, {
+        id: notification.id,
+        hasId: !!notification.id,
+        idType: typeof notification.id,
+        keys: Object.keys(notification),
+        userId: notification.user_id,
+        title: notification.title?.substring(0, 30) + (notification.title?.length > 30 ? '...' : '')
       });
+    });
+    
+    // Check for any notifications missing ID
+    const missingIds = result.rows.filter(n => !n.id);
+    if (missingIds.length > 0) {
+      console.log(`WARNING: Found ${missingIds.length} notifications with missing IDs`);
+      console.log('First notification with missing ID:', missingIds[0]);
     }
+    
+    // Log the full first notification for inspection
+    if (result.rows.length > 0) {
+      console.log('Complete first notification object:', JSON.stringify(result.rows[0]));
+    }
+    
+    console.log('----NOTIFICATION DEBUGGING END----');
     
     return result.rows;
   } catch (error) {
