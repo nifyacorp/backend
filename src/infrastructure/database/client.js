@@ -15,22 +15,46 @@ validateRequiredEnvVars([
 
 const { Pool } = pg;
 
+// Determine if running in production or development
+const isProduction = process.env.NODE_ENV === 'production';
+const isLocalDevelopment = !isProduction;
+
+// Configure database connection
+let dbConfig;
+
+if (isProduction) {
+  // Production: Connect to Cloud SQL instance
+  dbConfig = {
+    host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    ssl: false
+  };
+} else {
+  // Local development: Connect to local PostgreSQL
+  dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    ssl: false
+  };
+}
+
 // Log database configuration (excluding sensitive data)
 console.log('Database configuration:', {
-  host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
-  database: process.env.DB_NAME,
-  hasUser: !!process.env.DB_USER,
-  hasPassword: !!process.env.DB_PASSWORD,
+  host: dbConfig.host,
+  port: dbConfig.port,
+  database: dbConfig.database,
+  hasUser: !!dbConfig.user,
+  hasPassword: !!dbConfig.password,
+  environment: isProduction ? 'production' : 'development',
   timestamp: new Date().toISOString()
 });
 
-const pool = new Pool({
-  host: '/cloudsql/delta-entity-447812-p2:us-central1:nifya-db',
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  ssl: false
-});
+const pool = new Pool(dbConfig);
 
 pool.on('error', (err) => {
   console.error('Unexpected database error:', {
@@ -71,6 +95,11 @@ export async function query(text, params) {
 }
 
 export async function initializeDatabase() {
+  if (isLocalDevelopment) {
+    console.log('Running in local development mode - skipping database initialization');
+    return;
+  }
+  
   try {
     // First verify connection
     const result = await query('SELECT current_database() as db_name');

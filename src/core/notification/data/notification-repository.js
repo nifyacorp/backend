@@ -1,4 +1,4 @@
-import { dbPool } from '../../../database/client.js';
+import { query } from '../../../infrastructure/database/client.js';
 import logger from '../../../shared/logger.js';
 
 /**
@@ -43,7 +43,7 @@ const getUserNotifications = async (userId, options = {}) => {
     query += ` ORDER BY n.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limit, offset);
     
-    const result = await dbPool.query(query, queryParams);
+    const result = await query(query, queryParams);
     return result.rows;
   } catch (error) {
     logger.error('Error in getUserNotifications', {
@@ -82,7 +82,7 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
       queryParams.push(subscriptionId);
     }
     
-    const result = await dbPool.query(query, queryParams);
+    const result = await query(query, queryParams);
     return parseInt(result.rows[0].count);
   } catch (error) {
     logger.error('Error in getNotificationCount', {
@@ -110,7 +110,7 @@ const markNotificationAsRead = async (notificationId, userId) => {
       RETURNING *
     `;
     
-    const result = await dbPool.query(query, [notificationId, userId]);
+    const result = await query(query, [notificationId, userId]);
     
     if (result.rows.length === 0) {
       throw new Error('Notification not found or not owned by user');
@@ -150,7 +150,7 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
     
     query += ` RETURNING id`;
     
-    const result = await dbPool.query(query, queryParams);
+    const result = await query(query, queryParams);
     return result.rows.length;
   } catch (error) {
     logger.error('Error in markAllNotificationsAsRead', {
@@ -176,7 +176,7 @@ const deleteNotification = async (notificationId, userId) => {
       RETURNING id
     `;
     
-    const result = await dbPool.query(query, [notificationId, userId]);
+    const result = await query(query, [notificationId, userId]);
     
     if (result.rows.length === 0) {
       throw new Error('Notification not found or not owned by user');
@@ -215,7 +215,7 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
     
     query += ` RETURNING id`;
     
-    const result = await dbPool.query(query, queryParams);
+    const result = await query(query, queryParams);
     return result.rows.length;
   } catch (error) {
     logger.error('Error in deleteAllNotifications', {

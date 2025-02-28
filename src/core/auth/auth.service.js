@@ -5,10 +5,13 @@ import { AUTH_ERRORS } from '../types/auth.types.js';
 
 class AuthService {
   constructor() {
-    this.secretClient = new SecretManagerServiceClient();
+    this.isProduction = process.env.NODE_ENV === 'production';
+    this.secretClient = this.isProduction ? new SecretManagerServiceClient() : null;
     this.JWT_SECRET = null;
     this.secretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/JWT_SECRET/versions/latest`;
-    console.log('🔐 Initializing auth service with secret:', {
+    
+    console.log('🔐 Initializing auth service:', {
+      environment: this.isProduction ? 'production' : 'development',
       project: process.env.GOOGLE_CLOUD_PROJECT,
       hasSecretClient: !!this.secretClient,
       timestamp: new Date().toISOString()
@@ -16,8 +19,29 @@ class AuthService {
   }
 
   async initialize() {
+    // For local development, use the JWT_SECRET from environment variables
+    if (!this.isProduction) {
+      console.log('📦 Using local JWT secret for development');
+      
+      if (!process.env.JWT_SECRET) {
+        throw new AppError(
+          AUTH_ERRORS.SECRET_ERROR.code,
+          'JWT_SECRET environment variable is required in development mode',
+          500
+        );
+      }
+      
+      this.JWT_SECRET = process.env.JWT_SECRET;
+      
+      console.log('✅ Local JWT secret loaded successfully', {
+        timestamp: new Date().toISOString()
+      });
+      
+      return;
+    }
+    
     try {
-      console.log('📦 Fetching JWT secret...');
+      console.log('📦 Fetching JWT secret from Secret Manager...');
       
       const [version] = await this.secretClient.accessSecretVersion({
         name: this.secretName
@@ -25,7 +49,7 @@ class AuthService {
       
       this.JWT_SECRET = version.payload.data.toString();
       
-      console.log('✅ JWT secret loaded successfully', {
+      console.log('✅ JWT secret loaded successfully from Secret Manager', {
         secretLength: this.JWT_SECRET.length,
         timestamp: new Date().toISOString()
       });
