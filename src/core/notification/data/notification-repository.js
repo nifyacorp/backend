@@ -208,6 +208,36 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
  */
 const deleteNotification = async (notificationId, userId) => {
   try {
+    console.log('Deleting notification in repository:', {
+      notificationId,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // First verify the notification belongs to the user
+    const verifyQuery = `
+      SELECT id FROM notifications
+      WHERE id = $1 AND user_id = $2
+    `;
+    
+    const verifyResult = await query(verifyQuery, [notificationId, userId]);
+    
+    if (verifyResult.rows.length === 0) {
+      console.error('Notification not found or not owned by user:', {
+        notificationId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+      throw new Error('Notification not found or not owned by user');
+    }
+    
+    console.log('Notification ownership verified, proceeding with deletion:', {
+      notificationId,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Now delete the notification
     const sqlQuery = `
       DELETE FROM notifications
       WHERE id = $1 AND user_id = $2
@@ -220,11 +250,22 @@ const deleteNotification = async (notificationId, userId) => {
       throw new Error('Notification not found or not owned by user');
     }
     
+    console.log('Notification successfully deleted:', {
+      notificationId,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
     return true;
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'deleteNotification' }, error, {
       notificationId,
-      userId
+      userId,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      }
     });
     throw error;
   }
@@ -238,6 +279,37 @@ const deleteNotification = async (notificationId, userId) => {
  */
 const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
+    console.log('Deleting all notifications for user:', {
+      userId,
+      subscriptionId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // First count how many notifications will be deleted for logging purposes
+    let countQuery = `
+      SELECT COUNT(*) as count
+      FROM notifications
+      WHERE user_id = $1
+    `;
+    
+    const countParams = [userId];
+    
+    if (subscriptionId) {
+      countQuery += ` AND subscription_id = $2`;
+      countParams.push(subscriptionId);
+    }
+    
+    const countResult = await query(countQuery, countParams);
+    const notificationCount = parseInt(countResult.rows[0].count);
+    
+    console.log(`Found ${notificationCount} notifications to delete for user:`, {
+      userId,
+      subscriptionId,
+      count: notificationCount,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Now proceed with deletion
     let sqlQuery = `
       DELETE FROM notifications
       WHERE user_id = $1
@@ -252,12 +324,31 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
     
     sqlQuery += ` RETURNING id`;
     
+    console.log('Executing deletion query:', {
+      query: sqlQuery.replace(/\s+/g, ' '),
+      params: queryParams,
+      timestamp: new Date().toISOString()
+    });
+    
     const result = await query(sqlQuery, queryParams);
+    
+    console.log('Successfully deleted notifications:', {
+      userId,
+      subscriptionId,
+      deleted: result.rows.length,
+      timestamp: new Date().toISOString()
+    });
+    
     return result.rows.length;
   } catch (error) {
     logger.logError({ repository: 'notification-repository', method: 'deleteAllNotifications' }, error, {
       userId,
-      subscriptionId
+      subscriptionId,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      }
     });
     throw error;
   }
