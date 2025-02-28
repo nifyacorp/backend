@@ -1,7 +1,7 @@
 import { authService } from '../../../core/auth/auth.service.js';
 import { AUTH_ERRORS } from '../../../core/types/auth.types.js';
 import { AppError } from '../../../shared/errors/AppError.js';
-import { logAuth, logError } from '../../../shared/logging/logger.js';
+import logger from '../../../shared/logger.js';
 
 const PUBLIC_PATHS = [
   '/health',
@@ -20,15 +20,19 @@ export async function authenticate(request, reply) {
 
   // Check if path is public
   if (PUBLIC_PATHS.some(path => request.url === path || request.url.startsWith(path))) {
-    logAuth(context, 'Skipping auth for public path', { path: request.url });
+    logger.info('Skipping auth for public path', { 
+      path: request.url,
+      requestId: request.id
+    });
     return;
   }
 
   try {
-    logAuth(context, 'Processing authentication', {
+    logger.info('Processing authentication', {
       hasAuth: !!request.headers.authorization,
       hasUserId: !!request.headers['x-user-id'],
-      path: request.url
+      path: request.url,
+      requestId: request.id
     });
 
     // Extract token, ensuring proper Bearer format
@@ -55,10 +59,10 @@ export async function authenticate(request, reply) {
     }
 
     // Log token details for debugging (excluding sensitive parts)
-    console.log('🔑 Token verification attempt:', {
+    logger.info('Token verification attempt', {
       tokenLength: token?.length,
       hasUserId: !!userId,
-      timestamp: new Date().toISOString()
+      requestId: request.id
     });
 
     const decoded = authService.verifyToken(token);
@@ -77,12 +81,24 @@ export async function authenticate(request, reply) {
       token: decoded
     };
 
-    logAuth(context, 'Authentication successful', { userId });
-
+    logger.info('Authentication successful', { 
+      userId,
+      requestId: request.id
+    });
   } catch (error) {
-    logError(context, error);
-    reply.code(error.status || 401).send(error.toJSON());
+    logger.error('Authentication error', {
+      error: error.message,
+      code: error.code,
+      requestId: request.id,
+      path: request.url
+    });
+    
+    reply.code(error.status || 401).send(error.toJSON ? error.toJSON() : {
+      error: error.message,
+      code: error.code || 'AUTH_ERROR',
+      status: error.status || 401
+    });
+    
     return reply;
   }
-  return;
 }

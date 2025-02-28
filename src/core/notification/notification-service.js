@@ -1,6 +1,66 @@
 import notificationRepository from './data/notification-repository.js';
 import logger from '../../shared/logger.js';
 
+// Mock data for local development
+const mockNotifications = [
+  {
+    id: '1',
+    title: 'Nueva Subvención Disponible',
+    content: 'Se ha publicado una nueva subvención para empresas tecnológicas en el BOE.',
+    sourceUrl: 'https://boe.es/1234',
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    subscription_name: 'Alertas BOE',
+    entity_type: 'BOE',
+    metadata: { prompt: 'Subvenciones tecnología', matchConfidence: 0.89 }
+  },
+  {
+    id: '2',
+    title: 'Oferta de Empleo Público',
+    content: 'Convocatoria de 150 plazas para funcionarios de la administración general del estado.',
+    sourceUrl: 'https://boe.es/5678',
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    subscription_name: 'Oposiciones',
+    entity_type: 'BOE',
+    metadata: { prompt: 'Oposiciones administración', matchConfidence: 0.92 }
+  },
+  {
+    id: '3',
+    title: 'Nuevo Inmueble Disponible',
+    content: 'Piso de 90m² en Madrid que coincide con tus criterios de búsqueda.',
+    sourceUrl: 'https://idealista.com/inmueble/123456',
+    read: true,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    readAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    subscription_name: 'Alertas Inmobiliarias',
+    entity_type: 'INMOBILIARIA',
+    metadata: { prompt: 'Madrid centro 2 habitaciones', matchConfidence: 0.85 }
+  },
+  {
+    id: '4',
+    title: 'Actualización Legislativa',
+    content: 'Se ha publicado una nueva ley que podría afectar a tu actividad empresarial.',
+    sourceUrl: 'https://boe.es/9012',
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    subscription_name: 'Legislación Empresas',
+    entity_type: 'BOE',
+    metadata: { prompt: 'Legislación empresarial', matchConfidence: 0.78 }
+  },
+  {
+    id: '5',
+    title: 'Cambio en Normativa Fiscal',
+    content: 'Actualización importante en la normativa fiscal que afecta a autónomos.',
+    sourceUrl: 'https://boe.es/3456',
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+    subscription_name: 'Fiscal',
+    entity_type: 'BOE',
+    metadata: { prompt: 'Normativa autónomos', matchConfidence: 0.91 }
+  }
+];
+
 /**
  * Get notifications for a user with pagination and filters
  * @param {string} userId - The user's ID
@@ -13,6 +73,40 @@ import logger from '../../shared/logger.js';
  */
 const getUserNotifications = async (userId, options = {}) => {
   try {
+    // In development mode, return mock data
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('Using mock notification data in development mode', {
+        userId,
+        options
+      });
+      
+      // Apply filtering based on options
+      let filteredNotifications = [...mockNotifications];
+      
+      if (options.unreadOnly) {
+        filteredNotifications = filteredNotifications.filter(n => !n.read);
+      }
+      
+      const totalCount = filteredNotifications.length;
+      const unreadCount = filteredNotifications.filter(n => !n.read).length;
+      
+      // Apply pagination
+      filteredNotifications = filteredNotifications.slice(
+        options.offset, 
+        options.offset + options.limit
+      );
+      
+      return {
+        notifications: filteredNotifications,
+        total: totalCount,
+        unread: unreadCount,
+        page: Math.floor(options.offset / options.limit) + 1,
+        limit: options.limit,
+        hasMore: totalCount > (options.offset + options.limit)
+      };
+    }
+    
+    // In production mode, use the database repository
     // Get notifications based on options
     const notifications = await notificationRepository.getUserNotifications(userId, options);
     
@@ -46,11 +140,29 @@ const getUserNotifications = async (userId, options = {}) => {
  */
 const markNotificationAsRead = async (notificationId, userId) => {
   try {
+    // In development mode, mock the operation
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('Mock: Marking notification as read', {
+        notificationId,
+        userId
+      });
+      
+      const mockNotification = mockNotifications.find(n => n.id === notificationId);
+      if (!mockNotification) {
+        throw new Error('Notification not found or not owned by user');
+      }
+      
+      mockNotification.read = true;
+      mockNotification.readAt = new Date().toISOString();
+      
+      return { ...mockNotification };
+    }
+    
     return await notificationRepository.markNotificationAsRead(notificationId, userId);
   } catch (error) {
     logger.error('Error in notification service markNotificationAsRead', {
-      userId,
       notificationId,
+      userId,
       error: error.message
     });
     throw error;
@@ -60,13 +172,32 @@ const markNotificationAsRead = async (notificationId, userId) => {
 /**
  * Mark all notifications as read for a user
  * @param {string} userId - The user's ID
- * @param {string|null} [subscriptionId=null] - Optional subscription ID to filter by
+ * @param {string|null} subscriptionId - Optional subscription ID to filter by
  * @returns {Promise<Object>} - Result with count of updated notifications
  */
 const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   try {
-    const updatedCount = await notificationRepository.markAllNotificationsAsRead(userId, subscriptionId);
-    return { updated: updatedCount };
+    // In development mode, mock the operation
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('Mock: Marking all notifications as read', {
+        userId,
+        subscriptionId
+      });
+      
+      let count = 0;
+      mockNotifications.forEach(notification => {
+        if (!notification.read) {
+          notification.read = true;
+          notification.readAt = new Date().toISOString();
+          count++;
+        }
+      });
+      
+      return { updated: count };
+    }
+    
+    const updated = await notificationRepository.markAllNotificationsAsRead(userId, subscriptionId);
+    return { updated };
   } catch (error) {
     logger.error('Error in notification service markAllNotificationsAsRead', {
       userId,
@@ -81,57 +212,70 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
  * Delete a notification
  * @param {string} notificationId - The notification ID
  * @param {string} userId - The user's ID
- * @returns {Promise<Object>} - Result of the deletion operation
+ * @returns {Promise<Object>} - Result indicating successful deletion
  */
 const deleteNotification = async (notificationId, userId) => {
   try {
-    logger.info('Deleting notification', { notificationId, userId });
+    // In development mode, mock the operation
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('Mock: Deleting notification', {
+        notificationId,
+        userId
+      });
+      
+      const index = mockNotifications.findIndex(n => n.id === notificationId);
+      if (index === -1) {
+        throw new Error('Notification not found or not owned by user');
+      }
+      
+      mockNotifications.splice(index, 1);
+      
+      return { deleted: true, id: notificationId };
+    }
     
-    const deleted = await notificationRepository.deleteNotification(notificationId, userId);
-    
-    return {
-      success: deleted,
-      message: 'Notification deleted successfully'
-    };
+    await notificationRepository.deleteNotification(notificationId, userId);
+    return { deleted: true, id: notificationId };
   } catch (error) {
-    logger.error('Error deleting notification', {
+    logger.error('Error in notification service deleteNotification', {
       notificationId,
       userId,
       error: error.message
     });
-    
-    throw new Error(`Failed to delete notification: ${error.message}`);
+    throw error;
   }
 };
 
 /**
  * Delete all notifications for a user
  * @param {string} userId - The user's ID
- * @param {string|null} [subscriptionId=null] - Optional subscription ID to filter by
+ * @param {string|null} subscriptionId - Optional subscription ID to filter by
  * @returns {Promise<Object>} - Result with count of deleted notifications
  */
 const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
-    logger.info('Deleting all notifications', { 
-      userId, 
-      subscriptionId: subscriptionId || 'all' 
-    });
+    // In development mode, mock the operation
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('Mock: Deleting all notifications', {
+        userId,
+        subscriptionId
+      });
+      
+      const initialLength = mockNotifications.length;
+      // Clear all mock notifications (in a real app, we would apply filters)
+      mockNotifications.length = 0;
+      
+      return { deleted: initialLength };
+    }
     
-    const deletedCount = await notificationRepository.deleteAllNotifications(userId, subscriptionId);
-    
-    return {
-      success: true,
-      deleted: deletedCount,
-      message: `${deletedCount} notifications deleted successfully`
-    };
+    const deleted = await notificationRepository.deleteAllNotifications(userId, subscriptionId);
+    return { deleted };
   } catch (error) {
-    logger.error('Error deleting all notifications', {
+    logger.error('Error in notification service deleteAllNotifications', {
       userId,
       subscriptionId,
       error: error.message
     });
-    
-    throw new Error(`Failed to delete notifications: ${error.message}`);
+    throw error;
   }
 };
 

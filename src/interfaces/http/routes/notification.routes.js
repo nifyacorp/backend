@@ -1,153 +1,94 @@
-import express from 'express';
-import { authMiddleware } from '../middlewares/auth.js';
 import notificationController from '../../../core/notification/interfaces/http/notification-controller.js';
 
-const router = express.Router();
-
 /**
- * @swagger
- * /notifications:
- *   get:
- *     summary: Get notifications for authenticated user
- *     description: Retrieves all notifications for the authenticated user with pagination
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Number of notifications to return
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: unread
- *         schema:
- *           type: boolean
- *           default: false
- *         description: Filter to show only unread notifications
- *       - in: query
- *         name: subscriptionId
- *         schema:
- *           type: string
- *         description: Filter notifications by subscription ID
- *     responses:
- *       200:
- *         description: Successful operation
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
+ * Notification routes for Fastify
  */
-router.get('/', authMiddleware, notificationController.getUserNotifications);
+export async function notificationRoutes(fastify, options) {
+  /**
+   * Get notifications for authenticated user
+   */
+  fastify.get('/', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', default: 1 },
+          limit: { type: 'integer', default: 10 },
+          unread: { type: 'boolean', default: false },
+          subscriptionId: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            notifications: { type: 'array', items: { type: 'object' } },
+            total: { type: 'integer' },
+            unread: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            hasMore: { type: 'boolean' }
+          }
+        }
+      }
+    }
+  }, notificationController.getUserNotifications);
 
-/**
- * @swagger
- * /notifications/{notificationId}/read:
- *   post:
- *     summary: Mark notification as read
- *     description: Marks a specific notification as read
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: notificationId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID of the notification to mark as read
- *     responses:
- *       200:
- *         description: Notification marked as read
- *       400:
- *         description: Invalid notification ID
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.post('/:notificationId/read', authMiddleware, notificationController.markAsRead);
+  /**
+   * Mark notification as read
+   */
+  fastify.post('/:notificationId/read', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          notificationId: { type: 'string' }
+        },
+        required: ['notificationId']
+      }
+    }
+  }, notificationController.markAsRead);
 
-/**
- * @swagger
- * /notifications/read-all:
- *   post:
- *     summary: Mark all notifications as read
- *     description: Marks all notifications for the authenticated user as read
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: subscriptionId
- *         schema:
- *           type: string
- *         description: Filter to mark as read only notifications from specific subscription
- *     responses:
- *       200:
- *         description: All notifications marked as read
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.post('/read-all', authMiddleware, notificationController.markAllAsRead);
+  /**
+   * Mark all notifications as read
+   */
+  fastify.post('/read-all', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          subscriptionId: { type: 'string' }
+        }
+      }
+    }
+  }, notificationController.markAllAsRead);
 
-/**
- * @swagger
- * /notifications/{notificationId}:
- *   delete:
- *     summary: Delete a notification
- *     description: Deletes a specific notification for the authenticated user
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: notificationId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID of the notification to delete
- *     responses:
- *       200:
- *         description: Notification deleted successfully
- *       400:
- *         description: Invalid notification ID
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Notification not found
- *       500:
- *         description: Server error
- */
-router.delete('/:notificationId', authMiddleware, notificationController.deleteNotification);
+  /**
+   * Delete a notification
+   */
+  fastify.delete('/:notificationId', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          notificationId: { type: 'string' }
+        },
+        required: ['notificationId']
+      }
+    }
+  }, notificationController.deleteNotification);
 
-/**
- * @swagger
- * /notifications/delete-all:
- *   delete:
- *     summary: Delete all notifications
- *     description: Deletes all notifications for the authenticated user
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: subscriptionId
- *         schema:
- *           type: string
- *         description: Filter to delete only notifications from specific subscription
- *     responses:
- *       200:
- *         description: All notifications deleted successfully
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.delete('/delete-all', authMiddleware, notificationController.deleteAllNotifications);
-
-export const notificationRoutes = router; 
+  /**
+   * Delete all notifications
+   */
+  fastify.delete('/delete-all', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          subscriptionId: { type: 'string' }
+        }
+      }
+    }
+  }, notificationController.deleteAllNotifications);
+} 
