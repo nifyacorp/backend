@@ -29,12 +29,12 @@ const getUserNotifications = async (request, reply) => {
     
     return reply.status(200).send(result);
   } catch (error) {
-    logger.error('Error in notification controller getUserNotifications', {
-      userId: request.user?.id,
-      error: error.message
+    logger.logError({ requestId: request.id, path: request.url }, error, {
+      userId: userId
     });
-    return reply.status(500).send({ 
-      error: 'Failed to retrieve notifications', 
+    
+    reply.status(500).send({ 
+      error: 'Failed to fetch notifications',
       message: error.message 
     });
   }
@@ -59,10 +59,9 @@ const markAsRead = async (request, reply) => {
     
     return reply.status(200).send(result);
   } catch (error) {
-    logger.error('Error in notification controller markAsRead', {
+    logger.logError({ requestId: request.id, path: request.url }, error, {
       userId: request.user?.id,
-      notificationId: request.params.notificationId,
-      error: error.message
+      notificationId: request.params.notificationId
     });
     return reply.status(500).send({ 
       error: 'Failed to mark notification as read', 
@@ -86,10 +85,9 @@ const markAllAsRead = async (request, reply) => {
     
     return reply.status(200).send(result);
   } catch (error) {
-    logger.error('Error in notification controller markAllAsRead', {
+    logger.logError({ requestId: request.id, path: request.url }, error, {
       userId: request.user?.id,
-      subscriptionId: request.query.subscriptionId,
-      error: error.message
+      subscriptionId: request.query.subscriptionId
     });
     return reply.status(500).send({ 
       error: 'Failed to mark all notifications as read', 
@@ -117,10 +115,9 @@ const deleteNotification = async (request, reply) => {
     
     return reply.status(200).send(result);
   } catch (error) {
-    logger.error('Error in notification controller deleteNotification', {
+    logger.logError({ requestId: request.id, path: request.url }, error, {
       userId: request.user?.id,
-      notificationId: request.params.notificationId,
-      error: error.message
+      notificationId: request.params.notificationId
     });
     
     if (error.message.includes('not found')) {
@@ -152,10 +149,9 @@ const deleteAllNotifications = async (request, reply) => {
     
     return reply.status(200).send(result);
   } catch (error) {
-    logger.error('Error in notification controller deleteAllNotifications', {
+    logger.logError({ requestId: request.id, path: request.url }, error, {
       userId: request.user?.id,
-      subscriptionId: request.query.subscriptionId,
-      error: error.message
+      subscriptionId: request.query.subscriptionId
     });
     return reply.status(500).send({ 
       error: 'Failed to delete notifications', 

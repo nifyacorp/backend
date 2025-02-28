@@ -86,11 +86,8 @@ export async function authenticate(request, reply) {
       requestId: request.id
     });
   } catch (error) {
-    logger.error('Authentication error', {
-      error: error.message,
-      code: error.code,
-      requestId: request.id,
-      path: request.url
+    logger.logError({ requestId: request.id, path: request.url }, error, {
+      code: error.code
     });
     
     reply.code(error.status || 401).send(error.toJSON ? error.toJSON() : {

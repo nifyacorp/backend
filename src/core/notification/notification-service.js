@@ -123,10 +123,8 @@ const getUserNotifications = async (userId, options = {}) => {
       hasMore: totalCount > (options.offset + options.limit)
     };
   } catch (error) {
-    logger.error('Error in notification service getUserNotifications', {
+    logger.logError({ service: 'notification-service', method: 'getUserNotifications' }, error, {
       userId,
-      error: error.message,
-      stack: error.stack
     });
     throw error;
   }
@@ -160,10 +158,9 @@ const markNotificationAsRead = async (notificationId, userId) => {
     
     return await notificationRepository.markNotificationAsRead(notificationId, userId);
   } catch (error) {
-    logger.error('Error in notification service markNotificationAsRead', {
+    logger.logError({ service: 'notification-service', method: 'markNotificationAsRead' }, error, {
       notificationId,
-      userId,
-      error: error.message
+      userId
     });
     throw error;
   }
@@ -199,10 +196,9 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
     const updated = await notificationRepository.markAllNotificationsAsRead(userId, subscriptionId);
     return { updated };
   } catch (error) {
-    logger.error('Error in notification service markAllNotificationsAsRead', {
+    logger.logError({ service: 'notification-service', method: 'markAllNotificationsAsRead' }, error, {
       userId,
-      subscriptionId,
-      error: error.message
+      subscriptionId
     });
     throw error;
   }
@@ -236,10 +232,9 @@ const deleteNotification = async (notificationId, userId) => {
     await notificationRepository.deleteNotification(notificationId, userId);
     return { deleted: true, id: notificationId };
   } catch (error) {
-    logger.error('Error in notification service deleteNotification', {
+    logger.logError({ service: 'notification-service', method: 'deleteNotification' }, error, {
       notificationId,
-      userId,
-      error: error.message
+      userId
     });
     throw error;
   }
@@ -270,10 +265,9 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
     const deleted = await notificationRepository.deleteAllNotifications(userId, subscriptionId);
     return { deleted };
   } catch (error) {
-    logger.error('Error in notification service deleteAllNotifications', {
+    logger.logError({ service: 'notification-service', method: 'deleteAllNotifications' }, error, {
       userId,
-      subscriptionId,
-      error: error.message
+      subscriptionId
     });
     throw error;
   }

@@ -52,10 +52,9 @@ const deleteNotification = async (notificationId, userId) => {
       message: 'Notification deleted successfully'
     };
   } catch (error) {
-    logger.error('Error deleting notification', {
+    logger.logError({ service: 'notification-service', method: 'deleteNotification' }, error, {
       notificationId,
-      userId,
-      error: error.message
+      userId
     });
     
     throw new Error(`Failed to delete notification: ${error.message}`);
@@ -83,10 +82,9 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
       message: `${deletedCount} notifications deleted successfully`
     };
   } catch (error) {
-    logger.error('Error deleting all notifications', {
+    logger.logError({ service: 'notification-service', method: 'deleteAllNotifications' }, error, {
       userId,
-      subscriptionId,
-      error: error.message
+      subscriptionId
     });
     
     throw new Error(`Failed to delete notifications: ${error.message}`);

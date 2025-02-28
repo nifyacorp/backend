@@ -46,10 +46,9 @@ const getUserNotifications = async (userId, options = {}) => {
     const result = await query(query, queryParams);
     return result.rows;
   } catch (error) {
-    logger.error('Error in getUserNotifications', {
+    logger.logError({ repository: 'notification-repository', method: 'getUserNotifications' }, error, {
       userId,
-      options,
-      error: error.message
+      options
     });
     throw error;
   }
@@ -85,11 +84,9 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
     const result = await query(query, queryParams);
     return parseInt(result.rows[0].count);
   } catch (error) {
-    logger.error('Error in getNotificationCount', {
+    logger.logError({ repository: 'notification-repository', method: 'getUnreadCount' }, error, {
       userId,
-      unreadOnly,
-      subscriptionId,
-      error: error.message
+      subscriptionId
     });
     throw error;
   }
@@ -118,10 +115,9 @@ const markNotificationAsRead = async (notificationId, userId) => {
     
     return result.rows[0];
   } catch (error) {
-    logger.error('Error in markNotificationAsRead', {
+    logger.logError({ repository: 'notification-repository', method: 'markNotificationAsRead' }, error, {
       notificationId,
-      userId,
-      error: error.message
+      userId
     });
     throw error;
   }
@@ -153,10 +149,10 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
     const result = await query(query, queryParams);
     return result.rows.length;
   } catch (error) {
-    logger.error('Error in markAllNotificationsAsRead', {
+    logger.logError({ repository: 'notification-repository', method: 'markAllNotificationsAsRead' }, error, {
       userId,
       subscriptionId,
-      error: error.message
+      conditions
     });
     throw error;
   }
@@ -184,10 +180,9 @@ const deleteNotification = async (notificationId, userId) => {
     
     return true;
   } catch (error) {
-    logger.error('Error in deleteNotification', {
+    logger.logError({ repository: 'notification-repository', method: 'deleteNotification' }, error, {
       notificationId,
-      userId,
-      error: error.message
+      userId
     });
     throw error;
   }
@@ -218,10 +213,10 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
     const result = await query(query, queryParams);
     return result.rows.length;
   } catch (error) {
-    logger.error('Error in deleteAllNotifications', {
+    logger.logError({ repository: 'notification-repository', method: 'deleteAllNotifications' }, error, {
       userId,
       subscriptionId,
-      error: error.message
+      conditions
     });
     throw error;
   }
