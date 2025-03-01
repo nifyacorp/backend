@@ -2,6 +2,7 @@ import { authService } from '../../../core/auth/auth.service.js';
 import { AUTH_ERRORS } from '../../../core/types/auth.types.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import logger from '../../../shared/logger.js';
+import { AUTH_HEADER, USER_ID_HEADER, TOKEN_PREFIX } from '../../../shared/constants/headers.js';
 
 const PUBLIC_PATHS = [
   '/health',
@@ -29,25 +30,25 @@ export async function authenticate(request, reply) {
 
   try {
     logger.logAuth({ requestId: request.id, path: request.url }, 'Processing authentication', {
-      hasAuth: !!request.headers.authorization,
-      hasUserId: !!request.headers['x-user-id'],
+      hasAuth: !!request.headers[AUTH_HEADER.toLowerCase()],
+      hasUserId: !!request.headers[USER_ID_HEADER],
       path: request.url,
       requestId: request.id
     });
 
     // Extract token, ensuring proper Bearer format
-    const authHeader = request.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const authHeader = request.headers[AUTH_HEADER.toLowerCase()];
+    if (!authHeader || !authHeader.startsWith(TOKEN_PREFIX)) {
       throw new AppError(
         AUTH_ERRORS.MISSING_HEADERS.code,
-        'Invalid Authorization header format. Must be: Bearer <token>',
+        `Invalid ${AUTH_HEADER} header format. Must be: ${TOKEN_PREFIX}<token>`,
         401,
         { providedHeader: authHeader }
       );
     }
 
     const token = authHeader.split(' ')[1];
-    const userId = request.headers['x-user-id'];
+    const userId = request.headers[USER_ID_HEADER];
 
     if (!token || !userId) {
       throw new AppError(

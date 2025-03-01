@@ -9,6 +9,7 @@ import { notificationRoutes } from './interfaces/http/routes/notification.routes
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
+import { ALLOWED_HEADERS } from './shared/constants/headers.js';
 
 const fastify = Fastify({
   logger: true,
@@ -43,7 +44,7 @@ await fastify.register(cors, {
   },
   credentials: true,
   methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-user-id']
+  allowedHeaders: ALLOWED_HEADERS
 });
 
 // Configure empty bodies for DELETE requests
