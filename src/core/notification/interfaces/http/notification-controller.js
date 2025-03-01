@@ -45,7 +45,52 @@ const getUserNotifications = async (request, reply) => {
         subscriptionId
       });
       
-      return reply.status(200).send(result);
+      // Additional debug logging for response serialization
+      logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Preparing response', {
+        notificationCount: result.notifications?.length || 0,
+        firstNotificationSample: result.notifications?.length > 0 ? 
+          JSON.stringify(result.notifications[0]).substring(0, 100) + '...' : 'none'
+      });
+      
+      // Ensure proper serialization by creating a clean object
+      const response = {
+        notifications: result.notifications.map(notification => {
+          // Create a new clean object for each notification to avoid serialization issues
+          return {
+            id: notification.id,
+            userId: notification.userId || notification.user_id,
+            subscriptionId: notification.subscriptionId || notification.subscription_id,
+            title: notification.title,
+            content: notification.content,
+            sourceUrl: notification.sourceUrl,
+            read: notification.read,
+            entity_type: notification.entity_type || '',
+            metadata: notification.metadata,
+            createdAt: notification.createdAt,
+            readAt: notification.readAt,
+            subscription_name: notification.subscription_name
+          };
+        }),
+        total: result.total,
+        unread: result.unread,
+        page: result.page,
+        limit: result.limit,
+        hasMore: result.hasMore
+      };
+      
+      // Log the first notification in the response for debugging
+      if (response.notifications && response.notifications.length > 0) {
+        logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'First notification in response', {
+          keys: Object.keys(response.notifications[0]),
+          id: response.notifications[0].id,
+          hasId: !!response.notifications[0].id
+        });
+      }
+      
+      // Set the content type explicitly to ensure proper parsing on client side
+      reply.header('Content-Type', 'application/json');
+      
+      return reply.status(200).send(response);
     } catch (serviceError) {
       logger.logError({ controller: 'notification-controller', method: 'getUserNotifications' }, serviceError, {
         userId,
