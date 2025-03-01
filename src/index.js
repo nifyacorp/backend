@@ -25,7 +25,25 @@ const fastify = Fastify({
 
 // Register plugins
 await fastify.register(cors, {
-  origin: true
+  origin: (origin, cb) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return cb(null, true);
+    
+    // Allow requests from Netlify subdomains and localhost for development
+    if (
+      origin.endsWith('.netlify.app') || 
+      origin.includes('localhost') || 
+      origin.includes('127.0.0.1')
+    ) {
+      return cb(null, true);
+    }
+    
+    // Block other origins
+    cb(new Error('Not allowed by CORS'), false);
+  },
+  credentials: true,
+  methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 });
 
 // Configure empty bodies for DELETE requests
