@@ -43,7 +43,7 @@ await fastify.register(cors, {
   },
   credentials: true,
   methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-user-id']
 });
 
 // Configure empty bodies for DELETE requests
