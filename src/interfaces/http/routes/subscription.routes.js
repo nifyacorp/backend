@@ -395,18 +395,50 @@ export async function subscriptionRoutes(fastify, options) {
       
       // Call the subscription-worker service to process this subscription
       const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
-      const processingResponse = await axios.post(
-        `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
-        {},
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
       
-      // Return the processing service response
-      reply.code(202).send(processingResponse.data);
+      // Immediately send a 202 Accepted response to the client
+      const response = {
+        status: 'success',
+        message: 'Subscription processing request accepted',
+        subscription_id: subscriptionId
+      };
+      
+      reply.code(202).send(response);
+      
+      // Process asynchronously without waiting for the response
+      setTimeout(async () => {
+        try {
+          logger.info(context, 'Making async request to subscription worker', {
+            subscription_id: subscriptionId,
+            worker_url: subscriptionWorkerUrl
+          });
+          
+          const processingResponse = await axios.post(
+            `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
+            {},
+            {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          logger.info(context, 'Subscription worker responded to async request', {
+            subscription_id: subscriptionId,
+            status: processingResponse.status,
+            response_data: processingResponse.data
+          });
+        } catch (asyncError) {
+          // Log the error but don't affect the client response (already sent)
+          logger.error(context, 'Error in async subscription processing', {
+            subscription_id: subscriptionId,
+            error: asyncError.message,
+            stack: asyncError.stack
+          });
+        }
+      }, 10); // Small delay to ensure reply is sent first
+      
+      return;
     } catch (error) {
       logError(context, error);
       const response = error instanceof AppError ? error.toJSON() : {
