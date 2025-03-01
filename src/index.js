@@ -10,6 +10,7 @@ import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 import { ALLOWED_HEADERS } from './shared/constants/headers.js';
+import diagnosticsRoutes from './interfaces/http/routes/diagnostics.routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -81,6 +82,9 @@ await fastify.register(swagger, {
 fastify.get('/health', async () => {
   return { status: 'healthy', timestamp: new Date().toISOString() };
 });
+
+// Register diagnostics routes (public for testing)
+fastify.register(diagnosticsRoutes, { prefix: '/api/v1/diagnostics' });
 
 await fastify.register(swaggerUI, {
   routePrefix: '/documentation'
