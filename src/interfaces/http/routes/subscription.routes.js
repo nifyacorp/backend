@@ -433,10 +433,8 @@ export async function subscriptionRoutes(fastify, options) {
           });
         } catch (asyncError) {
           // Log the error but don't affect the client response (already sent)
-          logger.error(requestContext, 'Error in async subscription processing', {
-            subscription_id: subscriptionId,
-            error: asyncError.message,
-            stack: asyncError.stack
+          logError(requestContext, asyncError, {
+            subscription_id: subscriptionId
           });
         }
       }, 10); // Small delay to ensure reply is sent first

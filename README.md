@@ -40,6 +40,9 @@ This service functions as the central orchestration layer in the NIFYA ecosystem
   - `subscription-created`: Triggers initial processing of new subscriptions
   - `subscription-updated`: Notifies of changes to subscription parameters
   - `notification-created`: Alerts email service for delivery
+- External Services:
+  - Subscription Worker: `https://subscription-worker-415554190254.us-central1.run.app`
+  - DOGA Parser: `https://doga-parser-415554190254.us-central1.run.app`
 
 ### Frontend Integration
 - Provides RESTful API endpoints for frontend applications
