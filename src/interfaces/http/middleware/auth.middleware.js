@@ -13,6 +13,9 @@ const PUBLIC_PATHS = [
   '/documentation/static'
 ];
 
+/**
+ * Fastify hook for authentication
+ */
 export async function authenticate(request, reply) {
   const context = {
     requestId: request.id,
@@ -100,3 +103,78 @@ export async function authenticate(request, reply) {
     return reply;
   }
 }
+
+/**
+ * Express-style middleware for authentication
+ * This is included for compatibility with Express-style middleware
+ */
+export const authMiddleware = async (request, response, next) => {
+  try {
+    const authHeader = request.headers[AUTH_HEADER.toLowerCase()];
+    const userId = request.headers[USER_ID_HEADER.toLowerCase()];
+    
+    // Skip authentication for public paths
+    if (PUBLIC_PATHS.some(path => request.url.startsWith(path))) {
+      return next();
+    }
+    
+    if (!authHeader || !authHeader.startsWith(TOKEN_PREFIX)) {
+      return response.status(401).json({
+        status: 'error',
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      });
+    }
+    
+    const token = authHeader.replace(TOKEN_PREFIX, '').trim();
+    
+    if (!token) {
+      return response.status(401).json({
+        status: 'error',
+        code: 'UNAUTHORIZED',
+        message: 'Invalid token format'
+      });
+    }
+    
+    const verificationResult = await authService.verifyToken(token);
+    
+    if (!verificationResult.valid) {
+      return response.status(401).json({
+        status: 'error',
+        code: 'UNAUTHORIZED',
+        message: verificationResult.error || 'Invalid token'
+      });
+    }
+    
+    // Verify user ID matches token subject
+    if (userId && verificationResult.payload.sub !== userId) {
+      return response.status(403).json({
+        status: 'error',
+        code: 'FORBIDDEN',
+        message: 'User ID mismatch'
+      });
+    }
+    
+    // Set user info on request
+    request.user = {
+      id: verificationResult.payload.sub,
+      email: verificationResult.payload.email,
+      name: verificationResult.payload.name
+    };
+    
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    return response.status(500).json({
+      status: 'error',
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Authentication error'
+    });
+  }
+};
+
+// Export both authentication methods
+export default {
+  authenticate,
+  authMiddleware
+};
