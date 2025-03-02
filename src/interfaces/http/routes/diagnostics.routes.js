@@ -32,24 +32,24 @@ export default async function diagnosticsRoutes(fastify) {
       const afterSetResult = await query('SELECT current_setting(\'app.current_user_id\', TRUE) as app_user_id');
       
       // Check direct count of notifications without RLS constraints
-      const directCountResult = await query(`
-        SELECT COUNT(*) FROM notifications 
-        WHERE user_id = $1
-      `, [userId]);
+      const directCountResult = await query(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = $1',
+        [userId]
+      );
       
       // Check notifications with RLS in effect (normal query path)
-      const rlsCountResult = await query(`
-        SELECT COUNT(*) FROM notifications 
-        WHERE user_id = $1
-      `, [userId]);
+      const rlsCountResult = await query(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = $1',
+        [userId]
+      );
       
       // Try to bypass RLS with a superuser check (if possible)
       let bypassResult = { error: 'Not attempted' };
       try {
-        const bypassQuery = await query(`
-          SELECT COUNT(*) FROM notifications
-          WHERE user_id = $1
-        `, [userId]);
+        const bypassQuery = await query(
+          'SELECT COUNT(*) FROM notifications WHERE user_id = $1',
+          [userId]
+        );
         bypassResult = { count: bypassQuery.rows[0].count };
       } catch (err) {
         bypassResult = { error: err.message };
@@ -57,11 +57,10 @@ export default async function diagnosticsRoutes(fastify) {
       
       // Get sample notification data if any exists (limit to 1 for diagnostics)
       let sampleNotification = null;
-      const sampleResult = await query(`
-        SELECT * FROM notifications
-        WHERE user_id = $1
-        LIMIT 1
-      `, [userId]);
+      const sampleResult = await query(
+        'SELECT * FROM notifications WHERE user_id = $1 LIMIT 1',
+        [userId]
+      );
       
       if (sampleResult.rowCount > 0) {
         sampleNotification = sampleResult.rows[0];
