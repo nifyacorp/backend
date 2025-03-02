@@ -37,4 +37,33 @@ To verify the fix:
 
 ## Additional Notes
 
-The diagnostics routes were already setting the RLS context correctly, which is why they were able to retrieve notifications. This fix ensures that all notification-related operations set the RLS context consistently. 
+The diagnostics routes were already setting the RLS context correctly, which is why they were able to retrieve notifications. This fix ensures that all notification-related operations set the RLS context consistently.
+
+## Fixed SQL Syntax Error in RLS Context Functions
+
+**Issue**: When the backend attempted to set the RLS context using a parameterized query (`SET LOCAL app.current_user_id = $1`), PostgreSQL would return a syntax error. This is because PostgreSQL does not support parameter placeholders in `SET LOCAL` commands.
+
+**Fix**: Modified the `setRLSContext` and `withRLSContext` functions to use string interpolation with proper UUID validation instead of parameterized queries:
+
+```js
+// Instead of:
+await query('SET LOCAL app.current_user_id = $1', [userId]);
+
+// We now use:
+// Validate that userId is a valid UUID to prevent SQL injection
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+if (!uuidRegex.test(userId)) {
+  // Handle invalid UUID
+}
+
+// Use string interpolation for the SET LOCAL command
+await query(`SET LOCAL app.current_user_id = '${userId}'`, []);
+```
+
+The fix includes UUID validation to prevent SQL injection, since we're no longer using parameterized queries for this specific command.
+
+**Files Modified**:
+- `backend/src/infrastructure/database/client.js`
+- `notification-worker/src/services/notification.js`
+
+**Note**: This fix was necessary because PostgreSQL requires literal values for `SET LOCAL` commands rather than parameter placeholders. 

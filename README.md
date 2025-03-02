@@ -68,55 +68,7 @@ This service functions as the central orchestration layer in the NIFYA ecosystem
 - **Validation**: Fastify schema validation
 - **Security**: CORS, Row-Level Security (RLS)
 
-## 🌐 Deployment Information
-
-### Backend Service
-- **URL**: `https://backend-415554190254.us-central1.run.app`
-- **Service Name**: `backend`
-- **Service Account**: 
-  - Deploy: `415554190254-compute@developer.gserviceaccount.com`
-  - Runtime: `backend@delta-entity-447812-p2.iam.gserviceaccount.com`
-- **Region**: `us-central1`
-
-## 📋 Prerequisites
-
-- Node.js 20 or higher
-- PostgreSQL database
-- Google Cloud project with:
-  - Secret Manager enabled
-  - Cloud SQL configured
-  - Cloud Pub/Sub enabled
-- Environment variables configured (see `.env.example`)
-
-## 🔧 Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-```bash
-# Database Configuration
-DB_NAME=nifya
-DB_USER=nifya
-DB_PASSWORD=your-password-here
-
-# Server Configuration
-PORT=3000
-SERVICE_URL=your-cloud-run-url
-
-# Google Cloud Configuration
-GOOGLE_CLOUD_PROJECT=your-project-id
-INSTANCE_CONNECTION_NAME=your-instance-connection
-JWT_SECRET_NAME=projects/your-project/secrets/JWT_SECRET/versions/latest
-
-# PubSub Configuration
-PUBSUB_TOPIC_SUBSCRIPTION_CREATED=subscription-created
-PUBSUB_TOPIC_SUBSCRIPTION_UPDATED=subscription-updated
-PUBSUB_TOPIC_NOTIFICATION_CREATED=notification-created
-
-# CORS Configuration
-ALLOWED_ORIGINS=https://your-frontend-domain.com,http://localhost:3000
-```
-
-## 🏗 Project Structure
+## 🌐 Project Structure
 
 ```
 .
@@ -207,6 +159,11 @@ The service uses a PostgreSQL database with the following key tables:
   - Public endpoint
   - Returns service status and timestamp
 
+### Diagnostics
+- `GET /api/v1/diagnostics/database` - Database connection diagnostics
+  - Requires `userId` query parameter
+  - Tests RLS context functionality
+
 ### Notifications
 - `GET /api/v1/notifications` - List user notifications (with pagination/filters)
 - `POST /api/v1/notifications/:notificationId/read` - Mark notification as read
@@ -251,6 +208,32 @@ Features:
 
 ## 🏃‍♂️ Running the Service
 
+### Environment Variables
+
+Create a `.env` file with the following variables:
+
+```bash
+# Database Configuration
+DB_NAME=nifya
+DB_USER=nifya
+DB_PASSWORD=your-password-here
+DB_HOST=localhost
+DB_PORT=5432
+
+# Google Cloud Configuration (Production)
+GOOGLE_CLOUD_PROJECT=your-project-id
+INSTANCE_CONNECTION_NAME=your-instance-connection
+
+# JWT Configuration
+JWT_SECRET_NAME=nifya-jwt-secret  # Secret name in Secret Manager
+JWT_ISSUER=nifya-auth-service
+
+# Service Configuration
+PORT=3000
+NODE_ENV=development  # Set to "production" for production environment
+SERVICE_URL=localhost:3000  # Used for documentation
+```
+
 ### Development
 ```bash
 npm install
@@ -269,6 +252,51 @@ docker build -t nifya-orchestration-service .
 docker run -p 3000:3000 --env-file .env nifya-orchestration-service
 ```
 
+## ☁️ Cloud Deployment
+
+### Google Cloud Setup
+
+1. Enable required APIs:
+   ```bash
+   gcloud services enable secretmanager.googleapis.com
+   gcloud services enable run.googleapis.com
+   gcloud services enable sqladmin.googleapis.com
+   gcloud services enable pubsub.googleapis.com
+   ```
+
+2. Create service account:
+   ```bash
+   gcloud iam service-accounts create nifya-backend-sa --display-name="Nifya Backend Service Account"
+   ```
+
+3. Grant permissions:
+   ```bash
+   gcloud projects add-iam-policy-binding PROJECT_ID \
+     --member="serviceAccount:nifya-backend-sa@PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/secretmanager.secretAccessor"
+
+   gcloud projects add-iam-policy-binding PROJECT_ID \
+     --member="serviceAccount:nifya-backend-sa@PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/pubsub.publisher"
+   ```
+
+### Deploy to Cloud Run
+
+```bash
+# Build and push container
+gcloud builds submit --tag gcr.io/PROJECT_ID/nifya-backend
+
+# Deploy service
+gcloud run deploy nifya-backend \
+  --image gcr.io/PROJECT_ID/nifya-backend \
+  --platform managed \
+  --region us-central1 \
+  --service-account nifya-backend-sa@PROJECT_ID.iam.gserviceaccount.com \
+  --set-env-vars "NODE_ENV=production,JWT_SECRET_NAME=nifya-jwt-secret,JWT_ISSUER=nifya-auth-service" \
+  --set-secrets "DB_PASSWORD=projects/PROJECT_NUMBER/secrets/nifya-db-password/versions/latest" \
+  --add-cloudsql-instances PROJECT_ID:REGION:INSTANCE_NAME
+```
+
 ## 🔒 Security Features
 
 - JWT verification using Google Cloud Secret Manager
@@ -284,6 +312,16 @@ docker run -p 3000:3000 --env-file .env nifya-orchestration-service
 - Request/response validation via Fastify schemas
 - Structured error handling with detailed responses
 - Protection against JSON prototype pollution
+
+### Recent Row-Level Security Fixes
+
+In February-March 2025, we implemented fixes to resolve issues with Row-Level Security context handling:
+
+1. Updated `setRLSContext` and `withRLSContext` functions to properly handle PostgreSQL's requirement for literal values in `SET LOCAL` commands
+2. Added proper UUID validation to prevent SQL injection
+3. Ensured all notification repository functions set the RLS context before executing database queries
+
+These fixes ensure notifications are correctly scoped to their owners and can be retrieved properly through the API. For detailed information, see the [RLS-FIXES.md](./RLS-FIXES.md) file.
 
 ## 📊 Monitoring & Logging
 
@@ -302,7 +340,17 @@ Each log entry includes:
 - Relevant operation details
 - Context keys (service, method, etc.)
 
-## 🐞 Troubleshooting
+### Recommended Monitoring Metrics
+
+- **Request Volume**: Total number of requests handled
+- **Response Time**: Average and p95/p99 response times
+- **Error Rate**: Percentage of requests resulting in errors (4xx/5xx)
+- **Database Query Latency**: Time taken to execute database queries
+- **Active Users**: Count of distinct users making requests
+- **Subscription Creation Rate**: New subscriptions created over time
+- **Notification Volume**: Number of notifications generated
+
+## 🔍 Troubleshooting
 
 ### Common Issues
 
@@ -310,16 +358,26 @@ Each log entry includes:
 - Check database credentials
 - Verify Cloud SQL instance is running
 - Ensure network connectivity to database
+- Check for max connections limit
+- Verify proper RLS context setup
 
 #### Authentication Issues
 - Verify JWT secret is correctly configured in Secret Manager
 - Check that the service account has access to Secret Manager
 - Confirm token generation and validation flow
+- Check token expiration times
 
 #### Subscription Processing
 - Check Pub/Sub topic and subscription configuration
 - Verify worker services are running
 - Check for errors in the `subscription_processing` table
+- Validate message format in Pub/Sub topics
+
+#### 500 Internal Server Errors
+- Check for PostgreSQL syntax errors, especially in RLS context setting
+- Verify environment variables are correctly set
+- Review application logs for detailed error messages
+- Check for memory/CPU limits being reached
 
 ## 🧪 Testing
 
@@ -333,6 +391,51 @@ npm run test:integration
 # Run with coverage
 npm run test:coverage
 ```
+
+### Manual Testing
+
+Use the diagnostic endpoints to verify system functionality:
+
+```bash
+# Test database connection with RLS
+curl "http://localhost:3000/api/v1/diagnostics/database?userId=YOUR_UUID_HERE"
+
+# Health check
+curl http://localhost:3000/health
+```
+
+## 🤝 Contributing
+
+### Development Workflow
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Make your changes
+4. Run tests (`npm test`)
+5. Commit your changes (`git commit -am 'Add new feature'`)
+6. Push to the branch (`git push origin feature/my-feature`)
+7. Create a new Pull Request
+
+### Code Style Guide
+
+- Follow the existing code style
+- Use ESLint for code linting
+- Document new functions and components
+- Write unit tests for new functionality
+
+## 📝 Version History
+
+### v1.0.0 (March 2025)
+- Initial production release
+- Complete notification and subscription management
+- JWT authentication integration
+- PostgreSQL with Row-Level Security
+
+### v0.9.0 (February 2025)
+- Beta release with core functionality
+- Fixed RLS context handling issues
+- Added comprehensive error handling
+- Improved logging and diagnostics
 
 ## 📄 License
 

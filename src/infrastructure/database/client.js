@@ -174,8 +174,16 @@ export async function setRLSContext(userId) {
     return;
   }
   
+  // Validate that userId is a valid UUID to prevent SQL injection
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    console.error('Invalid UUID format for RLS context', { userId });
+    throw new Error('Invalid UUID format for user ID');
+  }
+  
   try {
-    await query('SET LOCAL app.current_user_id = $1', [userId]);
+    // Use a string literal instead of parameterized query for SET LOCAL
+    await query(`SET LOCAL app.current_user_id = '${userId}'`, []);
     console.log('Set RLS context successfully:', {
       userId,
       timestamp: new Date().toISOString()
@@ -186,7 +194,7 @@ export async function setRLSContext(userId) {
       userId,
       timestamp: new Date().toISOString()
     });
-    throw error;
+    throw new Error(`Database operation failed: ${error.message}`);
   }
 }
 
@@ -201,10 +209,16 @@ export async function withRLSContext(userId, callback) {
     throw new Error('User ID is required for RLS context');
   }
   
-  const client = await pool.connect();
+  // Validate that userId is a valid UUID to prevent SQL injection
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    throw new Error('Invalid UUID format for user ID');
+  }
   
+  const client = await pool.connect();
   try {
-    await client.query('SET LOCAL app.current_user_id = $1', [userId]);
+    // Use a string literal instead of parameterized query for SET LOCAL
+    await client.query(`SET LOCAL app.current_user_id = '${userId}'`, []);
     return await callback(client);
   } finally {
     client.release();
