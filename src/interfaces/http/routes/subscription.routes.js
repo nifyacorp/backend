@@ -405,10 +405,13 @@ export async function subscriptionRoutes(fastify, options) {
       
       reply.code(202).send(response);
       
+      // Capture the context value for the setTimeout callback
+      const requestContext = { ...context };
+      
       // Process asynchronously without waiting for the response
       setTimeout(async () => {
         try {
-          logger.info(context, 'Making async request to subscription worker', {
+          logger.info(requestContext, 'Making async request to subscription worker', {
             subscription_id: subscriptionId,
             worker_url: subscriptionWorkerUrl
           });
@@ -423,14 +426,14 @@ export async function subscriptionRoutes(fastify, options) {
             }
           );
           
-          logger.info(context, 'Subscription worker responded to async request', {
+          logger.info(requestContext, 'Subscription worker responded to async request', {
             subscription_id: subscriptionId,
             status: processingResponse.status,
             response_data: processingResponse.data
           });
         } catch (asyncError) {
           // Log the error but don't affect the client response (already sent)
-          logger.error(context, 'Error in async subscription processing', {
+          logger.error(requestContext, 'Error in async subscription processing', {
             subscription_id: subscriptionId,
             error: asyncError.message,
             stack: asyncError.stack
