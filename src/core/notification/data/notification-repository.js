@@ -1,4 +1,4 @@
-import { query } from '../../../infrastructure/database/client.js';
+import { query, setRLSContext } from '../../../infrastructure/database/client.js';
 import logger from '../../../shared/logger.js';
 
 /**
@@ -20,6 +20,9 @@ const getUserNotifications = async (userId, options = {}) => {
   } = options;
 
   try {
+    // Set RLS context before querying notifications
+    await setRLSContext(userId);
+    
     // Explicitly select notification.id to ensure it's properly returned
     let sqlQuery = `
       SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, 
@@ -117,6 +120,9 @@ const getUserNotifications = async (userId, options = {}) => {
  */
 const getNotificationCount = async (userId, unreadOnly = false, subscriptionId = null) => {
   try {
+    // Set RLS context before counting notifications
+    await setRLSContext(userId);
+    
     let sqlQuery = `
       SELECT COUNT(*) as count
       FROM notifications n
@@ -163,6 +169,9 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
  */
 const markNotificationAsRead = async (notificationId, userId) => {
   try {
+    // Set RLS context before updating notification
+    await setRLSContext(userId);
+    
     const sqlQuery = `
       UPDATE notifications
       SET read = true, read_at = NOW()
@@ -194,6 +203,9 @@ const markNotificationAsRead = async (notificationId, userId) => {
  */
 const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
   try {
+    // Set RLS context before updating notifications
+    await setRLSContext(userId);
+    
     let sqlQuery = `
       UPDATE notifications
       SET read = true, read_at = NOW()
@@ -228,6 +240,9 @@ const markAllNotificationsAsRead = async (userId, subscriptionId = null) => {
  */
 const deleteNotification = async (notificationId, userId) => {
   try {
+    // Set RLS context before deleting notification
+    await setRLSContext(userId);
+    
     console.log('Deleting notification in repository:', {
       notificationId,
       userId,
@@ -299,6 +314,9 @@ const deleteNotification = async (notificationId, userId) => {
  */
 const deleteAllNotifications = async (userId, subscriptionId = null) => {
   try {
+    // Set RLS context before deleting notifications
+    await setRLSContext(userId);
+    
     console.log('Deleting all notifications for user:', {
       userId,
       subscriptionId,

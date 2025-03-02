@@ -162,3 +162,51 @@ export async function initializeDatabase() {
     );
   }
 }
+
+/**
+ * Sets the RLS context for the current database session
+ * @param {string} userId - The user ID to set in the RLS context
+ * @returns {Promise<void>}
+ */
+export async function setRLSContext(userId) {
+  if (!userId) {
+    console.warn('Attempted to set RLS context without a user ID');
+    return;
+  }
+  
+  try {
+    await query('SET LOCAL app.current_user_id = $1', [userId]);
+    console.log('Set RLS context successfully:', {
+      userId,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Failed to set RLS context:', {
+      error: error.message,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    throw error;
+  }
+}
+
+/**
+ * Executes a callback function with the RLS context set for a specific user
+ * @param {string} userId - The user ID to set in the RLS context
+ * @param {Function} callback - The function to execute within the RLS context
+ * @returns {Promise<any>} - The result of the callback function
+ */
+export async function withRLSContext(userId, callback) {
+  if (!userId) {
+    throw new Error('User ID is required for RLS context');
+  }
+  
+  const client = await pool.connect();
+  
+  try {
+    await client.query('SET LOCAL app.current_user_id = $1', [userId]);
+    return await callback(client);
+  } finally {
+    client.release();
+  }
+}
