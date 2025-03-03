@@ -411,7 +411,7 @@ export async function subscriptionRoutes(fastify, options) {
       // Process asynchronously without waiting for the response
       setTimeout(async () => {
         try {
-          logger.info(requestContext, 'Making async request to subscription worker', {
+          logRequest(requestContext, 'Making async request to subscription worker', {
             subscription_id: subscriptionId,
             worker_url: subscriptionWorkerUrl
           });
@@ -426,7 +426,7 @@ export async function subscriptionRoutes(fastify, options) {
             }
           );
           
-          logger.info(requestContext, 'Subscription worker responded to async request', {
+          logRequest(requestContext, 'Subscription worker responded to async request', {
             subscription_id: subscriptionId,
             status: processingResponse.status,
             response_data: processingResponse.data
