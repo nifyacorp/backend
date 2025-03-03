@@ -5,11 +5,8 @@
 
 import { subscriptionService } from '../../../../core/subscription/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import { logRequest, logError, getLogger } from '../../../../shared/logging/logger.js';
+import { logRequest, logError } from '../../../../shared/logging/logger.js';
 import axios from 'axios';
-
-// Initialize logger for consistent logging
-const logger = getLogger('subscription-process');
 
 /**
  * Register subscription processing routes
@@ -67,7 +64,7 @@ export async function registerProcessRoutes(fastify, options) {
       const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
       
       // Enhanced logging for debugging
-      logger.debug('Processing subscription request', {
+      logRequest(requestContext, 'Processing subscription request', {
         subscription_id: subscriptionId,
         worker_url: subscriptionWorkerUrl,
         env_var_set: !!process.env.SUBSCRIPTION_WORKER_URL
@@ -88,14 +85,14 @@ export async function registerProcessRoutes(fastify, options) {
       // Process the subscription asynchronously after sending the response
       setTimeout(async () => {
         try {
-          logger.info('Processing subscription asynchronously', {
+          logRequest(requestContextCopy, 'Processing subscription asynchronously', {
             subscription_id: subscriptionId,
             user_id: request.user.id,
             worker_url: subscriptionWorkerUrl
           });
           
           // Log request details before sending
-          logger.debug('Sending request to subscription worker', {
+          logRequest(requestContextCopy, 'Sending request to subscription worker', {
             url: `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`,
             subscription_id: subscriptionId,
             timestamp: new Date().toISOString()
@@ -119,14 +116,14 @@ export async function registerProcessRoutes(fastify, options) {
               }
             );
             
-            logger.info('Subscription worker primary endpoint response', {
+            logRequest(requestContextCopy, 'Subscription worker primary endpoint response', {
               status: processingResponse.status,
               data: processingResponse.data,
               subscription_id: subscriptionId
             });
           } catch (primaryError) {
             // Log the error from the primary endpoint
-            logger.error('Primary endpoint failed', {
+            logError(requestContextCopy, 'Primary endpoint failed', {
               error: primaryError.message,
               code: primaryError.code,
               subscription_id: subscriptionId,
@@ -134,7 +131,7 @@ export async function registerProcessRoutes(fastify, options) {
             });
             
             // Try the fallback endpoint path
-            logger.debug('Trying fallback endpoint');
+            logRequest(requestContextCopy, 'Trying fallback endpoint');
             try {
               const fallbackResponse = await axios.post(
                 `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
@@ -152,14 +149,14 @@ export async function registerProcessRoutes(fastify, options) {
                 }
               );
               
-              logger.info('Subscription worker fallback endpoint response', {
+              logRequest(requestContextCopy, 'Subscription worker fallback endpoint response', {
                 status: fallbackResponse.status,
                 data: fallbackResponse.data,
                 subscription_id: subscriptionId
               });
             } catch (fallbackError) {
               // Log the error from the fallback endpoint
-              logger.error('Fallback endpoint also failed', {
+              logError(requestContextCopy, 'Fallback endpoint also failed', {
                 primary_error: primaryError.message,
                 fallback_error: fallbackError.message,
                 subscription_id: subscriptionId,
@@ -172,15 +169,10 @@ export async function registerProcessRoutes(fastify, options) {
           }
         } catch (asyncError) {
           // Log the error but don't affect the client response (already sent)
-          logger.error('Failed to process subscription asynchronously', {
+          logError(requestContextCopy, 'Failed to process subscription asynchronously', {
             error: asyncError.message,
             stack: asyncError.stack,
             subscription_id: subscriptionId
-          });
-          
-          logError(requestContextCopy, asyncError, {
-            subscription_id: subscriptionId,
-            phase: 'async_processing'
           });
         }
       }, 10); // Small delay to ensure reply is sent first
