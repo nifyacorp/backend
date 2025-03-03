@@ -63,6 +63,14 @@ export async function registerProcessRoutes(fastify, options) {
       // Call the subscription-worker service to process this subscription
       const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
       
+      // Enhanced logging for debugging
+      console.log(`[DEBUG] subscription-worker URL: ${subscriptionWorkerUrl}`);
+      console.log(`[DEBUG] subscription ID: ${subscriptionId}`);
+      console.log(`[DEBUG] Environment variables:`, {
+        SUBSCRIPTION_WORKER_URL: process.env.SUBSCRIPTION_WORKER_URL,
+        NODE_ENV: process.env.NODE_ENV
+      });
+      
       // Immediately send a 202 Accepted response to the client
       const response = {
         status: 'success',
@@ -80,33 +88,109 @@ export async function registerProcessRoutes(fastify, options) {
         try {
           logRequest(requestContextCopy, 'Processing subscription asynchronously', {
             subscription_id: subscriptionId,
-            user_id: request.user.id
+            user_id: request.user.id,
+            worker_url: subscriptionWorkerUrl
           });
           
-          const processingResponse = await axios.post(
-            `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`,
-            {
-              user_id: request.user.id,
-              subscription_id: subscriptionId,
-              metadata: subscription.metadata,
-              prompts: subscription.prompts
-            },
-            {
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          logRequest(requestContextCopy, 'Subscription processing initiated', {
+          // Log request details before sending
+          console.log(`[DEBUG] Sending request to subscription worker:`, {
+            url: `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`,
             subscription_id: subscriptionId,
-            status: processingResponse.status,
-            data: processingResponse.data
+            timestamp: new Date().toISOString()
           });
+          
+          // Try the primary endpoint path
+          try {
+            const processingResponse = await axios.post(
+              `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`,
+              {
+                user_id: request.user.id,
+                subscription_id: subscriptionId,
+                metadata: subscription.metadata,
+                prompts: subscription.prompts
+              },
+              {
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                timeout: 10000 // 10 second timeout
+              }
+            );
+            
+            console.log(`[DEBUG] Subscription worker primary endpoint response:`, {
+              status: processingResponse.status,
+              data: processingResponse.data,
+              subscription_id: subscriptionId
+            });
+            
+            logRequest(requestContextCopy, 'Subscription processing initiated via primary endpoint', {
+              subscription_id: subscriptionId,
+              status: processingResponse.status,
+              data: processingResponse.data
+            });
+          } catch (primaryError) {
+            // Log the error from the primary endpoint
+            console.error(`[ERROR] Primary endpoint failed:`, {
+              error: primaryError.message,
+              code: primaryError.code,
+              subscription_id: subscriptionId,
+              response: primaryError.response?.data
+            });
+            
+            // Try the fallback endpoint path
+            console.log(`[DEBUG] Trying fallback endpoint`);
+            try {
+              const fallbackResponse = await axios.post(
+                `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
+                {
+                  user_id: request.user.id,
+                  subscription_id: subscriptionId,
+                  metadata: subscription.metadata,
+                  prompts: subscription.prompts
+                },
+                {
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  timeout: 10000 // 10 second timeout
+                }
+              );
+              
+              console.log(`[DEBUG] Subscription worker fallback endpoint response:`, {
+                status: fallbackResponse.status,
+                data: fallbackResponse.data,
+                subscription_id: subscriptionId
+              });
+              
+              logRequest(requestContextCopy, 'Subscription processing initiated via fallback endpoint', {
+                subscription_id: subscriptionId,
+                status: fallbackResponse.status,
+                data: fallbackResponse.data
+              });
+            } catch (fallbackError) {
+              // Log the error from the fallback endpoint
+              console.error(`[ERROR] Fallback endpoint also failed:`, {
+                primary_error: primaryError.message,
+                fallback_error: fallbackError.message,
+                subscription_id: subscriptionId,
+                response: fallbackError.response?.data
+              });
+              
+              // Throw to be caught by the outer catch
+              throw new Error(`Both endpoints failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`);
+            }
+          }
         } catch (asyncError) {
           // Log the error but don't affect the client response (already sent)
-          logError(requestContextCopy, asyncError, {
+          console.error(`[ERROR] Failed to process subscription asynchronously:`, {
+            error: asyncError.message,
+            stack: asyncError.stack,
             subscription_id: subscriptionId
+          });
+          
+          logError(requestContextCopy, asyncError, {
+            subscription_id: subscriptionId,
+            phase: 'async_processing'
           });
         }
       }, 10); // Small delay to ensure reply is sent first
