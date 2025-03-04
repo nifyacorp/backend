@@ -13,6 +13,11 @@ const subscriptionRoutes = require('./routes/subscriptions');
 const notificationRoutes = require('./routes/notifications');
 const debugRoutes = require('./routes/debug');
 
+// Import API resilience components - using require to maintain consistent style
+const apiExplorerRoutes = require('./src/interfaces/http/routes/apiExplorer.routes.js').default;
+const apiDocumenter = require('./src/interfaces/http/middleware/apiDocumenter.js').apiDocumenter;
+const errorHandler = require('./src/interfaces/http/middleware/errorHandler.js').errorHandler;
+
 // Initialize OpenTelemetry tracing
 tracing.setupTracing();
 
@@ -38,9 +43,13 @@ app.use(logger.addRequestContext);
 app.use(logger.logRequest);
 app.use(logger.logAuthentication);
 
+// Add API documenter middleware for request validation and self-documentation
+app.use(apiDocumenter);
+
 // Routes
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api', apiExplorerRoutes); // Add API Explorer routes for discovery
 
 // Debug routes (only in non-production)
 if (process.env.NODE_ENV !== 'production') {
@@ -110,28 +119,8 @@ app.use((req, res, next) => {
   });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  
-  logger.error('Unhandled application error', {
-    error: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method
-  });
-  
-  metrics.increment('api.error', {
-    status: statusCode,
-    path: req.path
-  });
-  
-  res.status(statusCode).json({
-    error: process.env.NODE_ENV === 'production' 
-      ? 'An error occurred' 
-      : err.message
-  });
-});
+// Use our enhanced error handler with self-documenting capabilities
+app.use(errorHandler);
 
 // Create HTTP server
 const server = http.createServer(app);
