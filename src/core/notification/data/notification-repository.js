@@ -392,11 +392,185 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
   }
 };
 
+/**
+ * Get notification statistics for a user
+ * @param {string} userId - The user's ID
+ * @returns {Promise<Object>} - Notification statistics
+ */
+const getNotificationStats = async (userId) => {
+  try {
+    // Set RLS context before querying
+    await setRLSContext(userId);
+    
+    // Get total count
+    const totalCountQuery = `
+      SELECT COUNT(*) as count
+      FROM notifications
+      WHERE user_id = $1
+    `;
+    const totalResult = await query(totalCountQuery, [userId]);
+    const total = parseInt(totalResult.rows[0].count);
+    
+    // Get unread count
+    const unreadCountQuery = `
+      SELECT COUNT(*) as count
+      FROM notifications
+      WHERE user_id = $1 AND read = false
+    `;
+    const unreadResult = await query(unreadCountQuery, [userId]);
+    const unread = parseInt(unreadResult.rows[0].count);
+    
+    // Get weekly change
+    const weeklyChangeQuery = `
+      SELECT 
+        COALESCE((
+          SELECT COUNT(*) 
+          FROM notifications 
+          WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '7 days'
+        ), 0) as current_week,
+        COALESCE((
+          SELECT COUNT(*) 
+          FROM notifications 
+          WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days'
+        ), 0) as previous_week
+    `;
+    const changeResult = await query(weeklyChangeQuery, [userId, userId]);
+    const currentWeek = parseInt(changeResult.rows[0].current_week);
+    const previousWeek = parseInt(changeResult.rows[0].previous_week);
+    
+    // Calculate percentage change
+    let change = 0;
+    let isIncrease = false;
+    
+    if (previousWeek > 0) {
+      change = Math.round(((currentWeek - previousWeek) / previousWeek) * 100);
+      isIncrease = currentWeek > previousWeek;
+    } else if (currentWeek > 0) {
+      change = 100;
+      isIncrease = true;
+    }
+    
+    // Get notification count by type
+    const byTypeQuery = `
+      SELECT 
+        COALESCE(entity_type, 'unknown') as type,
+        COUNT(*) as count
+      FROM notifications
+      WHERE user_id = $1
+      GROUP BY entity_type
+      ORDER BY count DESC
+    `;
+    const byTypeResult = await query(byTypeQuery, [userId]);
+    const byType = byTypeResult.rows.reduce((acc, row) => {
+      acc[row.type] = parseInt(row.count);
+      return acc;
+    }, {});
+    
+    return {
+      total,
+      unread,
+      change,
+      isIncrease,
+      byType
+    };
+  } catch (error) {
+    logger.logError({ repository: 'notification-repository', method: 'getNotificationStats' }, error, {
+      userId,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      }
+    });
+    throw error;
+  }
+};
+
+/**
+ * Get daily activity statistics for a user
+ * @param {string} userId - The user's ID
+ * @param {number} [days=7] - Number of days to include
+ * @returns {Promise<Object>} - Activity statistics
+ */
+const getActivityStats = async (userId, days = 7) => {
+  try {
+    // Set RLS context before querying
+    await setRLSContext(userId);
+    
+    // Get daily activity for the last X days
+    const activityByDayQuery = `
+      SELECT 
+        TO_CHAR(DATE(created_at), 'Dy') as day,
+        COUNT(*) as count
+      FROM notifications
+      WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY DATE(created_at), TO_CHAR(DATE(created_at), 'Dy')
+      ORDER BY DATE(created_at)
+    `;
+    const activityResult = await query(activityByDayQuery, [userId]);
+    
+    // Get notification count by source
+    const bySourceQuery = `
+      SELECT 
+        COALESCE(entity_type, 'unknown') as name,
+        COUNT(*) as count
+      FROM notifications
+      WHERE user_id = $1
+      GROUP BY entity_type
+      ORDER BY count DESC
+    `;
+    const sourcesResult = await query(bySourceQuery, [userId]);
+    
+    // Create a map for each day of the week
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const activityByDay = dayNames.map(day => {
+      const found = activityResult.rows.find(r => r.day === day);
+      return {
+        day,
+        count: found ? parseInt(found.count) : 0
+      };
+    });
+    
+    // Add color information for each source
+    const colorMap = {
+      'BOE': '#ff5722',
+      'REAL_ESTATE': '#4caf50',
+      'SOCIAL_MEDIA': '#9c27b0',
+      'NEWS': '#2196f3',
+      'unknown': '#607d8b'
+    };
+    
+    const sources = sourcesResult.rows.map(row => ({
+      name: row.name,
+      count: parseInt(row.count),
+      color: colorMap[row.name] || '#607d8b'
+    }));
+    
+    return {
+      activityByDay,
+      sources
+    };
+  } catch (error) {
+    logger.logError({ repository: 'notification-repository', method: 'getActivityStats' }, error, {
+      userId,
+      days,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      }
+    });
+    throw error;
+  }
+};
+
 export default {
   getUserNotifications,
   getNotificationCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
-  deleteAllNotifications
-}; 
+  deleteAllNotifications,
+  getNotificationStats,
+  getActivityStats
+};

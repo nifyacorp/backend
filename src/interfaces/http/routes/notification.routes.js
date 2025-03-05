@@ -48,6 +48,68 @@ export async function notificationRoutes(fastify, options) {
       }
     }
   }, notificationController.markAsRead);
+  
+  /**
+   * Get notification statistics
+   */
+  fastify.get('/stats', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            total: { type: 'integer' },
+            unread: { type: 'integer' },
+            change: { type: 'integer' },
+            isIncrease: { type: 'boolean' },
+            byType: { type: 'object', additionalProperties: { type: 'integer' } }
+          }
+        }
+      }
+    }
+  }, notificationController.getNotificationStats);
+  
+  /**
+   * Get notification activity statistics
+   */
+  fastify.get('/activity', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          days: { type: 'integer', default: 7 }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            activityByDay: { 
+              type: 'array', 
+              items: { 
+                type: 'object',
+                properties: {
+                  day: { type: 'string' },
+                  count: { type: 'integer' }
+                }
+              }
+            },
+            sources: { 
+              type: 'array', 
+              items: { 
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  count: { type: 'integer' },
+                  color: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, notificationController.getActivityStats);
 
   /**
    * Mark all notifications as read
@@ -97,9 +159,8 @@ export async function notificationRoutes(fastify, options) {
       allowEmptyBody: true
     }
   }, notificationController.deleteAllNotifications);
-  // Add WebSocket route at the end of the file
 
-}   /**
+  /**
    * POST /realtime - Send realtime notification via WebSocket
    * This endpoint is called by the notification-worker to trigger WebSocket notifications
    */
@@ -186,3 +247,4 @@ export async function notificationRoutes(fastify, options) {
       });
     }
   });
+}

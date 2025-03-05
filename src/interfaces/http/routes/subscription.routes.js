@@ -38,19 +38,24 @@ const subscriptionSchema = {
   }
 };
 
-const createTypeSchema = {
+const subscriptionResponseSchema = {
   type: 'object',
-  required: ['name'],
   properties: {
-    name: { type: 'string', maxLength: 100 },
-    description: { type: 'string' },
-    icon: { type: 'string', maxLength: 50 }
+    subscriptions: {
+      type: 'array',
+      items: subscriptionSchema
+    },
+    total: { type: 'integer' },
+    page: { type: 'integer' },
+    limit: { type: 'integer' },
+    totalPages: { type: 'integer' },
+    hasMore: { type: 'boolean' }
   }
 };
 
-const createSubscriptionSchema = {
+const subscriptionRequestBodySchema = {
   type: 'object',
-  required: ['typeId', 'name', 'prompts', 'frequency'],
+  required: ['name', 'typeId'],
   properties: {
     typeId: { type: 'string', format: 'uuid' },
     name: { type: 'string', maxLength: 100 },
@@ -82,69 +87,84 @@ export async function subscriptionRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const userId = request.user.id;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'getTypes'
     };
-
+    
     try {
-      const types = await subscriptionService.getSubscriptionTypes(context);
-      return { types };
+      logRequest(context, 'Getting subscription types', { userId });
+      
+      const types = await typeService.getSubscriptionTypes(userId, context);
+      
+      return reply.send({
+        types
+      });
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to retrieve subscription types'
+      });
     }
   });
 
-  // Create subscription type
-  fastify.post('/types', {
+  /**
+   * Get subscription statistics
+   */
+  fastify.get('/stats', {
     schema: {
-      body: createTypeSchema,
       response: {
         200: {
           type: 'object',
           properties: {
-            type: subscriptionTypeSchema
+            total: { type: 'integer' },
+            active: { type: 'integer' },
+            pending: { type: 'integer' },
+            bySource: { type: 'object', additionalProperties: { type: 'integer' } },
+            byFrequency: { type: 'object', additionalProperties: { type: 'integer' } }
           }
         }
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const userId = request.user.id;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'getSubscriptionStats'
     };
-
+    
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const type = await subscriptionService.createSubscriptionType(
-        request.user.id,
-        request.body,
-        context
-      );
-      return { type };
+      logRequest(context, 'Getting subscription statistics', { userId });
+      
+      const stats = await subscriptionService.getSubscriptionStats(userId, context);
+      
+      return reply.send(stats);
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to retrieve subscription statistics'
+      });
     }
   });
 
@@ -164,140 +184,149 @@ export async function subscriptionRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const userId = request.user.id;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'getUserSubscriptions'
     };
-
+    
     try {
-      logRequest(context, 'Processing subscription request', {
-        hasUser: !!request.user,
-        userId: request.user?.id,
-        timestamp: new Date().toISOString()
-      });
-
-      if (!request.user?.id) {
-        logError(context, new Error('No user ID in request'), {
-          user: request.user,
-          timestamp: new Date().toISOString()
-        });
-        throw new AppError(
-          'UNAUTHORIZED',
-          'No user ID available',
-          401
-        );
-      }
-
-      const subscriptions = await subscriptionService.getUserSubscriptions(
-        request.user.id,
-        context
-      );
+      logRequest(context, 'Getting user subscriptions', { userId });
       
-      return { subscriptions };
+      const subscriptions = await subscriptionService.getUserSubscriptions(userId, context);
+      
+      return reply.send({
+        subscriptions
+      });
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(error.status || 500).send(response);
-      return reply;
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to retrieve subscriptions'
+      });
     }
   });
-
-  // Create subscription
-  fastify.post('/', {
-    schema: {
-      body: createSubscriptionSchema,
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            subscription: subscriptionSchema
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method
-    };
-
-    try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const subscription = await subscriptionService.createSubscription(
-        request.user.id,
-        request.body,
-        context
-      );
-      return { subscription };
-    } catch (error) {
-      logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
-    }
-  });
-
-  // Get subscription by ID
+  
+  // Get a single subscription
   fastify.get('/:id', {
     schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
       response: {
-        200: {
+        200: subscriptionSchema
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const userId = request.user.id;
+    const context = { 
+      requestId: request.id,
+      service: 'Subscription',
+      method: 'getSubscriptionById'
+    };
+    
+    try {
+      logRequest(context, 'Getting subscription by ID', { 
+        userId, 
+        subscriptionId: id 
+      });
+      
+      const subscription = await subscriptionService.getSubscriptionById(userId, id, context);
+      
+      return reply.send(subscription);
+    } catch (error) {
+      logError(context, error);
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to retrieve subscription'
+      });
+    }
+  });
+  
+  // Create a new subscription
+  fastify.post('/', {
+    schema: {
+      body: subscriptionRequestBodySchema,
+      response: {
+        201: {
           type: 'object',
           properties: {
-            subscription: subscriptionSchema
+            subscription: subscriptionSchema,
+            message: { type: 'string' }
           }
         }
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const userId = request.user.id;
+    const subscriptionData = request.body;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'createSubscription'
     };
-
+    
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const subscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        request.params.id,
-        context
-      );
-      return { subscription };
+      logRequest(context, 'Creating new subscription', { 
+        userId,
+        subscriptionData 
+      });
+      
+      const subscription = await subscriptionService.createSubscription(userId, subscriptionData, context);
+      
+      return reply.status(201).send({
+        subscription,
+        message: 'Subscription created successfully'
+      });
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to create subscription'
+      });
     }
   });
-
-  // Update subscription
-  fastify.patch('/:id', {
+  
+  // Update a subscription
+  fastify.put('/:id', {
     schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
       body: {
         type: 'object',
         properties: {
@@ -310,288 +339,166 @@ export async function subscriptionRoutes(fastify, options) {
           },
           frequency: { type: 'string', enum: ['immediate', 'daily'] },
           active: { type: 'boolean' }
-        },
-        additionalProperties: false
+        }
       },
       response: {
         200: {
           type: 'object',
           properties: {
-            subscription: subscriptionSchema
+            subscription: subscriptionSchema,
+            message: { type: 'string' }
           }
         }
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const { id } = request.params;
+    const userId = request.user.id;
+    const updateData = request.body;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'updateSubscription'
     };
-
+    
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const subscription = await subscriptionService.updateSubscription(
-        request.user.id,
-        request.params.id,
-        request.body,
-        context
-      );
-      return { subscription };
+      logRequest(context, 'Updating subscription', { 
+        userId,
+        subscriptionId: id,
+        updateData
+      });
+      
+      const subscription = await subscriptionService.updateSubscription(userId, id, updateData, context);
+      
+      return reply.send({
+        subscription,
+        message: 'Subscription updated successfully'
+      });
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to update subscription'
+      });
     }
   });
-
-  // Process subscription manually
+  
+  // Process a subscription manually
   fastify.post('/:id/process', {
     schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
       response: {
-        202: {
+        200: {
           type: 'object',
           properties: {
-            status: { type: 'string' },
             message: { type: 'string' },
-            subscription_id: { type: 'string' }
+            processingId: { type: 'string' },
+            subscriptionId: { type: 'string' }
           }
         }
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const { id } = request.params;
+    const userId = request.user.id;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'processSubscription'
     };
-
+    
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const subscriptionId = request.params.id;
+      logRequest(context, 'Processing subscription manually', { 
+        userId,
+        subscriptionId: id
+      });
       
-      // First verify that the subscription belongs to the user
-      const subscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        context
-      );
+      const result = await subscriptionService.processSubscription(userId, id, context);
       
-      if (!subscription) {
-        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
-      }
-      
-      // Call the subscription-worker service to process this subscription
-      const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
-      
-      // Immediately send a 202 Accepted response to the client
-      const response = {
-        status: 'success',
-        message: 'Subscription processing request accepted',
-        subscription_id: subscriptionId
-      };
-      
-      reply.code(202).send(response);
-      
-      // Capture the context value for the setTimeout callback
-      const requestContext = { ...context };
-      
-      // Process asynchronously without waiting for the response
-      setTimeout(async () => {
-        try {
-          logRequest(requestContext, 'Making async request to subscription worker', {
-            subscription_id: subscriptionId,
-            worker_url: subscriptionWorkerUrl
-          });
-          
-          const processingResponse = await axios.post(
-            `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
-            {},
-            {
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          logRequest(requestContext, 'Subscription worker responded to async request', {
-            subscription_id: subscriptionId,
-            status: processingResponse.status,
-            response_data: processingResponse.data
-          });
-        } catch (asyncError) {
-          // Log the error but don't affect the client response (already sent)
-          logError(requestContext, asyncError, {
-            subscription_id: subscriptionId
-          });
-        }
-      }, 10); // Small delay to ensure reply is sent first
-      
-      return;
+      return reply.send(result);
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to process subscription'
+      });
     }
   });
-
-  // Delete subscription
+  
+  // Delete a subscription
   fastify.delete('/:id', {
     schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
       response: {
         200: {
           type: 'object',
           properties: {
-            success: { type: 'boolean' }
+            message: { type: 'string' },
+            id: { type: 'string' }
           }
         }
       }
     }
   }, async (request, reply) => {
-    const context = {
+    const { id } = request.params;
+    const userId = request.user.id;
+    const context = { 
       requestId: request.id,
-      path: request.url,
-      method: request.method
+      service: 'Subscription',
+      method: 'deleteSubscription'
     };
-
+    
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const result = await subscriptionService.deleteSubscription(
-        request.user.id,
-        request.params.id,
-        context
-      );
-      return result;
+      logRequest(context, 'Deleting subscription', { 
+        userId,
+        subscriptionId: id
+      });
+      
+      const result = await subscriptionService.deleteSubscription(userId, id, context);
+      
+      return reply.send(result);
     } catch (error) {
       logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
-    }
-  });
-
-  // Share subscription
-  fastify.post('/:id/share', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            template: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', format: 'uuid' },
-                type: { type: 'string' },
-                name: { type: 'string' },
-                description: { type: 'string' },
-                prompts: { 
-                  type: 'array',
-                  items: { type: 'string' }
-                },
-                createdAt: { type: 'string', format: 'date-time' }
-              }
-            }
-          }
-        }
+      
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          error: error.code,
+          message: error.message
+        });
       }
-    }
-  }, async (request, reply) => {
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method
-    };
-
-    try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const template = await subscriptionService.shareSubscription(
-        request.user.id,
-        request.params.id,
-        context
-      );
-      return { template };
-    } catch (error) {
-      logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
-    }
-  });
-
-  // Unshare subscription
-  fastify.delete('/:id/share', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method
-    };
-
-    try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-
-      const result = await subscriptionService.unshareSubscription(
-        request.user.id,
-        request.params.id,
-        context
-      );
-      return result;
-    } catch (error) {
-      logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
+      
+      return reply.status(500).send({
+        error: 'SERVER_ERROR',
+        message: 'Failed to delete subscription'
+      });
     }
   });
 }
