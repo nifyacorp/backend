@@ -97,4 +97,92 @@ export async function notificationRoutes(fastify, options) {
       allowEmptyBody: true
     }
   }, notificationController.deleteAllNotifications);
-} 
+  // Add WebSocket route at the end of the file
+
+}   /**
+   * POST /realtime - Send realtime notification via WebSocket
+   * This endpoint is called by the notification-worker to trigger WebSocket notifications
+   */
+  fastify.post('/realtime', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['userId', 'notification'],
+        properties: {
+          userId: { type: 'string' },
+          notificationId: { type: 'string' },
+          notification: { 
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              title: { type: 'string' },
+              content: { type: 'string' },
+              sourceUrl: { type: 'string' },
+              entity_type: { type: 'string' },
+              subscription_id: { type: 'string' },
+              created_at: { type: 'string', format: 'date-time' }
+            }
+          }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            delivered: { type: 'boolean' },
+            connectionCount: { type: 'integer' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { userId, notificationId, notification } = request.body;
+    
+    const context = {
+      requestId: request.id,
+      service: 'WebSocket', 
+      method: 'realtime-notification'
+    };
+    
+    try {
+      // Use the socket manager to send notification to the user
+      const socketManager = require('../../../../utils/socket-manager.js');
+      const connectionCount = socketManager?.getConnectionsByUserId?.(userId)?.length || 0;
+      let delivered = false;
+      
+      if (connectionCount > 0) {
+        delivered = socketManager.sendToUser(userId, 'notification', notification);
+        
+        console.log('Sent notification via WebSocket', {
+          userId,
+          notificationId,
+          connectionCount,
+          delivered
+        });
+      } else {
+        console.log('No active WebSocket connections for user', {
+          userId,
+          notificationId
+        });
+      }
+      
+      return {
+        success: true,
+        delivered,
+        connectionCount
+      };
+    } catch (error) {
+      console.error('Failed to send notification via WebSocket', {
+        error: error.message,
+        userId,
+        notificationId
+      });
+      
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to send notification via WebSocket',
+        message: error.message
+      });
+    }
+  });
