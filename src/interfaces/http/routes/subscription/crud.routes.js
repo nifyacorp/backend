@@ -448,4 +448,93 @@ export async function registerCrudRoutes(fastify, options) {
       });
     }
   });
+
+  // PATCH /:id/toggle - Toggle subscription active status
+  fastify.patch('/:id/toggle', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            data: {
+              type: 'object',
+              properties: {
+                subscription: subscriptionSchema
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
+    try {
+      if (\!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+      
+      const subscriptionId = request.params.id;
+      
+      // Verify that the subscription exists and belongs to the user
+      const existingSubscription = await subscriptionService.getSubscriptionById(
+        request.user.id,
+        subscriptionId,
+        context
+      );
+      
+      if (\!existingSubscription) {
+        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
+      }
+      
+      logRequest(context, 'Toggling subscription active status', {
+        userId: request.user.id,
+        subscriptionId,
+        currentStatus: existingSubscription.active
+      });
+      
+      // Toggle the active status
+      const updatedSubscription = await subscriptionService.updateSubscription(
+        request.user.id,
+        subscriptionId,
+        { active: \!existingSubscription.active },
+        context
+      );
+      
+      return {
+        status: 'success',
+        data: {
+          subscription: updatedSubscription
+        }
+      };
+    } catch (error) {
+      logError(context, error);
+      
+      if (error instanceof AppError) {
+        return reply.code(error.statusCode).send({
+          status: 'error',
+          code: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.code(500).send({
+        status: 'error',
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An unexpected error occurred'
+      });
+    }
+  });
 } 
