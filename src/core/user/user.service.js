@@ -1,6 +1,6 @@
 import { query } from '../../infrastructure/database/client.js';
 import { AppError } from '../../shared/errors/AppError.js';
-import { USER_ERRORS } from '../types/user.types.js';
+import { USER_ERRORS, USER_PREFERENCES } from '../types/user.types.js';
 import { logRequest, logError } from '../../shared/logging/logger.js';
 
 class UserService {
@@ -19,6 +19,8 @@ class UserService {
           u.preferences->>'language' as language,
           u.notification_settings->>'emailNotifications' as "emailNotifications",
           u.notification_settings->>'notificationEmail' as "notificationEmail",
+          u.notification_settings->>'emailFrequency' as "emailFrequency",
+          u.notification_settings->>'instantNotifications' as "instantNotifications",
           u.updated_at as "lastLogin",
           true as "emailVerified",
           (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id) as "subscriptionCount",
@@ -70,6 +72,8 @@ class UserService {
             preferences->>'language' as language,
             notification_settings->>'emailNotifications' as "emailNotifications",
             notification_settings->>'notificationEmail' as "notificationEmail",
+            notification_settings->>'emailFrequency' as "emailFrequency",
+            notification_settings->>'instantNotifications' as "instantNotifications",
             updated_at as "lastLogin",
             true as "emailVerified"`,
           [
@@ -77,7 +81,12 @@ class UserService {
             email,
             name,
             JSON.stringify({}),
-            JSON.stringify({ emailNotifications: true, frequency: 'immediate' })
+            JSON.stringify({
+              emailNotifications: true,
+              emailFrequency: 'immediate',
+              instantNotifications: true,
+              notificationEmail: email
+            })
           ]
         );
 
@@ -85,7 +94,8 @@ class UserService {
         newUser.subscriptionCount = 0;
         newUser.notificationCount = 0;
         newUser.lastNotification = null;
-        newUser.emailNotifications = true;
+        newUser.emailNotifications = newUser.emailNotifications === 'true';
+        newUser.instantNotifications = newUser.instantNotifications === 'true';
 
         logRequest(context, 'User created successfully', { 
           userId,
@@ -98,6 +108,7 @@ class UserService {
       // Convert string boolean to actual boolean
       const profile = result.rows[0];
       profile.emailNotifications = profile.emailNotifications === 'true';
+      profile.instantNotifications = profile.instantNotifications === 'true';
       
       logRequest(context, 'User profile retrieved', {
         userId,
@@ -153,6 +164,12 @@ class UserService {
       if (updates.notificationEmail !== undefined) {
         notificationUpdates.notificationEmail = updates.notificationEmail;
       }
+      if (updates.emailFrequency !== undefined) {
+        notificationUpdates.emailFrequency = updates.emailFrequency;
+      }
+      if (updates.instantNotifications !== undefined) {
+        notificationUpdates.instantNotifications = updates.instantNotifications;
+      }
 
       const result = await query(
         `UPDATE users 
@@ -171,7 +188,9 @@ class UserService {
            preferences->>'theme' as theme,
            preferences->>'language' as language,
            notification_settings->>'emailNotifications' as "emailNotifications",
-           notification_settings->>'notificationEmail' as "notificationEmail",
+           notification_settings->>'notificationEmail' as "notificationEmail", 
+           notification_settings->>'emailFrequency' as "emailFrequency",
+           notification_settings->>'instantNotifications' as "instantNotifications",
            updated_at as "lastLogin",
            true as "emailVerified",
            (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = users.id) as "subscriptionCount",
@@ -201,6 +220,7 @@ class UserService {
       // Convert string boolean to actual boolean
       const profile = result.rows[0];
       profile.emailNotifications = profile.emailNotifications === 'true';
+      profile.instantNotifications = profile.instantNotifications === 'true';
 
       logRequest(context, 'User profile updated', {
         userId,
