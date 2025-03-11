@@ -1,504 +1,61 @@
-import { subscriptionService, typeService } from '../../../core/subscription/index.js';
-import { AppError } from '../../../shared/errors/AppError.js';
-import { logRequest, logError } from '../../../shared/logging/logger.js';
-import axios from 'axios';
+/**
+ * Subscription Routes - Main Entry Point
+ * This file now serves as a centralized import for all subscription-related routes
+ * to maintain backward compatibility while leveraging the refactored modular structure.
+ */
 
-const subscriptionTypeSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    name: { type: 'string', maxLength: 100 },
-    description: { type: 'string' },
-    icon: { type: 'string', maxLength: 50 },
-    logo: { type: 'string', format: 'uri', nullable: true },
-    isSystem: { type: 'boolean' },
-    createdBy: { type: 'string', format: 'uuid', nullable: true },
-    createdAt: { type: 'string', format: 'date-time' },
-    updatedAt: { type: 'string', format: 'date-time' }
-  }
-};
+import { registerTypeRoutes } from './subscription/types.routes.js';
+import { registerCrudRoutes } from './subscription/crud.routes.js';
+import { registerProcessRoutes } from './subscription/process.routes.js';
+import { registerSharingRoutes } from './subscription/sharing.routes.js';
 
-const subscriptionSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    name: { type: 'string' },
-    type: { type: 'string', enum: ['boe', 'real-estate', 'custom'] },
-    description: { type: 'string' },
-    logo: { type: 'string', format: 'uri', nullable: true },
-    prompts: { 
-      type: 'array',
-      items: { type: 'string' },
-      maxItems: 3
-    },
-    frequency: { type: 'string', enum: ['immediate', 'daily'] },
-    active: { type: 'boolean' },
-    createdAt: { type: 'string', format: 'date-time' },
-    updatedAt: { type: 'string', format: 'date-time' }
-  }
-};
-
-const subscriptionResponseSchema = {
-  type: 'object',
-  properties: {
-    subscriptions: {
-      type: 'array',
-      items: subscriptionSchema
-    },
-    total: { type: 'integer' },
-    page: { type: 'integer' },
-    limit: { type: 'integer' },
-    totalPages: { type: 'integer' },
-    hasMore: { type: 'boolean' }
-  }
-};
-
-const subscriptionRequestBodySchema = {
-  type: 'object',
-  required: ['name', 'typeId'],
-  properties: {
-    typeId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', maxLength: 100 },
-    description: { type: 'string' },
-    logo: { type: 'string', format: 'uri', nullable: true },
-    prompts: { 
-      type: 'array',
-      items: { type: 'string' },
-      maxItems: 3
-    },
-    frequency: { type: 'string', enum: ['immediate', 'daily'] }
-  }
-};
-
+/**
+ * Register all subscription routes with Fastify
+ * 
+ * @param {FastifyInstance} fastify - Fastify instance
+ * @param {Object} options - Additional options
+ */
 export async function subscriptionRoutes(fastify, options) {
-  // Get subscription types
-  fastify.get('/types', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            types: {
-              type: 'array',
-              items: subscriptionTypeSchema
-            }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const userId = request.user.id;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'getTypes'
-    };
-    
-    try {
-      logRequest(context, 'Getting subscription types', { userId });
-      
-      const types = await typeService.getSubscriptionTypes(userId, context);
-      
-      return reply.send({
-        types
-      });
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to retrieve subscription types'
-      });
-    }
-  });
-
-  /**
-   * Get subscription statistics
-   */
-  fastify.get('/stats', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            total: { type: 'integer' },
-            active: { type: 'integer' },
-            pending: { type: 'integer' },
-            bySource: { type: 'object', additionalProperties: { type: 'integer' } },
-            byFrequency: { type: 'object', additionalProperties: { type: 'integer' } }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const userId = request.user.id;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'getSubscriptionStats'
-    };
-    
-    try {
-      logRequest(context, 'Getting subscription statistics', { userId });
-      
-      const stats = await subscriptionService.getSubscriptionStats(userId, context);
-      
-      return reply.send(stats);
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to retrieve subscription statistics'
-      });
-    }
-  });
-
-  // Get user subscriptions
+  // Register all modular route groups
+  await registerTypeRoutes(fastify, options);
+  await registerCrudRoutes(fastify, options);
+  await registerProcessRoutes(fastify, options);
+  await registerSharingRoutes(fastify, options);
+  
+  // Add route metadata for API Explorer
   fastify.get('/', {
     schema: {
+      description: 'Subscription API',
+      tags: ['subscriptions'],
+      summary: 'Subscription management endpoints',
       response: {
         200: {
           type: 'object',
           properties: {
-            subscriptions: {
+            service: { type: 'string' },
+            version: { type: 'string' },
+            endpoints: { 
               type: 'array',
-              items: subscriptionSchema
+              items: { type: 'string' }
             }
           }
         }
       }
     }
   }, async (request, reply) => {
-    const userId = request.user.id;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'getUserSubscriptions'
+    return {
+      service: 'Subscription API',
+      version: '1.0.0',
+      endpoints: [
+        '/api/v1/subscriptions',
+        '/api/v1/subscriptions/{id}',
+        '/api/v1/subscriptions/{id}/process',
+        '/api/v1/subscriptions/{id}/toggle',
+        '/api/v1/subscriptions/types',
+        '/api/v1/subscriptions/shares'
+      ]
     };
-    
-    try {
-      logRequest(context, 'Getting user subscriptions', { userId });
-      
-      const subscriptions = await subscriptionService.getUserSubscriptions(userId, context);
-      
-      return reply.send({
-        subscriptions
-      });
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to retrieve subscriptions'
-      });
-    }
-  });
-  
-  // Get a single subscription
-  fastify.get('/:id', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        }
-      },
-      response: {
-        200: subscriptionSchema
-      }
-    }
-  }, async (request, reply) => {
-    const { id } = request.params;
-    const userId = request.user.id;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'getSubscriptionById'
-    };
-    
-    try {
-      logRequest(context, 'Getting subscription by ID', { 
-        userId, 
-        subscriptionId: id 
-      });
-      
-      const subscription = await subscriptionService.getSubscriptionById(userId, id, context);
-      
-      return reply.send(subscription);
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to retrieve subscription'
-      });
-    }
-  });
-  
-  // Create a new subscription
-  fastify.post('/', {
-    schema: {
-      body: subscriptionRequestBodySchema,
-      response: {
-        201: {
-          type: 'object',
-          properties: {
-            subscription: subscriptionSchema,
-            message: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const userId = request.user.id;
-    const subscriptionData = request.body;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'createSubscription'
-    };
-    
-    try {
-      logRequest(context, 'Creating new subscription', { 
-        userId,
-        subscriptionData 
-      });
-      
-      const subscription = await subscriptionService.createSubscription(userId, subscriptionData, context);
-      
-      return reply.status(201).send({
-        subscription,
-        message: 'Subscription created successfully'
-      });
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to create subscription'
-      });
-    }
-  });
-  
-  // Update a subscription
-  fastify.put('/:id', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        }
-      },
-      body: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', maxLength: 100 },
-          description: { type: 'string' },
-          prompts: { 
-            type: 'array',
-            items: { type: 'string' },
-            maxItems: 3
-          },
-          frequency: { type: 'string', enum: ['immediate', 'daily'] },
-          active: { type: 'boolean' }
-        }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            subscription: subscriptionSchema,
-            message: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const { id } = request.params;
-    const userId = request.user.id;
-    const updateData = request.body;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'updateSubscription'
-    };
-    
-    try {
-      logRequest(context, 'Updating subscription', { 
-        userId,
-        subscriptionId: id,
-        updateData
-      });
-      
-      const subscription = await subscriptionService.updateSubscription(userId, id, updateData, context);
-      
-      return reply.send({
-        subscription,
-        message: 'Subscription updated successfully'
-      });
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to update subscription'
-      });
-    }
-  });
-  
-  // Process a subscription manually
-  fastify.post('/:id/process', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            processingId: { type: 'string' },
-            subscriptionId: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const { id } = request.params;
-    const userId = request.user.id;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'processSubscription'
-    };
-    
-    try {
-      logRequest(context, 'Processing subscription manually', { 
-        userId,
-        subscriptionId: id
-      });
-      
-      const result = await subscriptionService.processSubscription(userId, id, context);
-      
-      return reply.send(result);
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to process subscription'
-      });
-    }
-  });
-  
-  // Delete a subscription
-  fastify.delete('/:id', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string', format: 'uuid' }
-        }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            id: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const { id } = request.params;
-    const userId = request.user.id;
-    const context = { 
-      requestId: request.id,
-      service: 'Subscription',
-      method: 'deleteSubscription'
-    };
-    
-    try {
-      logRequest(context, 'Deleting subscription', { 
-        userId,
-        subscriptionId: id
-      });
-      
-      const result = await subscriptionService.deleteSubscription(userId, id, context);
-      
-      return reply.send(result);
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          error: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.status(500).send({
-        error: 'SERVER_ERROR',
-        message: 'Failed to delete subscription'
-      });
-    }
   });
 }
+
+export default subscriptionRoutes;
