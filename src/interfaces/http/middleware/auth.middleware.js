@@ -32,15 +32,26 @@ export async function authenticate(request, reply) {
   }
 
   try {
+    // Check both case variations of headers for maximum compatibility
+    const authHeaderLower = request.headers[AUTH_HEADER.toLowerCase()];
+    const authHeaderExact = request.headers[AUTH_HEADER];
+    const userIdLower = request.headers[USER_ID_HEADER.toLowerCase()];
+    const userIdExact = request.headers[USER_ID_HEADER];
+    
+    // Use the header regardless of case
+    const authHeader = authHeaderExact || authHeaderLower;
+    const userId = userIdExact || userIdLower;
+    
     logger.logAuth({ requestId: request.id, path: request.url }, 'Processing authentication', {
-      hasAuth: !!request.headers[AUTH_HEADER.toLowerCase()],
-      hasUserId: !!request.headers[USER_ID_HEADER],
+      hasAuthLower: !!authHeaderLower,
+      hasAuthExact: !!authHeaderExact,
+      hasUserIdLower: !!userIdLower,
+      hasUserIdExact: !!userIdExact,
       path: request.url,
       requestId: request.id
     });
 
     // Extract token, ensuring proper Bearer format
-    const authHeader = request.headers[AUTH_HEADER.toLowerCase()];
     if (!authHeader || !authHeader.startsWith(TOKEN_PREFIX)) {
       throw new AppError(
         AUTH_ERRORS.MISSING_HEADERS.code,
@@ -51,8 +62,7 @@ export async function authenticate(request, reply) {
     }
 
     const token = authHeader.split(' ')[1];
-    const userId = request.headers[USER_ID_HEADER];
-
+    
     if (!token || !userId) {
       throw new AppError(
         AUTH_ERRORS.MISSING_HEADERS.code,
@@ -110,8 +120,15 @@ export async function authenticate(request, reply) {
  */
 export const authMiddleware = async (request, response, next) => {
   try {
-    const authHeader = request.headers[AUTH_HEADER.toLowerCase()];
-    const userId = request.headers[USER_ID_HEADER.toLowerCase()];
+    // Check for headers in both exact case and lowercase for maximum compatibility
+    const authHeaderLower = request.headers[AUTH_HEADER.toLowerCase()];
+    const authHeaderExact = request.headers[AUTH_HEADER];
+    const userIdLower = request.headers[USER_ID_HEADER.toLowerCase()];
+    const userIdExact = request.headers[USER_ID_HEADER];
+    
+    // Use whichever format is available
+    const authHeader = authHeaderExact || authHeaderLower;
+    const userId = userIdExact || userIdLower;
     
     // Skip authentication for public paths
     if (PUBLIC_PATHS.some(path => request.url.startsWith(path))) {
