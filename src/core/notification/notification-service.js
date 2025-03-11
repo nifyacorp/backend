@@ -347,10 +347,97 @@ const deleteAllNotifications = async (userId, subscriptionId = null) => {
   }
 };
 
+/**
+ * Get notification statistics for a user
+ * @param {string} userId - The user's ID
+ * @returns {Promise<Object>} - The notification statistics
+ */
+const getNotificationStats = async (userId) => {
+  try {
+    // In development mode, return mock stats
+    if (process.env.NODE_ENV === 'development') {
+      logger.logProcessing({ service: 'notification-service', method: 'getNotificationStats' }, 'Mock: Getting notification stats', {
+        userId
+      });
+      
+      const totalCount = mockNotifications.length;
+      const unreadCount = mockNotifications.filter(n => !n.read).length;
+      
+      return {
+        total: totalCount,
+        unread: unreadCount,
+        change: 10,
+        isIncrease: true,
+        byCategory: [
+          { type: 'BOE', count: mockNotifications.filter(n => n.entity_type === 'BOE').length },
+          { type: 'REAL_ESTATE', count: mockNotifications.filter(n => n.entity_type === 'REAL_ESTATE').length }
+        ]
+      };
+    }
+    
+    return await notificationRepository.getNotificationStats(userId);
+  } catch (error) {
+    logger.logError({ service: 'notification-service', method: 'getNotificationStats' }, error, {
+      userId
+    });
+    throw error;
+  }
+};
+
+/**
+ * Get notification activity statistics for a user
+ * @param {string} userId - The user's ID
+ * @param {number} days - Number of days to include in the stats
+ * @returns {Promise<Object>} - The notification activity data
+ */
+const getActivityStats = async (userId, days = 7) => {
+  try {
+    // In development mode, return mock activity data
+    if (process.env.NODE_ENV === 'development') {
+      logger.logProcessing({ service: 'notification-service', method: 'getActivityStats' }, 'Mock: Getting activity stats', {
+        userId,
+        days
+      });
+      
+      // Generate mock data for the requested number of days
+      const activityData = [];
+      const today = new Date();
+      
+      for (let i = 0; i < days; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        
+        activityData.push({
+          date: date.toISOString().split('T')[0],
+          count: Math.floor(Math.random() * 5),
+          read: Math.floor(Math.random() * 3)
+        });
+      }
+      
+      return {
+        activity: activityData.reverse(),
+        total: mockNotifications.length,
+        read: mockNotifications.filter(n => n.read).length,
+        days
+      };
+    }
+    
+    return await notificationRepository.getActivityStats(userId, days);
+  } catch (error) {
+    logger.logError({ service: 'notification-service', method: 'getActivityStats' }, error, {
+      userId,
+      days
+    });
+    throw error;
+  }
+};
+
 export default {
   getUserNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
-  deleteAllNotifications
-}; 
+  deleteAllNotifications,
+  getNotificationStats,
+  getActivityStats
+};
