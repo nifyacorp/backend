@@ -139,6 +139,7 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
     if (subscriptionId) {
       sqlQuery += ` AND n.subscription_id = $${paramIndex}`;
       queryParams.push(subscriptionId);
+      paramIndex++; // Increment the parameter index
     }
     
     // Log the count query for debugging
@@ -453,11 +454,11 @@ const getNotificationStats = async (userId) => {
     // Get notification count by type
     const byTypeQuery = `
       SELECT 
-        COALESCE(entity_type, 'unknown') as type,
+        COALESCE(source, 'unknown') as type,
         COUNT(*) as count
       FROM notifications
       WHERE user_id = $1
-      GROUP BY entity_type
+      GROUP BY source
       ORDER BY count DESC
     `;
     const byTypeResult = await query(byTypeQuery, [userId]);
@@ -512,11 +513,11 @@ const getActivityStats = async (userId, days = 7) => {
     // Get notification count by source
     const bySourceQuery = `
       SELECT 
-        COALESCE(entity_type, 'unknown') as name,
+        COALESCE(source, 'unknown') as name,
         COUNT(*) as count
       FROM notifications
       WHERE user_id = $1
-      GROUP BY entity_type
+      GROUP BY source
       ORDER BY count DESC
     `;
     const sourcesResult = await query(bySourceQuery, [userId]);
