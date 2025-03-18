@@ -169,10 +169,14 @@ The service uses a PostgreSQL database with the following key tables:
 
 ### Notifications
 - `GET /api/v1/notifications` - List user notifications (with pagination/filters)
+- `GET /api/v1/notifications/:notificationId` - Get notification details
 - `POST /api/v1/notifications/:notificationId/read` - Mark notification as read
 - `POST /api/v1/notifications/read-all` - Mark all notifications as read
+- `GET /api/v1/notifications/stats` - Get notification count statistics
+- `GET /api/v1/notifications/activity` - Get notification activity data
 - `DELETE /api/v1/notifications/:notificationId` - Delete notification
 - `DELETE /api/v1/notifications/delete-all` - Delete all notifications
+- `POST /api/v1/notifications/realtime` - Send realtime notification via WebSocket
 
 ### Subscriptions
 - `GET /api/v1/subscriptions` - List user subscriptions
@@ -180,6 +184,8 @@ The service uses a PostgreSQL database with the following key tables:
 - `GET /api/v1/subscriptions/:id` - Get subscription details
 - `PATCH /api/v1/subscriptions/:id` - Update subscription
 - `DELETE /api/v1/subscriptions/:id` - Delete subscription
+- `PATCH /api/v1/subscriptions/:id/toggle` - Toggle subscription active status
+- `GET /api/v1/subscriptions/stats` - Get subscription statistics
 - `GET /api/v1/subscriptions/types` - List subscription types
 
 ### Templates
@@ -241,6 +247,12 @@ SERVICE_URL=localhost:3000  # Used for documentation
 ```bash
 npm install
 npm run dev
+```
+
+### Development without Database
+This mode is useful for local development without a database connection:
+```bash
+NODE_ENV=development SKIP_DB_VALIDATION=true npm run dev
 ```
 
 ### Production
@@ -316,7 +328,22 @@ gcloud run deploy nifya-backend \
 - Structured error handling with detailed responses
 - Protection against JSON prototype pollution
 
-### Recent Row-Level Security Fixes
+### Recent Fixes
+
+#### March 2025 API Compatibility Fixes
+
+1. Fixed route conflicts in subscription endpoints
+   - Resolved duplicate route declaration for `/api/v1/subscriptions` that caused server startup failures
+   - Added dedicated `/api/v1/subscriptions/stats` endpoint to prevent parameter conflicts with ID routes
+
+2. Fixed notification API errors
+   - Added robust error handling with fallback data for database query failures
+   - Fixed schema mismatch in notification repository by replacing non-existent "source" column with "entity_type"
+   - Improved local development experience with SKIP_DB_VALIDATION mode
+
+For detailed information about API endpoint compatibility fixes, see the [api-endpoint-compatibility-report.md](./api-endpoint-compatibility-report.md) file.
+
+#### February-March 2025 Row-Level Security Fixes
 
 In February-March 2025, we implemented fixes to resolve issues with Row-Level Security context handling:
 

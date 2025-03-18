@@ -510,17 +510,39 @@ const getActivityStats = async (userId, days = 7) => {
     `;
     const activityResult = await query(activityByDayQuery, [userId]);
     
-    // Get notification count by source
+    // Get notification count by entity_type (using entity_type instead of source which doesn't exist)
     const bySourceQuery = `
       SELECT 
-        COALESCE(source, 'unknown') as name,
+        COALESCE(SPLIT_PART(entity_type, ':', 1), 'unknown') as name,
         COUNT(*) as count
       FROM notifications
       WHERE user_id = $1
-      GROUP BY source
+      GROUP BY SPLIT_PART(entity_type, ':', 1)
       ORDER BY count DESC
     `;
-    const sourcesResult = await query(bySourceQuery, [userId]);
+    
+    // Handle potential query error with a fallback
+    let sourcesResult;
+    try {
+      sourcesResult = await query(bySourceQuery, [userId]);
+    } catch (error) {
+      logger.logError({ repository: 'notification-repository', method: 'getActivityStats' }, error, {
+        userId,
+        days,
+        error: {
+          message: error.message,
+          code: error.code,
+          detail: error.detail
+        }
+      });
+      
+      // Provide fallback data when the query fails
+      sourcesResult = { 
+        rows: [
+          { name: 'unknown', count: '0' }
+        ] 
+      };
+    }
     
     // Create a map for each day of the week
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
