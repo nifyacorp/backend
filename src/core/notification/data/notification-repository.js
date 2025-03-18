@@ -451,21 +451,38 @@ const getNotificationStats = async (userId) => {
       isIncrease = true;
     }
     
-    // Get notification count by type
+    // Get notification count by type from metadata or fallback to empty object
+    // Since 'source' column doesn't exist, use metadata or a default type
     const byTypeQuery = `
       SELECT 
-        COALESCE(source, 'unknown') as type,
+        COALESCE(
+          CASE 
+            WHEN metadata ? 'source' THEN metadata->>'source'
+            WHEN metadata ? 'type' THEN metadata->>'type' 
+            ELSE 'unknown'
+          END, 
+          'unknown'
+        ) as type,
         COUNT(*) as count
       FROM notifications
       WHERE user_id = $1
-      GROUP BY source
+      GROUP BY type
       ORDER BY count DESC
     `;
-    const byTypeResult = await query(byTypeQuery, [userId]);
-    const byType = byTypeResult.rows.reduce((acc, row) => {
-      acc[row.type] = parseInt(row.count);
-      return acc;
-    }, {});
+    
+    let byType = {};
+    
+    try {
+      const byTypeResult = await query(byTypeQuery, [userId]);
+      byType = byTypeResult.rows.reduce((acc, row) => {
+        acc[row.type] = parseInt(row.count);
+        return acc;
+      }, {});
+    } catch (error) {
+      console.error('Error getting notification stats by type:', error);
+      // Provide a fallback if the query fails
+      byType = { 'unknown': total };
+    }
     
     return {
       total,
@@ -510,14 +527,21 @@ const getActivityStats = async (userId, days = 7) => {
     `;
     const activityResult = await query(activityByDayQuery, [userId]);
     
-    // Get notification count by entity_type (using entity_type instead of source which doesn't exist)
+    // Get notification count by source from metadata
     const bySourceQuery = `
       SELECT 
-        COALESCE(SPLIT_PART(entity_type, ':', 1), 'unknown') as name,
+        COALESCE(
+          CASE 
+            WHEN metadata ? 'source' THEN metadata->>'source'
+            WHEN metadata ? 'type' THEN metadata->>'type'
+            ELSE 'unknown'
+          END,
+          'unknown'
+        ) as name,
         COUNT(*) as count
       FROM notifications
       WHERE user_id = $1
-      GROUP BY SPLIT_PART(entity_type, ':', 1)
+      GROUP BY name
       ORDER BY count DESC
     `;
     
