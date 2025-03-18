@@ -435,7 +435,7 @@ const getNotificationStats = async (userId) => {
           WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days'
         ), 0) as previous_week
     `;
-    const changeResult = await query(weeklyChangeQuery, [userId, userId]);
+    const changeResult = await query(weeklyChangeQuery, [userId]);
     const currentWeek = parseInt(changeResult.rows[0].current_week);
     const previousWeek = parseInt(changeResult.rows[0].previous_week);
     
@@ -504,11 +504,11 @@ const getActivityStats = async (userId, days = 7) => {
         TO_CHAR(DATE(created_at), 'Dy') as day,
         COUNT(*) as count
       FROM notifications
-      WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+      WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '$2 days'
       GROUP BY DATE(created_at), TO_CHAR(DATE(created_at), 'Dy')
       ORDER BY DATE(created_at)
     `;
-    const activityResult = await query(activityByDayQuery, [userId]);
+    const activityResult = await query(activityByDayQuery, [userId, days]);
     
     // Get notification count by source
     const bySourceQuery = `

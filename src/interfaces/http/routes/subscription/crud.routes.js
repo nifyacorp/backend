@@ -482,7 +482,7 @@ export async function registerCrudRoutes(fastify, options) {
     };
 
     try {
-      if (\!request.user?.id) {
+      if (!request.user?.id) {
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
       
@@ -495,7 +495,7 @@ export async function registerCrudRoutes(fastify, options) {
         context
       );
       
-      if (\!existingSubscription) {
+      if (!existingSubscription) {
         throw new AppError('NOT_FOUND', 'Subscription not found', 404);
       }
       
@@ -509,7 +509,7 @@ export async function registerCrudRoutes(fastify, options) {
       const updatedSubscription = await subscriptionService.updateSubscription(
         request.user.id,
         subscriptionId,
-        { active: \!existingSubscription.active },
+        { active: !existingSubscription.active },
         context
       );
       

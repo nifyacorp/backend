@@ -56,6 +56,12 @@ if (process.env.NODE_ENV !== 'production') {
   app.use('/debug', debugRoutes);
 }
 
+// Socket.IO status endpoint
+app.get('/socket/status', (req, res) => {
+  const status = socketManager.getHealth();
+  res.json(status);
+});
+
 // Phase 8: Monitoring and Alerting
 // Health check implementation
 app.get('/health', async (req, res) => {
@@ -78,16 +84,22 @@ app.get('/health', async (req, res) => {
       cacheHealth = await redisClient.ping();
     }
     
+    // Check WebSocket server status
+    const socketHealth = socketManager.getHealth();
+    
     // Compile overall health status
     const systemHealth = {
       status: dbHealth.connected && 
               (queueHealth.status === 'connected' || queueHealth.status === 'not_configured') &&
-              (cacheHealth.status === 'connected' || cacheHealth.status === 'not_configured') 
+              (cacheHealth.status === 'connected' || cacheHealth.status === 'not_configured') &&
+              socketHealth.status === 'connected'
               ? 'healthy' : 'degraded',
       components: {
         database: dbHealth.connected ? 'connected' : 'disconnected',
         messageQueue: queueHealth.status,
-        cache: cacheHealth.status
+        cache: cacheHealth.status,
+        socketio: socketHealth.status,
+        socketClients: socketHealth.clientCount
       },
       timestamp: new Date().toISOString()
     };

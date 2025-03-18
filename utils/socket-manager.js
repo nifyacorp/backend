@@ -1,6 +1,8 @@
 const logger = require('./logger');
 const { Server } = require('socket.io');
 const metrics = require('./metrics');
+// Get proper auth service
+const authService = require('../src/core/auth/auth.service.js').authService;
 
 // Store active connections
 let io;
@@ -9,24 +11,43 @@ const userConnections = new Map();
 /**
  * Initialize Socket.IO server
  */
-function initialize(server) {
+async function initialize(server) {
+  // Initialize auth service for JWT validation
+  try {
+    await authService.initialize();
+    logger.info('Auth service initialized for Socket.IO');
+  } catch (error) {
+    logger.error('Failed to initialize auth service for Socket.IO', {
+      error: error.message,
+      stack: error.stack
+    });
+  }
+
   io = new Server(server, {
     cors: {
       origin: process.env.CORS_ORIGIN || '*',
-      methods: ['GET', 'POST']
-    }
+      methods: ['GET', 'POST'],
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'userId']
+    },
+    path: '/socket.io/', // Ensure this matches the path in your Netlify redirects
+    transports: ['websocket', 'polling'],
+    pingTimeout: 30000,
+    pingInterval: 25000
   });
 
   // Socket.io Event Monitoring
   io.on('connection', (socket) => {
     logger.debug('Socket.io connection established', { 
-      socketId: socket.id 
+      socketId: socket.id,
+      transport: socket.conn.transport.name,
+      address: socket.handshake.address
     });
 
     metrics.increment('socket.connection');
 
     // Authenticate and associate with user
-    socket.on('authenticate', (data) => {
+    socket.on('authenticate', async (data) => {
       if (!data.token) {
         logger.warn('Socket authentication failed - no token', { socketId: socket.id });
         socket.emit('auth_error', { message: 'Authentication required' });
@@ -35,8 +56,9 @@ function initialize(server) {
 
       // Verify token and get user ID
       try {
-        // This would be your actual token verification logic
-        const userId = verifyToken(data.token);
+        // Use proper JWT verification
+        const decoded = await authService.verifyToken(data.token);
+        const userId = decoded.sub;
         
         if (!userId) {
           logger.warn('Socket authentication failed - invalid token', { socketId: socket.id });
@@ -55,19 +77,21 @@ function initialize(server) {
         
         logger.debug('Socket authenticated', { 
           socketId: socket.id, 
-          userId 
+          userId,
+          connectionCount: userConnections.get(userId).size
         });
         
-        socket.emit('authenticated');
+        socket.emit('authenticated', { userId });
         
         metrics.increment('socket.authentication.success', { userId });
       } catch (error) {
         logger.error('Socket authentication error', { 
           error: error.message, 
-          socketId: socket.id 
+          socketId: socket.id,
+          stack: error.stack 
         });
         
-        socket.emit('auth_error', { message: 'Authentication failed' });
+        socket.emit('auth_error', { message: 'Authentication failed: ' + error.message });
         metrics.increment('socket.authentication.error');
       }
     });
@@ -198,26 +222,16 @@ function broadcast(event, data) {
 }
 
 /**
- * Mock function to verify a JWT token
- * In a real application, this would validate the JWT
+ * Get the health status of Socket.IO
+ * @returns {Object} Health status information
  */
-function verifyToken(token) {
-  // Simplified mock implementation
-  try {
-    // This would normally decode and verify the JWT
-    // For debugging, we're just checking if it looks like a valid JWT format
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      return null;
-    }
-    
-    // Pretend we decoded the token and got a user ID
-    // In a real app, you'd verify the signature and extract the user ID
-    return 'user_' + parts[1].substring(0, 8);
-  } catch (error) {
-    logger.error('Token verification error', { error: error.message });
-    return null;
-  }
+function getHealth() {
+  return {
+    status: io ? 'connected' : 'disconnected',
+    clientCount: io ? io.engine.clientsCount : 0,
+    connectionCount: userConnections.size,
+    timestamp: new Date().toISOString()
+  };
 }
 
 module.exports = {
@@ -225,5 +239,6 @@ module.exports = {
   getConnectionsByUserId,
   sendToSocket,
   sendToUser,
-  broadcast
+  broadcast,
+  getHealth
 }; 
