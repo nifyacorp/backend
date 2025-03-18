@@ -37,6 +37,9 @@ export async function registerCrudRoutes(fastify, options) {
   // GET / - List user subscriptions
   fastify.get('/', {
     schema: {
+      description: 'Subscription API',
+      tags: ['subscriptions'],
+      summary: 'List subscriptions for the authenticated user',
       response: {
         200: {
           type: 'object',
