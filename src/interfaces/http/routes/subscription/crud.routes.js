@@ -380,7 +380,7 @@ export async function registerCrudRoutes(fastify, options) {
         type: 'object',
         required: ['id'],
         properties: {
-          id: { type: 'string', format: 'uuid' }
+          id: { type: 'string' } // Allow any string format to support both UUIDs and numeric IDs
         }
       },
       response: {
