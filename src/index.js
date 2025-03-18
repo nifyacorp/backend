@@ -103,6 +103,22 @@ fastify.register(async function (fastify) {
 // Public routes
 fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
 
+// Legacy API routes handler - create a compatibility layer for old endpoints
+fastify.register(async function (fastify) {
+  // Handle legacy routes
+  fastify.get('/api/subscriptions', async (request, reply) => {
+    return reply.redirect(301, '/api/v1/subscriptions');
+  });
+  
+  fastify.get('/api/subscriptions/:id', async (request, reply) => {
+    return reply.redirect(301, `/api/v1/subscriptions/${request.params.id}`);
+  });
+  
+  fastify.post('/api/subscriptions/:id/process', async (request, reply) => {
+    return reply.redirect(308, `/api/v1/subscriptions/${request.params.id}/process`);
+  });
+});
+
 // Start server
 try {
   // Initialize services
