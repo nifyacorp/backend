@@ -400,29 +400,48 @@ const getActivityStats = async (userId, days = 7) => {
       });
       
       // Generate mock data for the requested number of days
-      const activityData = [];
-      const today = new Date();
+      const activityByDay = [];
+      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       
-      for (let i = 0; i < days; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        
-        activityData.push({
-          date: date.toISOString().split('T')[0],
-          count: Math.floor(Math.random() * 5),
-          read: Math.floor(Math.random() * 3)
+      // Create activity by day
+      dayNames.forEach(day => {
+        activityByDay.push({
+          day,
+          count: Math.floor(Math.random() * 5)
         });
-      }
+      });
+      
+      // Create sources
+      const sources = [
+        { name: 'BOE', count: Math.floor(Math.random() * 15) + 5, color: '#4f46e5' },
+        { name: 'DOGA', count: Math.floor(Math.random() * 10) + 2, color: '#0ea5e9' },
+        { name: 'other', count: Math.floor(Math.random() * 3), color: '#6b7280' }
+      ];
       
       return {
-        activity: activityData.reverse(),
-        total: mockNotifications.length,
-        read: mockNotifications.filter(n => n.read).length,
-        days
+        activityByDay,
+        sources
       };
     }
     
-    return await notificationRepository.getActivityStats(userId, days);
+    // Get real data from repository
+    const data = await notificationRepository.getActivityStats(userId, days);
+    
+    // Add colors to the sources
+    const sourceColors = {
+      'BOE': '#4f46e5',  // Indigo
+      'DOGA': '#0ea5e9', // Blue
+      'unknown': '#6b7280' // Gray
+    };
+    
+    if (data.sources) {
+      data.sources = data.sources.map(source => ({
+        ...source,
+        color: sourceColors[source.name] || '#6b7280' // Default to gray if no color mapping
+      }));
+    }
+    
+    return data;
   } catch (error) {
     logger.logError({ service: 'notification-service', method: 'getActivityStats' }, error, {
       userId,

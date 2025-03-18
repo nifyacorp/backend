@@ -504,11 +504,11 @@ const getActivityStats = async (userId, days = 7) => {
         TO_CHAR(DATE(created_at), 'Dy') as day,
         COUNT(*) as count
       FROM notifications
-      WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '$2 days'
+      WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
       GROUP BY DATE(created_at), TO_CHAR(DATE(created_at), 'Dy')
       ORDER BY DATE(created_at)
     `;
-    const activityResult = await query(activityByDayQuery, [userId, days]);
+    const activityResult = await query(activityByDayQuery, [userId]);
     
     // Get notification count by source
     const bySourceQuery = `

@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import { userRoutes } from './interfaces/http/routes/user.routes.js';
-import { subscriptionRoutes } from './interfaces/http/routes/subscription.routes.js';
+import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
 import { templateRoutes } from './interfaces/http/routes/template.routes.js';
 import { notificationRoutes } from './interfaces/http/routes/notification.routes.js';
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';

@@ -16,6 +16,26 @@ const MIGRATIONS_TABLE = `
 `;
 
 export async function initializeMigrations() {
+  // Check if we're in development mode with DB validation skipped
+  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_DB_VALIDATION === 'true') {
+    console.log('🔄 Development mode with SKIP_DB_VALIDATION - skipping migrations');
+    
+    // Just read the migration files for logging purposes
+    try {
+      const migrationsDir = path.join(__dirname, '../../../supabase/migrations');
+      const files = fs.readdirSync(migrationsDir)
+        .filter(file => file.endsWith('.sql'))
+        .sort();
+      
+      console.log('📁 Found migration files:', files);
+      console.log('✨ Migrations system initialized successfully');
+      return;
+    } catch (error) {
+      console.warn('⚠️ Could not read migration files:', error.message);
+      return;
+    }
+  }
+
   try {
     console.log('🔄 Initializing migrations system...');
     

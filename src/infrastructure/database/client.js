@@ -6,18 +6,21 @@ import { initializeMigrations } from './migrations.js';
 
 dotenv.config();
 
-// Validate required environment variables
-validateRequiredEnvVars([
-  'DB_NAME',
-  'DB_USER',
-  'DB_PASSWORD'
-]);
-
-const { Pool } = pg;
-
 // Determine if running in production or development
 const isProduction = process.env.NODE_ENV === 'production';
 const isLocalDevelopment = !isProduction;
+
+// Skip validation in development mode if specified
+if (!(isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true')) {
+  // Validate required environment variables
+  validateRequiredEnvVars([
+    'DB_NAME',
+    'DB_USER',
+    'DB_PASSWORD'
+  ]);
+}
+
+const { Pool } = pg;
 
 // Configure database connection
 let dbConfig;
@@ -65,6 +68,15 @@ pool.on('error', (err) => {
 });
 
 export async function query(text, params) {
+  // Skip actual DB operations in development mode if specified
+  if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
+    console.log('DEVELOPMENT MODE: Skipping database query:', { 
+      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+      timestamp: new Date().toISOString()
+    });
+    return { rows: [], rowCount: 0 };
+  }
+
   const start = Date.now();
   let client;
   
@@ -134,8 +146,8 @@ export async function query(text, params) {
 }
 
 export async function initializeDatabase() {
-  if (isLocalDevelopment) {
-    console.log('Running in local development mode - skipping database initialization');
+  if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
+    console.log('Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization');
     return;
   }
   
@@ -174,6 +186,12 @@ export async function setRLSContext(userId) {
     return;
   }
   
+  // Skip in development mode with validation disabled
+  if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
+    console.log('DEVELOPMENT MODE: Skipping RLS context setting');
+    return;
+  }
+  
   // Validate that userId is a valid UUID to prevent SQL injection
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(userId)) {
@@ -207,6 +225,12 @@ export async function setRLSContext(userId) {
 export async function withRLSContext(userId, callback) {
   if (!userId) {
     throw new Error('User ID is required for RLS context');
+  }
+  
+  // Skip in development mode with validation disabled
+  if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
+    console.log('DEVELOPMENT MODE: Skipping RLS context for callback execution');
+    return await callback({ query: async (text, params) => ({ rows: [], rowCount: 0 }) });
   }
   
   // Validate that userId is a valid UUID to prevent SQL injection
