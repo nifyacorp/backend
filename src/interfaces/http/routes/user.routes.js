@@ -2,6 +2,11 @@ import { userService } from '../../../core/user/user.service.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 import { USER_PREFERENCES } from '../../../core/types/user.types.js';
+import { validateZod } from '../../../shared/utils/validation.js';
+import { 
+  updateProfileSchema, 
+  updateNotificationSettingsSchema 
+} from '../../../core/user/schemas.js';
 
 const userProfileSchema = {
   type: 'object',
@@ -100,7 +105,8 @@ export async function userRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: validateZod(updateProfileSchema)
   }, async (request, reply) => {
     const context = {
       requestId: request.id,
@@ -131,6 +137,80 @@ export async function userRoutes(fastify, options) {
       );
       
       return { profile };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+  
+  // Add a dedicated endpoint for notification settings
+  fastify.patch('/me/notification-settings', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          emailNotifications: { type: 'boolean' },
+          notificationEmail: { type: 'string', format: 'email', nullable: true },
+          emailFrequency: { type: 'string', enum: ['daily'] },
+          instantNotifications: { type: 'boolean' }
+        },
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            settings: {
+              type: 'object',
+              properties: {
+                emailNotifications: { type: 'boolean' },
+                notificationEmail: { type: 'string', format: 'email', nullable: true },
+                emailFrequency: { type: 'string', enum: ['daily'] },
+                instantNotifications: { type: 'boolean' }
+              }
+            }
+          }
+        }
+      }
+    },
+    preHandler: validateZod(updateNotificationSettingsSchema)
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.user?.token
+    };
+
+    try {
+      logRequest(context, 'Processing notification settings update', {
+        hasUser: !!request.user,
+        userId: request.user?.id,
+        updateFields: Object.keys(request.body)
+      });
+
+      if (!request.user?.id) {
+        throw new AppError(
+          'UNAUTHORIZED',
+          'No user ID available',
+          401
+        );
+      }
+
+      const settings = await userService.updateNotificationSettings(
+        request.user.id,
+        request.body,
+        context
+      );
+      
+      return { settings };
     } catch (error) {
       logError(context, error);
       const response = error instanceof AppError ? error.toJSON() : {

@@ -1,4 +1,11 @@
 import notificationController from '../../../core/notification/interfaces/http/notification-controller.js';
+import { validateZod } from '../../../shared/utils/validation.js';
+import {
+  notificationQuerySchema,
+  notificationIdParamSchema,
+  activityQuerySchema,
+  realtimeNotificationSchema
+} from '../../../core/notification/schemas.js';
 
 /**
  * Notification routes for Fastify
@@ -31,7 +38,8 @@ export async function notificationRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: validateZod(notificationQuerySchema, 'query')
   }, notificationController.getUserNotifications);
 
   /**
@@ -46,7 +54,8 @@ export async function notificationRoutes(fastify, options) {
         },
         required: ['notificationId']
       }
-    }
+    },
+    preHandler: validateZod(notificationIdParamSchema, 'params')
   }, notificationController.markAsRead);
   
   /**
@@ -108,7 +117,8 @@ export async function notificationRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: validateZod(activityQuerySchema, 'query')
   }, notificationController.getActivityStats);
 
   /**
@@ -196,7 +206,8 @@ export async function notificationRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: validateZod(realtimeNotificationSchema)
   }, async (request, reply) => {
     const { userId, notificationId, notification } = request.body;
     
