@@ -72,8 +72,8 @@ class SubscriptionService {
     }
   }
 
-  async createSubscription(userId, subscriptionData, context) {
-    logRequest(context, 'Creating new subscription', { userId, subscriptionData });
+  async createSubscription(subscriptionData, context) {
+    logRequest(context, 'Creating new subscription', subscriptionData);
     
     // Validate data
     if (!subscriptionData.name) {
@@ -84,25 +84,77 @@ class SubscriptionService {
       );
     }
     
-    if (!subscriptionData.type_id) {
+    if (!subscriptionData.type) {
       throw new AppError(
         SUBSCRIPTION_ERRORS.VALIDATION_ERROR.code,
         'Subscription type is required',
         400
       );
     }
+    
+    if (!subscriptionData.userId) {
+      throw new AppError(
+        SUBSCRIPTION_ERRORS.VALIDATION_ERROR.code,
+        'User ID is required',
+        400
+      );
+    }
 
     try {
-      // Check if the type_id is valid
-      const typeCheckResult = await query(
-        'SELECT id FROM subscription_types WHERE id = $1',
-        [subscriptionData.type_id]
-      );
+      // Get type_id from type name or use provided typeId directly
+      let type_id;
       
-      if (typeCheckResult.rows.length === 0) {
+      if (subscriptionData.typeId) {
+        // If typeId is directly provided, use it
+        const typeIdCheck = await query(
+          'SELECT id FROM subscription_types WHERE id = $1',
+          [subscriptionData.typeId]
+        );
+        
+        if (typeIdCheck.rows.length > 0) {
+          type_id = typeIdCheck.rows[0].id;
+          logRequest(context, 'Using provided typeId', { typeId: type_id });
+        }
+      }
+      
+      // If typeId wasn't provided or valid, try to get from type name
+      if (!type_id && subscriptionData.type) {
+        // Try with lowercase type first (most common case)
+        let typeCheckResult = await query(
+          'SELECT id FROM subscription_types WHERE type = $1',
+          [subscriptionData.type.toLowerCase()]
+        );
+        
+        // If not found, try with original case
+        if (typeCheckResult.rows.length === 0) {
+          typeCheckResult = await query(
+            'SELECT id FROM subscription_types WHERE type = $1 OR name = $1',
+            [subscriptionData.type]
+          );
+        }
+        
+        // If still not found, try with uppercase name
+        if (typeCheckResult.rows.length === 0) {
+          typeCheckResult = await query(
+            'SELECT id FROM subscription_types WHERE name = $1',
+            [subscriptionData.type.toUpperCase()]
+          );
+        }
+        
+        if (typeCheckResult.rows.length > 0) {
+          type_id = typeCheckResult.rows[0].id;
+          logRequest(context, 'Resolved type_id from type name', { 
+            type: subscriptionData.type, 
+            type_id 
+          });
+        }
+      }
+      
+      // If no type_id could be resolved, throw error
+      if (!type_id) {
         throw new AppError(
           SUBSCRIPTION_ERRORS.VALIDATION_ERROR.code,
-          'Invalid subscription type',
+          `Invalid subscription type: ${subscriptionData.type || subscriptionData.typeId}`,
           400
         );
       }
@@ -115,13 +167,30 @@ class SubscriptionService {
         active: true
       };
       
+      // Map frontend frequency to backend format
+      const frequencyMap = {
+        'immediate': 'immediate',
+        'daily': 'daily',
+        'Instant': 'immediate',
+        'Daily': 'daily',
+        'Weekly': 'daily' // Map weekly to daily as fallback until weekly is supported
+      };
+      
+      // Format the subscription data correctly for the database
       const subscription = {
         ...defaults,
-        ...subscriptionData,
-        user_id: userId,
+        name: subscriptionData.name,
+        description: subscriptionData.description || '',
+        type_id: type_id,
+        prompts: subscriptionData.prompts || [],
+        frequency: frequencyMap[subscriptionData.frequency] || 'daily',
+        logo: subscriptionData.logo || null,
+        user_id: subscriptionData.userId,
         created_at: new Date(),
         updated_at: new Date()
       };
+      
+      logRequest(context, 'Formatted subscription data for database', { subscription });
       
       const fields = Object.keys(subscription);
       const values = Object.values(subscription);
@@ -130,11 +199,24 @@ class SubscriptionService {
       const result = await query(
         `INSERT INTO subscriptions (${fields.join(', ')}) 
          VALUES (${placeholders})
-         RETURNING id, name, description, type_id, frequency, active, created_at`,
+         RETURNING id, name, description, type_id, prompts, frequency, logo, active, created_at, updated_at`,
         values
       );
       
-      const newSubscription = result.rows[0];
+      // Get the subscription type for the response
+      const typeResult = await query(
+        `SELECT type, name FROM subscription_types WHERE id = $1`,
+        [type_id]
+      );
+      
+      const subscriptionType = typeResult.rows[0] || { type: 'unknown', name: 'Unknown Type' };
+      
+      // Format the subscription object for the response
+      const newSubscription = {
+        ...result.rows[0],
+        type: subscriptionType.type,
+        typeName: subscriptionType.name
+      };
       
       // Publish an event for the subscription creation
       try {
@@ -144,7 +226,7 @@ class SubscriptionService {
         
         await publishEvent('subscription.created', {
           subscription_id: newSubscription.id,
-          user_id: userId,
+          user_id: subscriptionData.userId,
           timestamp: new Date().toISOString()
         });
       } catch (pubsubError) {

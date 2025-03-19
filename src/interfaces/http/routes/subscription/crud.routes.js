@@ -107,7 +107,8 @@ export async function registerCrudRoutes(fastify, options) {
         required: ['name', 'type', 'prompts', 'frequency'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 100 },
-          type: { type: 'string', enum: ['boe', 'real-estate', 'custom'] },
+          type: { type: 'string' }, // Accept any type string, will be normalized in service
+          typeId: { type: 'string' }, // Template ID from frontend
           description: { type: 'string', maxLength: 500 },
           prompts: { 
             type: 'array',
@@ -115,7 +116,8 @@ export async function registerCrudRoutes(fastify, options) {
             minItems: 1,
             maxItems: 3
           },
-          frequency: { type: 'string', enum: ['immediate', 'daily'] },
+          frequency: { type: 'string' }, // Accept any frequency, will be normalized in service
+          logo: { type: 'string' },
           metadata: { type: 'object' }
         }
       },
@@ -146,21 +148,31 @@ export async function registerCrudRoutes(fastify, options) {
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
       
-      const { name, type, description, prompts, frequency, metadata } = request.body;
+      const { name, type, typeId, description, prompts, frequency, logo, metadata } = request.body;
       
-      logRequest(context, 'Creating subscription', { 
+      // Log the full request body for debugging
+      logRequest(context, 'Creating subscription - Raw request data', {
+        body: JSON.stringify(request.body)
+      });
+      
+      logRequest(context, 'Creating subscription - Parsed data', { 
         userId: request.user.id,
         subscriptionName: name,
-        subscriptionType: type
+        subscriptionType: type,
+        typeId,
+        prompts,
+        frequency
       });
       
       const subscription = await subscriptionService.createSubscription({
         userId: request.user.id,
         name,
         type,
+        typeId,
         description,
         prompts,
         frequency,
+        logo,
         metadata
       }, context);
       
