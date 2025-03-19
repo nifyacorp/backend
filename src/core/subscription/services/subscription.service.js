@@ -56,12 +56,12 @@ class SubscriptionService {
     }
   }
 
-  async getUserSubscriptions(userId, context) {
-    logRequest(context, 'Fetching all subscriptions for user', { userId });
+  async getUserSubscriptions(userId, context, options = {}) {
+    logRequest(context, 'Fetching all subscriptions for user', { userId, options });
     
     try {
-      const result = await this.repository.getUserSubscriptions(userId);
-      return result.rows;
+      const result = await this.repository.getUserSubscriptions(userId, options);
+      return result;
     } catch (error) {
       logError(context, error);
       throw new AppError(

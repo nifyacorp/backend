@@ -7,6 +7,8 @@ import { registerTypeRoutes } from './types.routes.js';
 import { registerCrudRoutes } from './crud.routes.js';
 import { registerProcessRoutes } from './process.routes.js';
 import { registerSharingRoutes } from './sharing.routes.js';
+import { subscriptionService } from '../../../../core/subscription/index.js';
+import { logRequest, logError } from '../../../../shared/logging/logger.js';
 
 /**
  * Register all subscription routes
@@ -47,21 +49,28 @@ export async function subscriptionRoutes(fastify, options) {
       });
     }
     
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+    
     try {
-      // Here you would normally query the database for actual stats
-      // For now, return dummy data to fix the 400 error
+      logRequest(context, 'Fetching subscription statistics', { userId });
+      
+      // Get actual statistics from the service
+      const stats = await subscriptionService.getSubscriptionStats(userId, context);
+      
+      // Rename 'pending' to 'inactive' for frontend compatibility
+      const { pending, ...restStats } = stats;
+      
       return {
-        total: 0,
-        active: 0,
-        inactive: 0,
-        bySource: {},
-        byFrequency: {
-          'daily': 0,
-          'immediate': 0
-        }
+        ...restStats,
+        inactive: pending || 0
       };
     } catch (error) {
-      console.error('Error fetching subscription stats:', error);
+      logError(context, error);
+      
       return reply.code(500).send({
         status: 'error',
         code: 'INTERNAL_SERVER_ERROR',

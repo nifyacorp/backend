@@ -40,6 +40,16 @@ export async function registerCrudRoutes(fastify, options) {
       description: 'Subscription API',
       tags: ['subscriptions'],
       summary: 'List subscriptions for the authenticated user',
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+          sort: { type: 'string', enum: ['created_at', 'updated_at', 'name', 'frequency', 'active'], default: 'created_at' },
+          order: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          type: { type: 'string' }
+        }
+      },
       response: {
         200: {
           type: 'object',
@@ -51,6 +61,15 @@ export async function registerCrudRoutes(fastify, options) {
                 subscriptions: {
                   type: 'array',
                   items: subscriptionSchema
+                },
+                pagination: {
+                  type: 'object',
+                  properties: {
+                    total: { type: 'integer' },
+                    page: { type: 'integer' },
+                    limit: { type: 'integer' },
+                    totalPages: { type: 'integer' }
+                  }
                 }
               }
             }
@@ -70,14 +89,28 @@ export async function registerCrudRoutes(fastify, options) {
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
       
-      logRequest(context, 'Fetching user subscriptions', { userId: request.user.id });
+      const { page, limit, sort, order, type } = request.query;
       
-      const subscriptions = await subscriptionService.getUserSubscriptions(request.user.id, context);
+      logRequest(context, 'Fetching user subscriptions', { 
+        userId: request.user.id,
+        page,
+        limit,
+        sort,
+        order,
+        type
+      });
+      
+      const result = await subscriptionService.getUserSubscriptions(
+        request.user.id, 
+        context,
+        { page, limit, sort, order, type }
+      );
       
       return {
         status: 'success',
         data: {
-          subscriptions
+          subscriptions: result.subscriptions,
+          pagination: result.pagination
         }
       };
     } catch (error) {
