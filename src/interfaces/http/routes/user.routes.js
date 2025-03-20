@@ -28,18 +28,7 @@ const userProfileSchema = {
   }
 };
 
-const updateProfileSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string', minLength: 1 },
-    bio: { type: 'string', nullable: true },
-    theme: { type: 'string', enum: USER_PREFERENCES.THEMES },
-    language: { type: 'string', enum: USER_PREFERENCES.LANGUAGES },
-    emailNotifications: { type: 'boolean' },
-    notificationEmail: { type: 'string', format: 'email', nullable: true }
-  },
-  additionalProperties: false
-};
+// Using the imported updateProfileSchema from schemas.js
 
 export async function userRoutes(fastify, options) {
   fastify.get('/me', {
