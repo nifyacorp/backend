@@ -6,6 +6,14 @@
 import { subscriptionService } from '../../../../core/subscription/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
+import { validateZod } from '../../../../shared/utils/validation.js';
+import {
+  createSubscriptionSchema,
+  updateSubscriptionSchema,
+  toggleSubscriptionSchema,
+  idParamSchema,
+  subscriptionQuerySchema
+} from '../../../../core/subscription/schemas.js';
 
 // Schema definitions
 const subscriptionSchema = {
@@ -168,7 +176,8 @@ export async function registerCrudRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: validateZod(createSubscriptionSchema)
   }, async (request, reply) => {
     const context = {
       requestId: request.id,
@@ -353,7 +362,11 @@ export async function registerCrudRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: [
+      validateZod(idParamSchema, 'params'),
+      validateZod(updateSubscriptionSchema)
+    ]
   }, async (request, reply) => {
     const context = {
       requestId: request.id,
@@ -507,6 +520,13 @@ export async function registerCrudRoutes(fastify, options) {
           id: { type: 'string', format: 'uuid' }
         }
       },
+      body: {
+        type: 'object',
+        required: ['active'],
+        properties: {
+          active: { type: 'boolean' }
+        }
+      },
       response: {
         200: {
           type: 'object',
@@ -521,7 +541,11 @@ export async function registerCrudRoutes(fastify, options) {
           }
         }
       }
-    }
+    },
+    preHandler: [
+      validateZod(idParamSchema, 'params'),
+      validateZod(toggleSubscriptionSchema)
+    ]
   }, async (request, reply) => {
     const context = {
       requestId: request.id,
@@ -553,11 +577,13 @@ export async function registerCrudRoutes(fastify, options) {
         currentStatus: existingSubscription.active
       });
       
-      // Toggle the active status
+      // Use the validated active status from the request body
+      const { active } = request.body;
+      
       const updatedSubscription = await subscriptionService.updateSubscription(
         request.user.id,
         subscriptionId,
-        { active: !existingSubscription.active },
+        { active },
         context
       );
       
