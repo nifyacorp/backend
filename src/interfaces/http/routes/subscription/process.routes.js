@@ -182,11 +182,11 @@ export async function registerProcessRoutes(fastify, options) {
       logError(requestContext, error);
       
       if (error instanceof AppError) {
-        return reply.code(error.statusCode).send(
+        return reply.code(error.status).send(
           buildErrorResponse(request, {
             code: error.code,
             message: error.message,
-            status: error.statusCode,
+            status: error.status,
             details: error.details || {}
           })
         );

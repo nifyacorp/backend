@@ -74,7 +74,7 @@ export async function registerTypeRoutes(fastify, options) {
       logError(context, error);
       
       if (error instanceof AppError) {
-        return reply.code(error.statusCode).send({
+        return reply.code(error.status).send({
           status: 'error',
           code: error.code,
           message: error.message
@@ -154,7 +154,7 @@ export async function registerTypeRoutes(fastify, options) {
       logError(context, error);
       
       if (error instanceof AppError) {
-        return reply.code(error.statusCode).send({
+        return reply.code(error.status).send({
           status: 'error',
           code: error.code,
           message: error.message

@@ -100,7 +100,7 @@ const getUserNotifications = async (request, reply) => {
       });
     }
     
-    return reply.status(500).send({
+    return reply.status(error.status || 500).send({
       error: 'Failed to retrieve notifications',
       message: error.message
     });
@@ -170,7 +170,7 @@ const markAllAsRead = async (request, reply) => {
       subscriptionId: request.query?.subscriptionId
     });
     
-    return reply.status(500).send({
+    return reply.status(error.status || 500).send({
       error: 'Failed to mark all notifications as read',
       message: error.message
     });
@@ -272,7 +272,7 @@ const deleteAllNotifications = async (request, reply) => {
       subscriptionId: request.query?.subscriptionId
     });
     
-    return reply.status(500).send({
+    return reply.status(error.status || 500).send({
       error: 'Failed to delete notifications',
       message: error.message
     });
@@ -316,7 +316,7 @@ const getNotificationStats = async (request, reply) => {
       });
     }
     
-    return reply.status(500).send({
+    return reply.status(error.status || 500).send({
       error: 'Failed to fetch notification statistics',
       message: error.message
     });
@@ -367,7 +367,7 @@ const getActivityStats = async (request, reply) => {
       });
     }
     
-    return reply.status(500).send({
+    return reply.status(error.status || 500).send({
       error: 'Failed to fetch notification activity data',
       message: error.message
     });
