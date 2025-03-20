@@ -85,7 +85,17 @@ export async function userRoutes(fastify, options) {
 
   fastify.patch('/me', {
     schema: {
-      body: updateProfileSchema,
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 2, maxLength: 100 },
+          bio: { type: 'string', maxLength: 500 },
+          theme: { type: 'string', enum: ['light', 'dark', 'system'] },
+          language: { type: 'string', enum: ['es', 'en', 'ca'] }
+        },
+        required: [],
+        additionalProperties: false
+      },
       response: {
         200: {
           type: 'object',
@@ -150,6 +160,7 @@ export async function userRoutes(fastify, options) {
           emailFrequency: { type: 'string', enum: ['daily'] },
           instantNotifications: { type: 'boolean' }
         },
+        required: [],
         additionalProperties: false
       },
       response: {
