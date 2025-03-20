@@ -330,7 +330,7 @@ gcloud run deploy nifya-backend \
 
 ### Recent Fixes
 
-#### March 2025 API Compatibility Fixes
+#### March 2025 API Compatibility and Error Handling Fixes
 
 1. Fixed route conflicts in subscription endpoints
    - Resolved duplicate route declaration for `/api/v1/subscriptions` that caused server startup failures
@@ -340,6 +340,18 @@ gcloud run deploy nifya-backend \
    - Added robust error handling with fallback data for database query failures
    - Fixed schema mismatch in notification repository by replacing non-existent "source" column with "entity_type"
    - Improved local development experience with SKIP_DB_VALIDATION mode
+
+3. Enhanced error handling consistency
+   - Fixed discrepancy between `error.status` and `error.statusCode` in route handlers
+   - Standardized error response format across all API endpoints
+   - Added detailed error logging with request context
+   - Implemented mock data for development environment
+
+4. Database client improvements
+   - Added mock response support for development mode without database
+   - Enhanced RLS context validation
+   - Improved error messages for database connection issues
+   - Added diagnostics endpoints for troubleshooting database connectivity
 
 For detailed information about API endpoint compatibility fixes, see the [api-endpoint-compatibility-report.md](./api-endpoint-compatibility-report.md) file.
 
