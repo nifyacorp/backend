@@ -104,49 +104,176 @@ class SubscriptionService {
       // Get type_id from type name or use provided typeId directly
       let type_id;
       
+      // First try to use typeId directly if provided
       if (subscriptionData.typeId) {
-        // If typeId is directly provided, use it
-        const typeIdCheck = await query(
-          'SELECT id FROM subscription_types WHERE id = $1',
-          [subscriptionData.typeId]
-        );
-        
-        if (typeIdCheck.rows.length > 0) {
-          type_id = typeIdCheck.rows[0].id;
-          logRequest(context, 'Using provided typeId', { typeId: type_id });
+        try {
+          // Check if typeId is a valid UUID
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          
+          if (uuidRegex.test(subscriptionData.typeId)) {
+            // If typeId is directly provided, check if it exists in subscription_types
+            const typeIdCheck = await query(
+              'SELECT id FROM subscription_types WHERE id = $1',
+              [subscriptionData.typeId]
+            );
+            
+            if (typeIdCheck.rows.length > 0) {
+              type_id = typeIdCheck.rows[0].id;
+              logRequest(context, 'Using provided typeId', { typeId: type_id });
+            } else {
+              // If not found in subscription_types, check subscription_templates
+              const templateCheck = await query(
+                'SELECT id FROM subscription_templates WHERE id = $1',
+                [subscriptionData.typeId]
+              );
+              
+              if (templateCheck.rows.length > 0) {
+                // For a template ID, we need to find the corresponding type_id
+                const templateTypeCheck = await query(
+                  `SELECT st.id 
+                   FROM subscription_types st 
+                   JOIN subscription_templates t ON LOWER(st.name) = LOWER(t.type) 
+                   WHERE t.id = $1`,
+                  [subscriptionData.typeId]
+                );
+                
+                if (templateTypeCheck.rows.length > 0) {
+                  type_id = templateTypeCheck.rows[0].id;
+                  logRequest(context, 'Resolved type_id from template', { 
+                    templateId: subscriptionData.typeId, 
+                    type_id 
+                  });
+                } else {
+                  // If type not found by template, use a default mapping
+                  const defaultTypeMap = {
+                    'boe': 'BOE',
+                    'real-estate': 'Inmobiliaria',
+                    'doga': 'DOGA'
+                  };
+                  
+                  // Get template type
+                  const templateData = await query(
+                    'SELECT type FROM subscription_templates WHERE id = $1',
+                    [subscriptionData.typeId]
+                  );
+                  
+                  if (templateData.rows.length > 0) {
+                    const templateType = templateData.rows[0].type;
+                    const mappedType = defaultTypeMap[templateType.toLowerCase()] || 'Custom';
+                    
+                    // Get type_id by name
+                    const typeByNameCheck = await query(
+                      'SELECT id FROM subscription_types WHERE name = $1',
+                      [mappedType]
+                    );
+                    
+                    if (typeByNameCheck.rows.length > 0) {
+                      type_id = typeByNameCheck.rows[0].id;
+                      logRequest(context, 'Used default type mapping for template', { 
+                        templateId: subscriptionData.typeId,
+                        templateType,
+                        mappedType,
+                        type_id 
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          } else {
+            logRequest(context, 'Invalid UUID format for typeId', { typeId: subscriptionData.typeId });
+          }
+        } catch (error) {
+          logError(context, error, 'Error checking typeId');
         }
       }
       
-      // If typeId wasn't provided or valid, try to get from type name
+      // If typeId wasn't resolved, try to get from type name
       if (!type_id && subscriptionData.type) {
-        // Try with lowercase type first (most common case)
-        let typeCheckResult = await query(
-          'SELECT id FROM subscription_types WHERE type = $1',
-          [subscriptionData.type.toLowerCase()]
-        );
-        
-        // If not found, try with original case
-        if (typeCheckResult.rows.length === 0) {
-          typeCheckResult = await query(
-            'SELECT id FROM subscription_types WHERE type = $1 OR name = $1',
+        try {
+          logRequest(context, 'Attempting to resolve type_id from type name', { type: subscriptionData.type });
+          
+          // First check if the type matches a subscription_type name
+          let typeCheckResult = await query(
+            'SELECT id FROM subscription_types WHERE LOWER(name) = LOWER($1)',
             [subscriptionData.type]
           );
+          
+          // If not found by name, try to match any field that might contain the type
+          if (typeCheckResult.rows.length === 0) {
+            // Try several variations and fields
+            const variations = [
+              subscriptionData.type.toLowerCase(),
+              subscriptionData.type.toUpperCase(),
+              subscriptionData.type
+            ];
+            
+            for (const variation of variations) {
+              typeCheckResult = await query(
+                `SELECT id FROM subscription_types 
+                WHERE LOWER(name) = LOWER($1) 
+                OR LOWER(description) LIKE LOWER($2)`,
+                [variation, `%${variation}%`]
+              );
+              
+              if (typeCheckResult.rows.length > 0) {
+                break;
+              }
+            }
+          }
+          
+          if (typeCheckResult.rows.length > 0) {
+            type_id = typeCheckResult.rows[0].id;
+            logRequest(context, 'Resolved type_id from type name', { 
+              type: subscriptionData.type, 
+              type_id 
+            });
+          }
+        } catch (error) {
+          logError(context, error, 'Error resolving type name');
         }
-        
-        // If still not found, try with uppercase name
-        if (typeCheckResult.rows.length === 0) {
-          typeCheckResult = await query(
+      }
+      
+      // If still no type_id, create a fallback using the default types
+      if (!type_id) {
+        try {
+          // Map common type strings to known system types
+          const defaultTypeMap = {
+            'boe': 'BOE',
+            'real-estate': 'Inmobiliaria',
+            'inmobiliaria': 'Inmobiliaria',
+            'real estate': 'Inmobiliaria',
+            'doga': 'DOGA'
+          };
+          
+          const typeToLookup = subscriptionData.type ? 
+            defaultTypeMap[subscriptionData.type.toLowerCase()] || 'BOE' : 'BOE';
+          
+          const fallbackCheck = await query(
             'SELECT id FROM subscription_types WHERE name = $1',
-            [subscriptionData.type.toUpperCase()]
+            [typeToLookup]
           );
-        }
-        
-        if (typeCheckResult.rows.length > 0) {
-          type_id = typeCheckResult.rows[0].id;
-          logRequest(context, 'Resolved type_id from type name', { 
-            type: subscriptionData.type, 
-            type_id 
-          });
+          
+          if (fallbackCheck.rows.length > 0) {
+            type_id = fallbackCheck.rows[0].id;
+            logRequest(context, 'Using fallback type', { 
+              originalType: subscriptionData.type,
+              fallbackType: typeToLookup,
+              type_id 
+            });
+          } else {
+            // Last resort: get the first system type
+            const systemTypeCheck = await query(
+              'SELECT id FROM subscription_types WHERE is_system = true LIMIT 1'
+            );
+            
+            if (systemTypeCheck.rows.length > 0) {
+              type_id = systemTypeCheck.rows[0].id;
+              logRequest(context, 'Using first system type as fallback', { type_id });
+            }
+          }
+        } catch (error) {
+          logError(context, error, 'Error using fallback type');
         }
       }
       
@@ -154,7 +281,7 @@ class SubscriptionService {
       if (!type_id) {
         throw new AppError(
           SUBSCRIPTION_ERRORS.VALIDATION_ERROR.code,
-          `Invalid subscription type: ${subscriptionData.type || subscriptionData.typeId}`,
+          `Invalid subscription type: ${subscriptionData.type || subscriptionData.typeId}. Please select a valid subscription type.`,
           400
         );
       }
