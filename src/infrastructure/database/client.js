@@ -74,6 +74,57 @@ export async function query(text, params) {
       text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
       timestamp: new Date().toISOString()
     });
+    
+    // Mock subscription type data for getUserSubscriptions
+    if (text.includes('SELECT COUNT(*) as total FROM subscriptions')) {
+      return { 
+        rows: [{ total: 1 }], 
+        rowCount: 1 
+      };
+    }
+    
+    // Mock getUserSubscriptions data
+    if (text.includes('SELECT s.id, s.type_id, s.name, s.description, s.prompts')) {
+      return { 
+        rows: [{
+          id: 'mock-subscription-id',
+          name: 'Mock Subscription',
+          description: 'This is a mock subscription for development',
+          prompts: ['keyword1', 'keyword2'],
+          type: 'boe',
+          typeName: 'BOE',
+          typeIcon: 'FileText',
+          frequency: 'daily',
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }],
+        rowCount: 1
+      };
+    }
+    
+    // Mock subscription stats
+    if (text.includes('SELECT COUNT(*) as count FROM subscriptions')) {
+      return { 
+        rows: [{ count: 1 }], 
+        rowCount: 1 
+      };
+    }
+    
+    if (text.includes('SELECT frequency, COUNT(*) as count FROM subscriptions')) {
+      return { 
+        rows: [{ frequency: 'daily', count: 1 }], 
+        rowCount: 1 
+      };
+    }
+    
+    if (text.includes('SELECT t.name as source, COUNT(*) as count FROM subscriptions')) {
+      return { 
+        rows: [{ source: 'BOE', count: 1 }], 
+        rowCount: 1 
+      };
+    }
+    
     return { rows: [], rowCount: 0 };
   }
 
