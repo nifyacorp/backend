@@ -24,13 +24,6 @@ export class SubscriptionRepository {
       
       // Build the query
       let queryParams = [userId];
-      let queryConditions = 'WHERE s.user_id = $1';
-      
-      // Add type filter if provided
-      if (type) {
-        queryParams.push(type);
-        queryConditions += ` AND t.type = $${queryParams.length}`;
-      }
       
       // Validate and sanitize sort field to prevent SQL injection
       const validSortFields = ['created_at', 'updated_at', 'name', 'frequency', 'active'];
@@ -39,19 +32,18 @@ export class SubscriptionRepository {
       // Validate order
       const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
       
-      // Count total subscriptions for pagination
+      // Count total subscriptions for pagination - use simpler query
       console.log('Repository: Executing count query');
       const countQuery = `SELECT COUNT(*) as total
-         FROM subscriptions s
-         LEFT JOIN subscription_types t ON s.type_id = t.id
-         ${queryConditions}`;
+         FROM subscriptions 
+         WHERE user_id = $1`;
       
       console.log('Count Query:', countQuery);
-      console.log('Count Params:', queryParams);
+      console.log('Count Params:', [userId]);
       
       const countResult = await query(
         countQuery,
-        queryParams
+        [userId]
       );
       
       if (!countResult || !countResult.rows || countResult.rows.length === 0) {
@@ -84,7 +76,7 @@ export class SubscriptionRepository {
         };
       }
       
-      // Get paginated subscriptions
+      // Get paginated subscriptions - simplify the query and avoid the join
       console.log('Repository: Executing subscriptions query');
       const mainQuery = `SELECT 
           s.id,
@@ -96,22 +88,18 @@ export class SubscriptionRepository {
           s.frequency,
           s.active,
           s.created_at as "createdAt",
-          s.updated_at as "updatedAt",
-          t.name as "typeName",
-          t.type as "type",
-          t.icon as "typeIcon"
+          s.updated_at as "updatedAt"
         FROM subscriptions s 
-        LEFT JOIN subscription_types t ON s.type_id = t.id
-        ${queryConditions}
+        WHERE s.user_id = $1
         ORDER BY s.${sortField} ${sortOrder}
-        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+        LIMIT $2 OFFSET $3`;
       
       console.log('Main Query:', mainQuery);
-      console.log('Main Params:', [...queryParams, limit, offset]);
+      console.log('Main Params:', [userId, limit, offset]);
       
       const result = await query(
         mainQuery,
-        [...queryParams, limit, offset]
+        [userId, limit, offset]
       );
       
       if (!result || !result.rows) {
@@ -129,11 +117,56 @@ export class SubscriptionRepository {
       }
       
       // Process the results
-      const subscriptions = result.rows.map(row => ({
-        ...row,
-        // Ensure prompts is always an array
-        prompts: Array.isArray(row.prompts) ? row.prompts : (row.prompts ? [row.prompts] : [])
-      }));
+      const subscriptions = result.rows.map(row => {
+        // Add default source if we don't have subscription_types join
+        const subscriptionWithSource = {
+          ...row,
+          // Ensure prompts is always an array
+          prompts: Array.isArray(row.prompts) ? row.prompts : (row.prompts ? [row.prompts] : []),
+          // Add source field based on type_id or default to "BOE" as fallback
+          source: "BOE"
+        };
+        
+        return subscriptionWithSource;
+      });
+      
+      // Now fetch the subscription type information separately to avoid join issues
+      if (subscriptions.length > 0) {
+        try {
+          // Get unique type_ids from subscriptions
+          const typeIds = [...new Set(subscriptions.map(sub => sub.type_id).filter(id => id))];
+          
+          if (typeIds.length > 0) {
+            const typesQuery = `SELECT id, type, name as "typeName", icon as "typeIcon" 
+                               FROM subscription_types 
+                               WHERE id = ANY($1::uuid[])`;
+            
+            const typesResult = await query(typesQuery, [typeIds]);
+            
+            if (typesResult && typesResult.rows) {
+              // Create a lookup map
+              const typesMap = {};
+              typesResult.rows.forEach(type => {
+                typesMap[type.id] = type;
+              });
+              
+              // Enhance subscriptions with their type info
+              subscriptions.forEach(sub => {
+                if (sub.type_id && typesMap[sub.type_id]) {
+                  sub.type = typesMap[sub.type_id].type;
+                  sub.typeName = typesMap[sub.type_id].typeName;
+                  sub.typeIcon = typesMap[sub.type_id].typeIcon;
+                  // Also set source from the type name
+                  sub.source = typesMap[sub.type_id].typeName || "BOE";
+                }
+              });
+            }
+          }
+        } catch (typeError) {
+          console.error('Repository: Error fetching subscription types:', typeError);
+          // Continue with basic subscription info - the source is already set to "BOE"
+        }
+      }
       
       return {
         subscriptions,
@@ -189,7 +222,7 @@ export class SubscriptionRepository {
         [subscriptionId, userId]
       );
       
-      return result;
+      return result.rows[0];
     } catch (error) {
       console.error('Repository: Error in getSubscriptionById:', error);
       if (context) {
