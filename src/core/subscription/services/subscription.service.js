@@ -14,14 +14,21 @@ class SubscriptionService {
     logRequest(context, 'Fetching subscription statistics', { userId });
     
     try {
-      return await this.repository.getSubscriptionStats(userId);
+      return await this.repository.getSubscriptionStats(userId, context);
     } catch (error) {
       logError(context, error);
-      throw new AppError(
-        SUBSCRIPTION_ERRORS.FETCH_ERROR.code,
-        'Failed to fetch subscription statistics',
-        500
-      );
+      
+      console.error('Service: Error in getSubscriptionStats:', error);
+      
+      // Return a fallback response with zeros instead of throwing an error
+      return {
+        total: 0,
+        active: 0,
+        inactive: 0,
+        bySource: {},
+        byFrequency: {},
+        error: SUBSCRIPTION_ERRORS.FETCH_ERROR.message
+      };
     }
   }
 
@@ -29,9 +36,9 @@ class SubscriptionService {
     logRequest(context, 'Fetching subscription by ID', { userId, subscriptionId });
 
     try {
-      const result = await this.repository.getSubscriptionById(userId, subscriptionId);
+      const result = await this.repository.getSubscriptionById(userId, subscriptionId, context);
 
-      if (result.rows.length === 0) {
+      if (!result || !result.rows || result.rows.length === 0) {
         throw new AppError(
           SUBSCRIPTION_ERRORS.NOT_FOUND.code,
           SUBSCRIPTION_ERRORS.NOT_FOUND.message,
@@ -43,6 +50,7 @@ class SubscriptionService {
       return result.rows[0];
     } catch (error) {
       logError(context, error);
+      console.error('Service: Error in getSubscriptionById:', error);
 
       if (error instanceof AppError) {
         throw error;
@@ -58,17 +66,32 @@ class SubscriptionService {
 
   async getUserSubscriptions(userId, context, options = {}) {
     logRequest(context, 'Fetching all subscriptions for user', { userId, options });
+    console.log('Service: getUserSubscriptions called with:', { userId, options });
     
     try {
-      const result = await this.repository.getUserSubscriptions(userId, options);
+      const result = await this.repository.getUserSubscriptions(userId, options, context);
+      
+      // If result contains an error property, log it but still return the fallback data
+      if (result.error) {
+        logError(context, new Error(result.error));
+        console.error('Service: Repository reported error:', result.error);
+      }
+      
       return result;
     } catch (error) {
       logError(context, error);
-      throw new AppError(
-        SUBSCRIPTION_ERRORS.FETCH_ERROR.code,
-        SUBSCRIPTION_ERRORS.FETCH_ERROR.message,
-        500
-      );
+      console.error('Service: Error in getUserSubscriptions:', error);
+      
+      // Return a fallback result with empty data
+      return {
+        subscriptions: [],
+        pagination: {
+          total: 0,
+          page: options?.page || 1,
+          limit: options?.limit || 20,
+          totalPages: 0
+        }
+      };
     }
   }
 

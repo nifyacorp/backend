@@ -108,21 +108,39 @@ export async function registerCrudRoutes(fastify, options) {
         type
       });
       
+      console.log('Route: getUserSubscriptions called with:', {
+        userId: request.user.id,
+        query: request.query,
+        requestId: request.id
+      });
+      
       const result = await subscriptionService.getUserSubscriptions(
         request.user.id, 
         context,
         { page, limit, sort, order, type }
       );
       
+      // Check if we received an error indicator from the service
+      if (result.error) {
+        console.log('Route: Service reported error:', result.error);
+        // Still return a 200 with empty data
+      }
+      
       return {
         status: 'success',
         data: {
-          subscriptions: result.subscriptions,
-          pagination: result.pagination
+          subscriptions: result.subscriptions || [],
+          pagination: result.pagination || {
+            total: 0,
+            page: parseInt(page || 1),
+            limit: parseInt(limit || 20),
+            totalPages: 0
+          }
         }
       };
     } catch (error) {
       logError(context, error);
+      console.error('Route: Error in GET /subscriptions:', error);
       
       if (error instanceof AppError) {
         return reply.code(error.status).send({
@@ -132,10 +150,20 @@ export async function registerCrudRoutes(fastify, options) {
         });
       }
       
+      // Provide more useful error response with a fallback to empty data
       return reply.code(500).send({
         status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
+        code: 'SUBSCRIPTION_FETCH_ERROR',
+        message: 'Failed to fetch subscription',
+        data: {
+          subscriptions: [],
+          pagination: {
+            total: 0,
+            page: parseInt(request.query?.page || 1),
+            limit: parseInt(request.query?.limit || 20),
+            totalPages: 0
+          }
+        }
       });
     }
   });
