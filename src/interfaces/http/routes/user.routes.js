@@ -7,6 +7,13 @@ import {
   updateProfileSchema, 
   updateNotificationSettingsSchema 
 } from '../../../core/user/schemas.js';
+import { emailPreferencesSchema, testEmailSchema } from '../../../core/user/schemas/email-preferences.schema.js';
+import {
+  getEmailPreferences,
+  updateEmailPreferences,
+  sendTestEmail,
+  markNotificationsAsSent
+} from '../../../core/user/interfaces/http/email-preferences.controller.js';
 
 const userProfileSchema = {
   type: 'object',
@@ -223,4 +230,104 @@ export async function userRoutes(fastify, options) {
       return reply;
     }
   });
+  
+  // Email notification preferences endpoints
+  fastify.get('/me/email-preferences', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            email_notifications: { type: 'boolean' },
+            notification_email: { type: 'string', format: 'email', nullable: true },
+            digest_time: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
+          }
+        }
+      }
+    }
+  }, getEmailPreferences);
+  
+  fastify.patch('/me/email-preferences', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          email_notifications: { type: 'boolean' },
+          notification_email: { type: 'string', format: 'email', nullable: true },
+          digest_time: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
+        },
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            preferences: {
+              type: 'object',
+              properties: {
+                email_notifications: { type: 'boolean' },
+                notification_email: { type: 'string', format: 'email', nullable: true },
+                digest_time: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
+              }
+            }
+          }
+        }
+      }
+    },
+    preHandler: validateZod(emailPreferencesSchema)
+  }, updateEmailPreferences);
+  
+  // Test email endpoint
+  fastify.post('/me/test-email', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', format: 'email' }
+        },
+        required: ['email'],
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            email: { type: 'string', format: 'email' }
+          }
+        }
+      }
+    },
+    preHandler: validateZod(testEmailSchema)
+  }, sendTestEmail);
+  
+  // Administrative endpoint to mark notifications as sent via email
+  // This requires admin or service account permissions
+  fastify.post('/notifications/mark-sent', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          notification_ids: { 
+            type: 'array',
+            items: { type: 'string', format: 'uuid' }
+          },
+          sent_at: { type: 'string', format: 'date-time' }
+        },
+        required: ['notification_ids'],
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            updated: { type: 'integer' },
+            timestamp: { type: 'string', format: 'date-time' }
+          }
+        }
+      }
+    }
+  }, markNotificationsAsSent);
 }

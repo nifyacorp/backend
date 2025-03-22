@@ -5,6 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 const eventEmitter = require('../utils/event-emitter');
 const socketManager = require('../utils/socket-manager');
 const messageQueue = require('../utils/message-queue');
+const pubsubClient = require('../utils/pubsub-client');
+const { normalizeNotification, extractNotificationTitle, isDuplicateNotification } = require('../utils/notification-helper');
 
 /**
  * Create a notification
@@ -92,6 +94,56 @@ async function createNotification({ userId, type, content, transactionId }) {
       transactionId
     });
 
+    // Phase 7: Email Notification Delivery
+    // Check if user has email notifications enabled
+    try {
+      const userResult = await db.query(
+        'SELECT email_notifications, notification_email, email FROM users WHERE id = ?',
+        [userId]
+      );
+
+      if (userResult.length > 0 && userResult[0].email_notifications) {
+        // Extract notification title for email
+        const title = extractNotificationTitle(content, type, userId);
+        
+        // Use notification_email if available, otherwise use account email
+        const email = userResult[0].notification_email || userResult[0].email;
+        
+        if (email) {
+          // Publish to email notification topic
+          await publishToEmailNotificationTopic({
+            notificationId,
+            userId,
+            email,
+            notification: {
+              id: notificationId,
+              type,
+              title,
+              content,
+              timestamp: new Date().toISOString()
+            },
+            transactionId
+          });
+          
+          logger.debug('Email notification published', {
+            notificationId,
+            userId,
+            email,
+            correlationId: transactionId
+          });
+        }
+      }
+    } catch (emailError) {
+      // Log but don't fail the entire notification process
+      logger.error('Error publishing email notification', {
+        error: emailError.message,
+        stack: emailError.stack,
+        notificationId,
+        userId,
+        correlationId: transactionId
+      });
+    }
+
     metrics.increment('notification.created', { 
       type,
       userId
@@ -146,9 +198,13 @@ async function deliverNotificationRealtime({ notificationId, userId, type, conte
 
       // Send to all user's active connections
       connections.forEach(socket => {
+        // Prepare notification data with proper title extraction
+        const title = extractNotificationTitle(content, type, userId);
+        
         socketManager.sendToSocket(socket, 'notification', {
           id: notificationId,
           type,
+          title,
           content,
           timestamp: new Date().toISOString()
         });
@@ -262,10 +318,21 @@ async function getUserNotifications(userId, options = { limit: 20, offset: 0, in
       includeRead: options.includeRead
     });
 
-    return notifications.map(notification => ({
-      ...notification,
-      content: JSON.parse(notification.content)
-    }));
+    // Apply normalization to ensure consistent notification format
+    return notifications.map(notification => {
+      const normalizedContent = typeof notification.content === 'string' 
+        ? JSON.parse(notification.content) 
+        : notification.content;
+      
+      // Create a working notification object
+      const workingNotification = {
+        ...notification,
+        content: normalizedContent
+      };
+      
+      // Use our helper to normalize the notification
+      return normalizeNotification(workingNotification);
+    });
   } catch (error) {
     logger.error('Error fetching user notifications', {
       error: error.message,
@@ -421,6 +488,61 @@ async function deleteAllNotifications(userId, { subscriptionId } = {}) {
   }
 }
 
+/**
+ * Publish to email notification topic based on user preferences
+ */
+async function publishToEmailNotificationTopic({ notificationId, userId, email, notification, transactionId }) {
+  try {
+    // For demonstration purpose, we'll check if this is a test user to send immediate notifications
+    const isTestUser = email === process.env.TEST_EMAIL || email === 'nifyacorp@gmail.com';
+    
+    // Choose topic based on user preferences and notification type
+    const topicName = isTestUser ? 'email-notifications-immediate' : 'email-notifications-daily';
+    
+    // Publish message
+    await pubsubClient.publishMessage(topicName, {
+      userId,
+      email,
+      notification,
+      timestamp: new Date().toISOString(),
+      correlationId: transactionId
+    });
+    
+    logger.debug(`Published notification to ${topicName}`, {
+      notificationId,
+      userId,
+      email,
+      topicName,
+      correlationId: transactionId
+    });
+    
+    // Track email notification in metrics
+    metrics.increment('notification.email_queued', {
+      type: notification.type,
+      userId,
+      immediate: isTestUser
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to publish email notification', {
+      error: error.message,
+      stack: error.stack,
+      notificationId,
+      userId,
+      correlationId: transactionId
+    });
+    
+    metrics.increment('notification.email_publish_error', {
+      type: notification.type,
+      userId,
+      error: error.code || 'unknown'
+    });
+    
+    return false;
+  }
+}
+
 module.exports = {
   createNotification,
   deliverNotificationRealtime,
@@ -428,5 +550,6 @@ module.exports = {
   getUserNotifications,
   markNotificationAsRead,
   deleteNotification,
-  deleteAllNotifications
+  deleteAllNotifications,
+  publishToEmailNotificationTopic
 }; 

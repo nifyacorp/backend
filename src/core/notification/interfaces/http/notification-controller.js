@@ -214,6 +214,7 @@ const deleteNotification = async (request, reply) => {
     });
     
     return reply.send({
+      status: 'success',
       message: 'Notification deleted successfully',
       id: notificationId
     });
@@ -263,8 +264,10 @@ const deleteAllNotifications = async (request, reply) => {
     const result = await notificationService.deleteAllNotifications(userId, subscriptionId);
     
     return reply.send({
+      status: 'success',
       message: 'All notifications deleted successfully',
-      deleted: result.deleted
+      deleted: result.deleted,
+      data: { count: result.deleted }
     });
   } catch (error) {
     logger.logError({ controller: 'notification-controller', method: 'deleteAllNotifications' }, error, {

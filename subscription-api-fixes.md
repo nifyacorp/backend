@@ -1,5 +1,28 @@
 # Subscription & Notification System Fixes
 
+> ⚠️ **Important API Response Format Note**
+> 
+> There's a difference in response format between the old Express-based notifications API and the new Fastify implementation:
+> 
+> 1. **Old Express Format**:
+>    ```json
+>    {
+>      "status": "success",
+>      "message": "Deleted X notifications",
+>      "data": { "count": X }
+>    }
+>    ```
+> 
+> 2. **New Fastify Format**:
+>    ```json
+>    {
+>      "message": "All notifications deleted successfully",
+>      "deleted": X
+>    }
+>    ```
+> 
+> The current frontend code expects the `status: "success"` property and checks for it explicitly. We've updated the Fastify controller to include this property for better compatibility.
+
 ## Summary of Changes
 
 We've implemented a comprehensive set of fixes for the subscription and notification systems focused on improving reliability, user experience, and fault tolerance. The key principle in these changes was to prioritize UI consistency even when backend operations encounter issues.
