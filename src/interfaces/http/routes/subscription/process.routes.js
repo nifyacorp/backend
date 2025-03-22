@@ -7,6 +7,7 @@ import { subscriptionService } from '../../../../core/subscription/index.js';
 import { buildErrorResponse, errorBuilders } from "../../../../shared/errors/ErrorResponseBuilder.js";
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
+import { query } from '../../../../infrastructure/database/client.js';
 import axios from 'axios';
 
 /**
@@ -61,21 +62,56 @@ export async function registerProcessRoutes(fastify, options) {
         return reply.code(404).send(errorBuilders.notFound(request, "Subscription", { id: subscriptionId }));
       }
       
-      // Call the subscription-worker service to process this subscription
+      // Get subscription worker URL with fallback
       const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
+      
+      // Create a processing record in the database before sending to worker
+      let processingId;
+      try {
+        const processingResult = await query(
+          `INSERT INTO subscription_processing
+           (subscription_id, status, requested_by, metadata)
+           VALUES ($1, 'pending', $2, $3)
+           RETURNING id`,
+          [
+            subscriptionId,
+            request.user.id,
+            JSON.stringify({
+              requested_at: new Date().toISOString(),
+              request_id: requestContext.requestId,
+              user_agent: request.headers['user-agent']
+            })
+          ]
+        );
+        
+        processingId = processingResult.rows[0].id;
+        logRequest(requestContext, 'Created processing record', {
+          subscription_id: subscriptionId,
+          processing_id: processingId
+        });
+      } catch (dbError) {
+        logError(requestContext, 'Failed to create processing record', {
+          error: dbError.message,
+          subscription_id: subscriptionId
+        });
+        // Continue even if we couldn't create a processing record
+      }
       
       // Enhanced logging for debugging
       logRequest(requestContext, 'Processing subscription request', {
         subscription_id: subscriptionId,
+        processing_id: processingId,
         worker_url: subscriptionWorkerUrl,
-        env_var_set: !!process.env.SUBSCRIPTION_WORKER_URL
+        env_var_set: !!process.env.SUBSCRIPTION_WORKER_URL,
+        user_id: request.user.id
       });
       
       // Immediately send a 202 Accepted response to the client
       const response = {
         status: 'success',
         message: 'Subscription processing request accepted',
-        subscription_id: subscriptionId
+        subscription_id: subscriptionId,
+        processing_id: processingId
       };
       
       reply.code(202).send(response);
@@ -88,93 +124,151 @@ export async function registerProcessRoutes(fastify, options) {
         try {
           logRequest(requestContextCopy, 'Processing subscription asynchronously', {
             subscription_id: subscriptionId,
+            processing_id: processingId,
             user_id: request.user.id,
             worker_url: subscriptionWorkerUrl
           });
           
+          // Prepare request payload with full subscription data
+          const payload = {
+            user_id: request.user.id,
+            subscription_id: subscriptionId,
+            processing_id: processingId,
+            metadata: subscription.metadata || {},
+            prompts: subscription.prompts || [],
+            type: subscription.type || subscription.typeName
+          };
+          
           // Log request details before sending
           logRequest(requestContextCopy, 'Sending request to subscription worker', {
-            url: `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`,
+            url: `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
             subscription_id: subscriptionId,
             timestamp: new Date().toISOString()
           });
           
-          // Try the primary endpoint path
-          try {
-            const processingResponse = await axios.post(
-              `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`,
-              {
-                user_id: request.user.id,
-                subscription_id: subscriptionId,
-                metadata: subscription.metadata,
-                prompts: subscription.prompts
-              },
-              {
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                timeout: 10000 // 10 second timeout
-              }
-            );
+          // List of endpoints to try in order (from most specific to most general)
+          const endpointsToTry = [
+            `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
+            `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`
+          ];
+          
+          let lastError = null;
+          let success = false;
+          
+          // Try each endpoint until one succeeds
+          for (const endpoint of endpointsToTry) {
+            if (success) break;
             
-            logRequest(requestContextCopy, 'Subscription worker primary endpoint response', {
-              status: processingResponse.status,
-              data: processingResponse.data,
-              subscription_id: subscriptionId
-            });
-          } catch (primaryError) {
-            // Log the error from the primary endpoint
-            logError(requestContextCopy, 'Primary endpoint failed', {
-              error: primaryError.message,
-              code: primaryError.code,
-              subscription_id: subscriptionId,
-              response: primaryError.response?.data
-            });
-            
-            // Try the fallback endpoint path
-            logRequest(requestContextCopy, 'Trying fallback endpoint');
             try {
-              const fallbackResponse = await axios.post(
-                `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
-                {
-                  user_id: request.user.id,
-                  subscription_id: subscriptionId,
-                  metadata: subscription.metadata,
-                  prompts: subscription.prompts
-                },
+              logRequest(requestContextCopy, `Trying endpoint: ${endpoint}`, {
+                subscription_id: subscriptionId,
+                processing_id: processingId
+              });
+              
+              const processingResponse = await axios.post(
+                endpoint,
+                payload,
                 {
                   headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-Request-ID': requestContextCopy.requestId,
+                    'X-Processing-ID': processingId || 'unknown'
                   },
-                  timeout: 10000 // 10 second timeout
+                  timeout: 15000 // 15 second timeout
                 }
               );
               
-              logRequest(requestContextCopy, 'Subscription worker fallback endpoint response', {
-                status: fallbackResponse.status,
-                data: fallbackResponse.data,
-                subscription_id: subscriptionId
-              });
-            } catch (fallbackError) {
-              // Log the error from the fallback endpoint
-              logError(requestContextCopy, 'Fallback endpoint also failed', {
-                primary_error: primaryError.message,
-                fallback_error: fallbackError.message,
+              logRequest(requestContextCopy, 'Subscription worker response received', {
+                endpoint,
+                status: processingResponse.status,
+                data: processingResponse.data,
                 subscription_id: subscriptionId,
-                response: fallbackError.response?.data
+                processing_id: processingId
               });
               
-              // Throw to be caught by the outer catch
-              throw new Error(`Both endpoints failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`);
+              // If we reach here, the request was successful
+              success = true;
+              
+              // Update processing record if we have one
+              if (processingId) {
+                try {
+                  await query(
+                    `UPDATE subscription_processing
+                     SET status = 'processing', 
+                         updated_at = NOW(),
+                         metadata = jsonb_set(metadata, '{worker_response}', $1::jsonb)
+                     WHERE id = $2`,
+                    [JSON.stringify(processingResponse.data || {}), processingId]
+                  );
+                  
+                  logRequest(requestContextCopy, 'Updated processing record', {
+                    subscription_id: subscriptionId,
+                    processing_id: processingId,
+                    status: 'processing'
+                  });
+                } catch (updateError) {
+                  logError(requestContextCopy, 'Failed to update processing record', {
+                    error: updateError.message,
+                    subscription_id: subscriptionId,
+                    processing_id: processingId
+                  });
+                }
+              }
+              
+              break; // Exit the loop on success
+            } catch (error) {
+              lastError = error;
+              logError(requestContextCopy, `Endpoint ${endpoint} failed`, {
+                error: error.message,
+                code: error.code,
+                subscription_id: subscriptionId,
+                processing_id: processingId,
+                response: error.response?.data
+              });
+              
+              // Continue to next endpoint
             }
           }
+          
+          // If all endpoints failed
+          if (!success && lastError) {
+            throw lastError;
+          }
+          
         } catch (asyncError) {
           // Log the error but don't affect the client response (already sent)
           logError(requestContextCopy, 'Failed to process subscription asynchronously', {
             error: asyncError.message,
             stack: asyncError.stack,
-            subscription_id: subscriptionId
+            subscription_id: subscriptionId,
+            processing_id: processingId
           });
+          
+          // Update processing record to error state if we have one
+          if (processingId) {
+            try {
+              await query(
+                `UPDATE subscription_processing
+                 SET status = 'error', 
+                     updated_at = NOW(),
+                     error = $1
+                 WHERE id = $2`,
+                [asyncError.message, processingId]
+              );
+              
+              logRequest(requestContextCopy, 'Updated processing record to error state', {
+                subscription_id: subscriptionId,
+                processing_id: processingId,
+                error: asyncError.message
+              });
+            } catch (updateError) {
+              logError(requestContextCopy, 'Failed to update processing record error state', {
+                error: updateError.message,
+                subscription_id: subscriptionId,
+                processing_id: processingId
+              });
+            }
+          }
         }
       }, 10); // Small delay to ensure reply is sent first
       
