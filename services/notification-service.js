@@ -302,10 +302,131 @@ async function markNotificationAsRead(notificationId, userId) {
   }
 }
 
+/**
+ * Delete a notification
+ */
+async function deleteNotification(notificationId, userId) {
+  try {
+    // First try with user_id to ensure ownership
+    logger.debug('Attempting to delete notification with ownership check', {
+      notificationId,
+      userId
+    });
+
+    const resultWithOwnership = await db.query(
+      'DELETE FROM notifications WHERE id = ? AND user_id = ?',
+      [notificationId, userId]
+    );
+
+    if (resultWithOwnership.affectedRows > 0) {
+      logger.debug('Notification deleted successfully with ownership check', {
+        notificationId,
+        userId,
+        deleted: true
+      });
+      
+      metrics.increment('notification.deleted', { 
+        reason: 'explicit_request',
+        userId
+      });
+      
+      return true;
+    }
+
+    // If no rows affected, try to check if notification exists first
+    const exists = await db.query(
+      'SELECT 1 FROM notifications WHERE id = ?',
+      [notificationId]
+    );
+
+    if (exists.length === 0) {
+      // Notification doesn't exist, consider it "deleted" for UI consistency
+      logger.debug('Notification doesn\'t exist, considering it deleted', {
+        notificationId,
+        userId
+      });
+      
+      metrics.increment('notification.already_deleted', { 
+        userId
+      });
+      
+      return true;
+    }
+
+    logger.warn('Failed to delete notification - ownership mismatch', {
+      notificationId,
+      userId,
+      exists: exists.length > 0
+    });
+    
+    return false;
+  } catch (error) {
+    logger.error('Error deleting notification', {
+      error: error.message,
+      stack: error.stack,
+      notificationId,
+      userId
+    });
+    
+    metrics.increment('notification.delete_error', { 
+      reason: error.message,
+      userId
+    });
+    
+    throw error;
+  }
+}
+
+/**
+ * Delete all notifications for a user
+ */
+async function deleteAllNotifications(userId, { subscriptionId } = {}) {
+  try {
+    let query = 'DELETE FROM notifications WHERE user_id = ?';
+    const params = [userId];
+    
+    if (subscriptionId) {
+      query += ' AND JSON_EXTRACT(content, "$.subscriptionId") = ?';
+      params.push(subscriptionId);
+    }
+    
+    const result = await db.query(query, params);
+    
+    logger.debug('Deleted all notifications', {
+      userId,
+      subscriptionId: subscriptionId || 'all',
+      affectedRows: result.affectedRows
+    });
+    
+    metrics.increment('notification.bulk_deleted', { 
+      count: result.affectedRows,
+      userId
+    });
+    
+    return result.affectedRows;
+  } catch (error) {
+    logger.error('Error deleting all notifications', {
+      error: error.message,
+      stack: error.stack,
+      userId,
+      subscriptionId: subscriptionId || 'all'
+    });
+    
+    metrics.increment('notification.bulk_delete_error', { 
+      reason: error.message,
+      userId
+    });
+    
+    throw error;
+  }
+}
+
 module.exports = {
   createNotification,
   deliverNotificationRealtime,
   processQueuedNotification,
   getUserNotifications,
-  markNotificationAsRead
+  markNotificationAsRead,
+  deleteNotification,
+  deleteAllNotifications
 }; 
