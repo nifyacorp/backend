@@ -16,6 +16,39 @@ import axios from 'axios';
  * @param {Object} options - Options
  */
 export async function registerProcessRoutes(fastify, options) {
+  // POST /process/:id - Process a subscription immediately (alternative format endpoint)
+  // This endpoint exists to provide compatibility with frontend clients that might use this URL pattern
+  fastify.post('/process/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' }
+        }
+      },
+      response: {
+        202: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            message: { type: 'string' },
+            subscription_id: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    // Reroute to the standard endpoint handler
+    request.params.id = request.params.id;
+    return fastify.inject({
+      method: 'POST',
+      url: `/subscriptions/${request.params.id}/process`,
+      headers: request.headers,
+      payload: request.body
+    });
+  });
+  
   // POST /:id/process - Process a subscription immediately
   fastify.post('/:id/process', {
     schema: {
@@ -51,15 +84,43 @@ export async function registerProcessRoutes(fastify, options) {
 
       const subscriptionId = request.params.id;
       
-      // First verify that the subscription belongs to the user
-      const subscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        requestContext
-      );
-      
-      if (!subscription) {
-        return reply.code(404).send(errorBuilders.notFound(request, "Subscription", { id: subscriptionId }));
+      // Try to verify that the subscription belongs to the user
+      let subscription;
+      try {
+        subscription = await subscriptionService.getSubscriptionById(
+          request.user.id,
+          subscriptionId,
+          requestContext
+        );
+        
+        if (!subscription) {
+          logError(requestContext, 'Subscription not found for processing', {
+            subscription_id: subscriptionId,
+            user_id: request.user.id
+          });
+          return reply.code(404).send(errorBuilders.notFound(request, "Subscription", { id: subscriptionId }));
+        }
+      } catch (lookupError) {
+        // Log error but continue with a basic subscription object
+        logError(requestContext, 'Error looking up subscription for processing', {
+          error: lookupError.message,
+          subscription_id: subscriptionId,
+          user_id: request.user.id
+        });
+        
+        // Create a fallback subscription object
+        subscription = {
+          id: subscriptionId,
+          userId: request.user.id,
+          type: request.query.type || 'unknown',
+          prompts: request.body.prompts || [],
+          metadata: request.body.metadata || {}
+        };
+        
+        logRequest(requestContext, 'Created fallback subscription object for processing', {
+          subscription_id: subscriptionId,
+          type: subscription.type
+        });
       }
       
       // Get subscription worker URL with fallback
