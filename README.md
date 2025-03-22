@@ -135,7 +135,7 @@ This service functions as the central orchestration layer in the NIFYA ecosystem
 
 ## 📊 Database Schema
 
-The service uses a PostgreSQL database with the following key tables:
+The service uses a PostgreSQL database with a comprehensive schema for managing user data, subscriptions, and notifications. See [DB_README.md](./DB_README.md) for complete schema documentation.
 
 ### Core Tables
 - **users**: Core user data with preferences and notification settings
@@ -154,6 +154,37 @@ The service uses a PostgreSQL database with the following key tables:
 - Role-based access policies
 - User-scoped data access
 - System data protection
+
+### Database Schema Diagram
+
+```
+┌───────────────┐       ┌─────────────────┐       ┌──────────────────┐ 
+│    users      │       │subscription_types│       │subscription_     │
+├───────────────┤       ├─────────────────┤       │templates         │
+│ id            │◄──┐   │ id              │       ├──────────────────┤
+│ email         │   │   │ name            │       │ id               │
+│ name          │   │   │ description     │       │ type             │
+│ preferences   │   │   │ icon            │       │ name             │
+│ notif_settings│   │   │ logo            │       │ prompts          │
+└───────────────┘   │   │ is_system       │       │ settings         │
+        ▲           │   └─────────────────┘       │ icon             │
+        │           │             ▲               └──────────────────┘
+        │           │             │                        ▲
+        │           │             │                        │
+┌───────────────┐   │   ┌─────────────────┐               │
+│ notifications │   │   │  subscriptions  │               │
+├───────────────┤   │   ├─────────────────┤               │
+│ id            │   │   │ id              │               │
+│ user_id       │───┘   │ user_id         │───────────────┘
+│ subscription_id│◄──────│ type_id         │
+│ title         │       │ name            │
+│ content       │       │ prompts         │
+│ read          │       │ frequency       │
+│ email_sent    │       │ active          │
+└───────────────┘       └─────────────────┘
+```
+
+For detailed information about the database schema, relationships, and migrations, see the [Database Schema Documentation](./DB_README.md).
 
 ## 🚦 API Endpoints
 
