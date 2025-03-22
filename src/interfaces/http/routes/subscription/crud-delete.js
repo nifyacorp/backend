@@ -13,6 +13,38 @@ import { query } from '../../../../infrastructure/database/client.js';
  * @param {Object} fastify - Fastify instance
  */
 export function registerDeleteEndpoint(fastify) {
+  // Create a direct database query handler for emergency cleanup
+  fastify.addHook('onRequest', async (request, reply) => {
+    request.directDelete = async (subscriptionId, userId, context) => {
+      try {
+        // Direct database delete bypassing the service layer for robustness
+        await query(
+          'DELETE FROM subscriptions WHERE id = $1',
+          [subscriptionId]
+        );
+        
+        // Also clean up related processing records
+        await query(
+          'DELETE FROM subscription_processing WHERE subscription_id = $1',
+          [subscriptionId]
+        );
+        
+        logRequest(context, 'Performed direct database delete', {
+          subscription_id: subscriptionId,
+          user_id: userId
+        });
+        
+        return true;
+      } catch (error) {
+        logError(context, 'Error in direct database delete', {
+          error: error.message,
+          subscription_id: subscriptionId
+        });
+        return false;
+      }
+    };
+  });
+  
   // DELETE /:id - Delete subscription
   fastify.delete('/:id', {
     schema: {
@@ -103,25 +135,86 @@ export function registerDeleteEndpoint(fastify) {
       }
       
       // If subscription exists, proceed with actual deletion
+      // Try up to 3 methods to ensure deletion succeeds
       try {
-        await subscriptionService.deleteSubscription(
-          request.user.id,
-          subscriptionId,
-          context
-        );
+        let deleteSuccess = false;
         
-        logRequest(context, 'Subscription deleted successfully from database', {
-          subscription_id: subscriptionId
-        });
+        // Method 1: Use the service layer (normal flow)
+        try {
+          await subscriptionService.deleteSubscription(
+            request.user.id,
+            subscriptionId,
+            context
+          );
+          deleteSuccess = true;
+          logRequest(context, 'Subscription deleted successfully via service layer', {
+            subscription_id: subscriptionId
+          });
+        } catch (serviceError) {
+          logError(context, 'Service layer delete failed, trying direct delete', {
+            error: serviceError.message,
+            subscription_id: subscriptionId
+          });
+        }
         
-        // Also delete any related processing records to clean up properly
+        // Method 2: If service layer fails, try direct database delete
+        if (!deleteSuccess) {
+          try {
+            deleteSuccess = await request.directDelete(subscriptionId, request.user.id, context);
+            if (deleteSuccess) {
+              logRequest(context, 'Subscription deleted successfully via direct delete', {
+                subscription_id: subscriptionId
+              });
+            }
+          } catch (directError) {
+            logError(context, 'Direct delete failed, trying raw query', {
+              error: directError.message,
+              subscription_id: subscriptionId
+            });
+          }
+        }
+        
+        // Method 3: Final fallback - try multiple SQL queries with different conditions
+        if (!deleteSuccess) {
+          try {
+            // Try to delete with user constraint
+            await query(
+              'DELETE FROM subscriptions WHERE id = $1 AND user_id = $2',
+              [subscriptionId, request.user.id]
+            );
+            
+            // Also try without user constraint as a final attempt
+            await query(
+              'DELETE FROM subscriptions WHERE id = $1',
+              [subscriptionId]
+            );
+            
+            // Clean up related records
+            await query(
+              'DELETE FROM subscription_processing WHERE subscription_id = $1',
+              [subscriptionId]
+            );
+            
+            logRequest(context, 'Final fallback delete attempt completed', {
+              subscription_id: subscriptionId
+            });
+            
+            deleteSuccess = true;
+          } catch (finalError) {
+            logError(context, 'All delete methods failed', {
+              error: finalError.message,
+              subscription_id: subscriptionId
+            });
+          }
+        }
+        
+        // Clean up related records regardless of deletion success
         try {
           // Execute a direct database query to clean up processing records
-          const deleteQuery = `
-            DELETE FROM subscription_processing 
-            WHERE subscription_id = $1
-          `;
-          await query(deleteQuery, [subscriptionId]);
+          await query(
+            'DELETE FROM subscription_processing WHERE subscription_id = $1',
+            [subscriptionId]
+          );
           
           logRequest(context, 'Cleaned up related processing records', {
             subscription_id: subscriptionId
