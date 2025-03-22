@@ -17,7 +17,10 @@ const MIGRATIONS_TABLE = `
 `;
 
 // Consolidated migration file - this is the current schema state
-const CONSOLIDATED_MIGRATION = '20250301000000_consolidated_schema.sql';
+// Skip the consolidated schema due to syntax issues
+// const CONSOLIDATED_MIGRATION = '20250301000000_consolidated_schema.sql';
+const CONSOLIDATED_MIGRATION = '20250323000000_fix_consolidated_schema.sql';
+const PROBLEMATIC_FILES = ['20250301000000_consolidated_schema.sql'];
 
 export async function initializeMigrations() {
   // Check if we're in development mode with DB validation skipped
@@ -57,6 +60,7 @@ export async function initializeMigrations() {
     const migrationsDir = path.join(__dirname, '../../../supabase/migrations');
     const files = fs.readdirSync(migrationsDir)
       .filter(file => file.endsWith('.sql'))
+      .filter(file => !PROBLEMATIC_FILES.includes(file)) // Skip problematic files
       .sort();
     
     console.log('📁 Found migration files:', files);
