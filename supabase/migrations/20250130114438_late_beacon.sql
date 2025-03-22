@@ -189,11 +189,11 @@ CREATE POLICY subscription_types_select ON subscription_types
 
 CREATE POLICY subscription_types_insert ON subscription_types
   FOR INSERT TO app_user
-  WITH CHECK (NOT is_system AND created_by = current_user_id());
+  WITH CHECK (is_system = false AND created_by = current_user_id());
 
 CREATE POLICY subscription_types_update ON subscription_types
   FOR UPDATE TO app_user
-  USING (NOT is_system AND created_by = current_user_id());
+  USING (is_system = false AND created_by = current_user_id());
 
 -- Subscriptions policies
 CREATE POLICY subscriptions_select ON subscriptions

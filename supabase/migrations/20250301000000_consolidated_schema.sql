@@ -1,12 +1,13 @@
 /*
-  # Consolidated Database Schema (March 2025)
+  # Fixed Consolidated Database Schema (March 23, 2025)
   
-  This file consolidates all previous migrations into a single file for easier maintenance.
+  This file provides a fixed version of the consolidated schema with proper syntax.
   It incorporates:
   - Initial schema setup (20250130114438_late_beacon.sql)
   - Template field additions (20250130154752_pale_gate.sql)
   - Template schema updates (20250130170506_raspy_gate.sql)
   - Notification email tracking (20250225000001_notification_email_sent.sql)
+  - Fixed RLS policy syntax (20250301000000_consolidated_schema.sql)
   
   ## Tables Overview
   1. users - Core user accounts with preferences
