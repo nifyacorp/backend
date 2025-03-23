@@ -20,14 +20,14 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can update their own profiles" ON users;
 CREATE POLICY "Users can update their own profiles" 
   ON users FOR UPDATE
-  USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
+  USING (id = current_user_id())
+  WITH CHECK (id = current_user_id());
 
 -- Update the user SELECT policy
 DROP POLICY IF EXISTS "Users can view their own profiles" ON users;
 CREATE POLICY "Users can view their own profiles" 
   ON users FOR SELECT
-  USING (id = auth.uid());
+  USING (id = current_user_id());
 
 -- Comment on columns for documentation
 COMMENT ON COLUMN users.email_notifications IS 'Flag indicating if the user wants to receive email notifications';
