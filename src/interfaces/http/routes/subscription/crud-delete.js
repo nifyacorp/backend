@@ -96,13 +96,14 @@ export function registerDeleteEndpoint(fastify) {
       let subscriptionExists = false;
       
       try {
-        existingSubscription = await subscriptionService.getSubscriptionById(
-          request.user.id,
-          subscriptionId,
-          context
+        // Try-catch this specific query instead of letting errors propagate
+        const result = await query(
+          'SELECT id, name FROM subscriptions WHERE id = $1 AND user_id = $2',
+          [subscriptionId, request.user.id]
         );
         
-        if (existingSubscription) {
+        if (result.rows && result.rows.length > 0) {
+          existingSubscription = result.rows[0];
           subscriptionExists = true;
           logRequest(context, 'Subscription found, proceeding with deletion', {
             subscription_id: subscriptionId,
@@ -115,8 +116,8 @@ export function registerDeleteEndpoint(fastify) {
         }
       } catch (checkError) {
         // Log error but continue with deletion attempt to ensure UI state is cleaned up
-        logError(context, 'Error checking subscription existence', {
-          error: checkError.message,
+        logError(context, checkError, {
+          operation: 'checking subscription existence',
           subscription_id: subscriptionId
         });
       }
@@ -228,8 +229,8 @@ export function registerDeleteEndpoint(fastify) {
         }
       } catch (deleteError) {
         // Log detailed error but still return success to frontend
-        logError(context, 'Error during subscription deletion', {
-          error: deleteError.message,
+        logError(context, deleteError, {
+          operation: 'subscription deletion',
           subscription_id: subscriptionId
         });
         
@@ -261,7 +262,10 @@ export function registerDeleteEndpoint(fastify) {
       logError(context, error);
       
       // Special handling for 404 errors
-      if (error.code === 'NOT_FOUND' || error.status === 404) {
+      if (error.code === 'NOT_FOUND' || error.code === 'SUBSCRIPTION_NOT_FOUND' || error.status === 404) {
+        logRequest(context, 'Subscription not found, treating as already removed', {
+          subscription_id: request.params.id
+        });
         return reply.code(200).send({
           status: 'success',
           message: 'Subscription has been removed',

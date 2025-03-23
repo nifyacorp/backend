@@ -49,7 +49,11 @@ class SubscriptionService {
 
       return result.rows[0];
     } catch (error) {
-      logError(context, error);
+      logError(context, error, { 
+        method: 'getSubscriptionById',
+        userId,
+        subscriptionId
+      });
       console.error('Service: Error in getSubscriptionById:', error);
 
       if (error instanceof AppError) {
@@ -59,7 +63,8 @@ class SubscriptionService {
       throw new AppError(
         SUBSCRIPTION_ERRORS.FETCH_ERROR.code,
         SUBSCRIPTION_ERRORS.FETCH_ERROR.message,
-        500
+        500,
+        { subscriptionId }
       );
     }
   }
