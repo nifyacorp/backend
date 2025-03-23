@@ -1,0 +1,42 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 
+      'gcr.io/$PROJECT_ID/nifya-orchestration-service', 
+      '--build-arg', 
+      'BUILD_TIMESTAMP=${_BUILD_TIMESTAMP}',
+      '--build-arg',
+      'COMMIT_SHA=$COMMIT_SHA',
+      '--build-arg',
+      'DEPLOYMENT_ID=$BUILD_ID',
+      '.'
+    ]
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/nifya-orchestration-service']
+  
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'nifya-orchestration-service'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/nifya-orchestration-service'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'NODE_ENV=production,BUILD_TIMESTAMP=${_BUILD_TIMESTAMP},COMMIT_SHA=$COMMIT_SHA,DEPLOYMENT_ID=$BUILD_ID'
+
+substitutions:
+  _BUILD_TIMESTAMP: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+images:
+  - 'gcr.io/$PROJECT_ID/nifya-orchestration-service'

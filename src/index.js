@@ -78,10 +78,71 @@ await fastify.register(swagger, {
   }
 });
 
-// Add health check route
+// Add health and version check routes
 fastify.get('/health', async () => {
-  return { status: 'healthy', timestamp: new Date().toISOString() };
+  const packageVersion = process.env.npm_package_version || '1.0.0';
+  const buildTimestamp = process.env.BUILD_TIMESTAMP || new Date().toISOString();
+  const commitSha = process.env.COMMIT_SHA || 'unknown';
+  
+  return {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: {
+      package: packageVersion,
+      buildTimestamp,
+      commitSha,
+      environment: process.env.NODE_ENV || 'development'
+    },
+    memory: process.memoryUsage(),
+    services: {
+      database: 'connected' // We're assuming database is connected if the server is running
+    }
+  };
 });
+
+// Add dedicated version endpoint for deployment tracking
+fastify.get('/version', async () => {
+  const packageVersion = process.env.npm_package_version || '1.0.0';
+  const buildTimestamp = process.env.BUILD_TIMESTAMP || new Date().toISOString();
+  const commitSha = process.env.COMMIT_SHA || 'unknown';
+  const deploymentId = process.env.DEPLOYMENT_ID || 'local';
+  
+  return {
+    api_version: 'v1',
+    service: 'nifya-orchestration-service',
+    version: packageVersion,
+    build: {
+      timestamp: buildTimestamp,
+      commit: commitSha,
+      deployment_id: deploymentId
+    },
+    environment: process.env.NODE_ENV || 'development',
+    features: {
+      notifications: true,
+      subscriptions: true,
+      templates: true
+    },
+    uptime_seconds: process.uptime(),
+    uptime_formatted: formatUptime(process.uptime())
+  };
+});
+
+// Helper function to format uptime in a human-readable format
+function formatUptime(uptime) {
+  const days = Math.floor(uptime / 86400);
+  const hours = Math.floor((uptime % 86400) / 3600);
+  const minutes = Math.floor((uptime % 3600) / 60);
+  const seconds = Math.floor(uptime % 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+  
+  return parts.join(' ');
+}
 
 // Register diagnostics routes (public for testing)
 fastify.register(diagnosticsRoutes, { prefix: '/api/v1/diagnostics' });

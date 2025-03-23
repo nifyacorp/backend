@@ -18,8 +18,16 @@ RUN npm install --no-audit --no-fund && \
 # Copy app source
 COPY . .
 
+# Define build arguments
+ARG BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+ARG COMMIT_SHA=unknown
+ARG DEPLOYMENT_ID=local
+
 # Set environment variables
 ENV NODE_ENV=production
+ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
+ENV COMMIT_SHA=${COMMIT_SHA}
+ENV DEPLOYMENT_ID=${DEPLOYMENT_ID}
 
 # Expose port
 EXPOSE 3000
