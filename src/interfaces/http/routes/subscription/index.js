@@ -8,6 +8,7 @@ import { registerCrudRoutes } from './crud.routes.js';
 import { registerDeleteEndpoint } from './crud-delete.js';
 import { registerProcessRoutes } from './process.routes.js';
 import { registerSharingRoutes } from './sharing.routes.js';
+import { registerStatusRoutes } from './status.routes.js';
 import { subscriptionService } from '../../../../core/subscription/index.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
 
@@ -89,6 +90,7 @@ export async function subscriptionRoutes(fastify, options) {
   
   await registerProcessRoutes(fastify, options);
   await registerSharingRoutes(fastify, options);
+  await registerStatusRoutes(fastify, options);
   
   // API metadata is now defined in crud.routes.js to avoid conflicts
 }
