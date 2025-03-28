@@ -143,12 +143,93 @@ function normalizeNotification(notification) {
     const title = extractNotificationTitle(content, notification.type, notification.user_id);
 
     // Create a normalized notification object
+    // Extract entity_type from content with more extensive fallback options
+    // to align with notification-worker output
+    let entity_type = '';
+    if (content && typeof content === 'object') {
+      // Direct entity_type field
+      if (content.entity_type) {
+        entity_type = content.entity_type;
+      } 
+      // Check for entity_type in metadata
+      else if (content.metadata && content.metadata.entity_type) {
+        entity_type = content.metadata.entity_type;
+      }
+      // Construct from document_type for BOE documents
+      else if (content.document_type) {
+        entity_type = `boe:${content.document_type.toLowerCase()}`;
+      }
+      // Check notification type
+      else if (notification.type) {
+        // Handle BOE notifications
+        if (notification.type.toLowerCase().includes('boe')) {
+          entity_type = 'boe:boe_document';
+        } else {
+          // Use type as fallback
+          entity_type = notification.type.toLowerCase().replace(/_/g, ':');
+        }
+      }
+    }
+    
+    // Extract sourceUrl from various possible locations
+    const sourceUrl = content.sourceUrl || content.source_url || content.url || 
+                     (content.links && content.links.html) || '';
+    
+    // Get subscription_name if available
+    const subscription_name = content.subscription_name || '';
+    
+    // Get metadata object with special handling for BOE documents to align with notification-worker
+    let metadata = content.metadata || {};
+    
+    // If this is a BOE notification, ensure we have the proper metadata structure
+    if (entity_type.startsWith('boe:') || (notification.type && notification.type.includes('BOE'))) {
+      // If metadata is stringified JSON, parse it
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          // Keep as is if parsing fails
+          metadata = { raw: metadata };
+        }
+      }
+      
+      // Add expected BOE fields if missing but available in content
+      if (content.document_type && !metadata.document_type) {
+        metadata.document_type = content.document_type;
+      }
+      
+      if (content.issuing_body && !metadata.issuing_body) {
+        metadata.issuing_body = content.issuing_body;
+      }
+      
+      if (content.publication_date && !metadata.publication_date) {
+        metadata.publication_date = content.publication_date;
+      }
+    }
+    
+    // Ensure we have a proper document_type to match notification-worker output
+    let document_type = '';
+    
+    if (content && typeof content === 'object') {
+      document_type = content.document_type || 
+                     (metadata && metadata.document_type) || 
+                     (entity_type.startsWith('boe:') ? 'boe_document' : '');
+    }
+    
+    // Construct normalized notification object with fields that match
+    // notification-worker's output structure
     return {
       id: notification.id,
-      userId: notification.user_id,
+      userId: notification.user_id || notification.userId,
+      subscriptionId: content.subscriptionId || content.subscription_id || '',
+      subscription_name,
+      entity_type,
+      document_type,
       type: notification.type,
       title,
-      content,
+      content: typeof content === 'string' ? content : JSON.stringify(content), 
+      sourceUrl,
+      metadata,
       read: notification.read || false,
       createdAt: notification.created_at || notification.createdAt || new Date().toISOString()
     };
@@ -165,6 +246,11 @@ function normalizeNotification(notification) {
       type: notification.type || 'ERROR',
       title: 'Error Processing Notification',
       content: { error: 'Failed to normalize notification content' },
+      entity_type: 'error:processing',
+      metadata: {},
+      sourceUrl: '',
+      subscription_name: '',
+      subscriptionId: '',
       read: notification.read || false,
       createdAt: notification.created_at || notification.createdAt || new Date().toISOString()
     };

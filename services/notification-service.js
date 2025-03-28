@@ -320,18 +320,75 @@ async function getUserNotifications(userId, options = { limit: 20, offset: 0, in
 
     // Apply normalization to ensure consistent notification format
     return notifications.map(notification => {
-      const normalizedContent = typeof notification.content === 'string' 
-        ? JSON.parse(notification.content) 
-        : notification.content;
-      
-      // Create a working notification object
-      const workingNotification = {
-        ...notification,
-        content: normalizedContent
-      };
-      
-      // Use our helper to normalize the notification
-      return normalizeNotification(workingNotification);
+      try {
+        // Parse content if it's a string
+        const normalizedContent = typeof notification.content === 'string' 
+          ? JSON.parse(notification.content) 
+          : notification.content;
+        
+        // Create a working notification object
+        const workingNotification = {
+          ...notification,
+          content: normalizedContent
+        };
+        
+        // Use our helper to normalize the notification
+        const normalizedNotification = normalizeNotification(workingNotification);
+        
+        // Debug log to diagnose field issues
+        logger.debug('Normalized notification', {
+          id: normalizedNotification.id,
+          title: normalizedNotification.title,
+          type: normalizedNotification.type,
+          fields: Object.keys(normalizedNotification)
+        });
+        
+        // Add entity_type field if it exists in content
+        if (normalizedContent.entity_type) {
+          normalizedNotification.entity_type = normalizedContent.entity_type;
+        }
+        
+        // Add subscription_name if it exists in content
+        if (normalizedContent.subscription_name) {
+          normalizedNotification.subscription_name = normalizedContent.subscription_name;
+        }
+        
+        // Ensure we have source URL
+        if (normalizedContent.sourceUrl || normalizedContent.source_url || normalizedContent.url) {
+          normalizedNotification.sourceUrl = normalizedContent.sourceUrl || normalizedContent.source_url || normalizedContent.url;
+        }
+        
+        // Add metadata object directly to normalize notification object
+        if (normalizedContent.metadata) {
+          normalizedNotification.metadata = normalizedContent.metadata;
+        } else {
+          // Use content as metadata if no dedicated metadata field
+          normalizedNotification.metadata = normalizedContent;
+        }
+        
+        return normalizedNotification;
+      } catch (error) {
+        logger.error('Error normalizing specific notification', {
+          error: error.message,
+          notification_id: notification.id,
+          content_sample: typeof notification.content === 'string' 
+            ? notification.content.substring(0, 100) 
+            : JSON.stringify(notification.content).substring(0, 100)
+        });
+        
+        // Return a minimal valid notification to prevent client errors
+        return {
+          id: notification.id || 'error-' + Date.now(),
+          userId: notification.user_id || 'unknown',
+          type: notification.type || 'ERROR',
+          title: 'Notification',
+          content: { error: 'Error processing notification' },
+          entity_type: 'error:processing',
+          metadata: {},
+          read: notification.read || false,
+          createdAt: notification.created_at || new Date().toISOString()
+        };
+      }
     });
   } catch (error) {
     logger.error('Error fetching user notifications', {
@@ -543,6 +600,36 @@ async function publishToEmailNotificationTopic({ notificationId, userId, email, 
   }
 }
 
+/**
+ * Count unread notifications for a user
+ */
+async function countUnreadNotifications(userId) {
+  try {
+    const result = await db.query(
+      'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = FALSE',
+      [userId]
+    );
+    
+    const count = result[0].count || 0;
+    
+    logger.debug('Counted unread notifications', {
+      userId,
+      count
+    });
+    
+    return count;
+  } catch (error) {
+    logger.error('Error counting unread notifications', {
+      error: error.message,
+      stack: error.stack,
+      userId
+    });
+    
+    // Return 0 to avoid breaking the UI
+    return 0;
+  }
+}
+
 module.exports = {
   createNotification,
   deliverNotificationRealtime,
@@ -551,5 +638,6 @@ module.exports = {
   markNotificationAsRead,
   deleteNotification,
   deleteAllNotifications,
-  publishToEmailNotificationTopic
+  publishToEmailNotificationTopic,
+  countUnreadNotifications
 }; 

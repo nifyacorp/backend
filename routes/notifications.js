@@ -21,15 +21,19 @@ router.get('/', async (req, res) => {
       includeRead
     });
 
+    // Count unread notifications for this user
+    const unreadCount = await notificationService.countUnreadNotifications(userId);
+    
+    // Format response object to match what frontend expects
     res.status(200).json({
       status: 'success',
       data: {
         notifications,
-        pagination: {
-          limit,
-          offset,
-          total: notifications.length // This should be improved to return actual total count
-        }
+        total: notifications.length, // Should be improved to return actual total count
+        unread: unreadCount,
+        page: parseInt(req.query.page) || 1,
+        limit,
+        hasMore: notifications.length >= limit // If we got a full page, there might be more
       }
     });
   } catch (error) {
