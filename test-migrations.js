@@ -1,232 +1,218 @@
 /**
- * Test script for verifying migration integrity
+ * Migration Test Script
  * 
- * This script validates database migrations without actually applying them.
- * It checks for SQL syntax errors and other common issues.
+ * This script tests the database migrations against a local PostgreSQL database.
+ * It can import a SQL dump and then run the migrations to verify they work correctly.
  */
 
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { Pool } from 'pg';
+import { promises as fs } from 'fs';
+import { spawn } from 'child_process';
+import { initializeMigrations } from './src/infrastructure/database/safe-migrations.js';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
-// Get directory paths
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.join(__dirname, 'supabase/migrations');
+// Configuration
+const DB_NAME = process.env.DB_NAME || 'nifya';
+const DB_USER = process.env.DB_USER || 'postgres';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = process.env.DB_PORT || '5432';
 
-// Create temporary test database connection
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  max: 1 // Use only one connection
-});
+const SQL_DUMP_PATH = './RealSQL/nifya.sql';
 
 /**
- * Check if SQL is valid by parsing it
+ * Execute a shell command
  */
-async function validateSqlSyntax(sql, filename) {
-  // Create temporary transaction and roll it back
-  const client = await pool.connect();
-  
-  try {
-    // Start transaction
-    await client.query('BEGIN');
+function executeCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    console.log(`Running: ${command} ${args.join(' ')}`);
     
-    // Set to read-only mode to prevent accidental changes
-    await client.query('SET TRANSACTION READ ONLY');
+    const process = spawn(command, args, {
+      stdio: options.silent ? 'pipe' : 'inherit',
+      shell: true,
+      ...options
+    });
     
-    try {
-      // Execute a EXPLAIN to parse the SQL without executing it
-      // Note: This only works for SELECT statements, so we'll use a different approach
+    let stdout = '';
+    let stderr = '';
+    
+    if (options.silent) {
+      process.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
       
-      // Try to execute the SQL in a savepoint we can roll back
-      await client.query('SAVEPOINT syntax_check');
-      
-      // Add DO block around statements that don't return results
-      const wrappedSql = `
-        DO $$
-        BEGIN
-          -- Original SQL follows:
-          ${sql}
-          -- End of original SQL
-        EXCEPTION WHEN OTHERS THEN
-          -- Catch exceptions and re-raise with context
-          RAISE EXCEPTION 'SQL syntax error in %: %', '${filename.replace(/'/g, "''")}', SQLERRM;
-        END;
-        $$;
-      `;
-      
-      await client.query(wrappedSql);
-      await client.query('RELEASE SAVEPOINT syntax_check');
-      
-      return { valid: true };
-    } catch (error) {
-      // Roll back to savepoint
-      if (client.query) {
-        await client.query('ROLLBACK TO SAVEPOINT syntax_check');
+      process.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+    }
+    
+    process.on('close', (code) => {
+      if (code !== 0) {
+        if (options.silent) {
+          console.error(`Command failed with code ${code}: ${stderr}`);
+        }
+        reject(new Error(`Command failed with code ${code}`));
+        return;
       }
       
-      // Extract useful information from the error
-      return {
-        valid: false,
-        message: error.message,
-        detail: error.detail,
-        hint: error.hint,
-        position: error.position
-      };
-    }
-  } finally {
-    // Always roll back the transaction and release the client
-    try {
-      await client.query('ROLLBACK');
-    } catch (e) {
-      console.error('Error rolling back transaction:', e);
-    }
-    client.release();
-  }
+      resolve({ stdout, stderr });
+    });
+  });
 }
 
 /**
- * Check for common SQL issues in migrations
+ * Check if PostgreSQL is running
  */
-function checkForCommonIssues(sql, filename) {
-  const issues = [];
-  
-  // Check for unquoted JSON keys or values
-  const jsonPatterns = [
-    { pattern: /DEFAULT\s+{[^}]*}\s*::jsonb/g, message: 'Unquoted JSON literal (should be DEFAULT \'{"key":"value"}\'::jsonb)' },
-    { pattern: /DEFAULT\s+{[^}]*}\s*::json/g, message: 'Unquoted JSON literal (should be DEFAULT \'{"key":"value"}\'::json)' },
-    { pattern: /=\s+{[^}]*}\s*::jsonb/g, message: 'Unquoted JSON literal (should be = \'{"key":"value"}\'::jsonb)' },
-    { pattern: /=\s+{[^}]*}\s*::json/g, message: 'Unquoted JSON literal (should be = \'{"key":"value"}\'::json)' }
-  ];
-  
-  for (const { pattern, message } of jsonPatterns) {
-    if (pattern.test(sql)) {
-      issues.push({ type: 'json_syntax', message });
-    }
-  }
-  
-  // Check for non-idempotent operations without guards
-  if (
-    sql.includes('CREATE TABLE') && 
-    !sql.includes('IF NOT EXISTS') && 
-    !sql.includes('DO $$') // Allow if it's in a PL/pgSQL block that might have its own checks
-  ) {
-    issues.push({ type: 'not_idempotent', message: 'CREATE TABLE without IF NOT EXISTS can fail if table already exists' });
-  }
-  
-  if (
-    sql.includes('CREATE INDEX') && 
-    !sql.includes('IF NOT EXISTS') &&
-    !sql.includes('DO $$')
-  ) {
-    issues.push({ type: 'not_idempotent', message: 'CREATE INDEX without IF NOT EXISTS can fail if index already exists' });
-  }
-  
-  // Check for potential RLS issues
-  if (sql.includes('ENABLE ROW LEVEL SECURITY') && !sql.includes('CREATE POLICY')) {
-    issues.push({ type: 'rls_warning', message: 'RLS enabled but no policies created - table might be inaccessible' });
-  }
-  
-  // Check for concatenation in SQL that might be unsafe
-  const badConcatenation = /\|\|\s*([^'].*?['"]|[^"].*?['"])/g;
-  if (badConcatenation.test(sql)) {
-    issues.push({ type: 'potentially_unsafe', message: 'SQL concatenation may need parentheses to avoid precedence issues' });
-  }
-  
-  return issues;
-}
-
-/**
- * Main function to validate all migrations
- */
-async function validateMigrations() {
-  console.log(`\n🔍 Validating migrations in ${MIGRATIONS_DIR}\n`);
-  
+async function checkPostgres() {
   try {
-    // Get all migration files
-    const files = await fs.readdir(MIGRATIONS_DIR);
+    await executeCommand('psql', [
+      '-h', DB_HOST,
+      '-p', DB_PORT,
+      '-U', DB_USER,
+      '-c', 'SELECT 1'
+    ], { env: { PGPASSWORD: DB_PASSWORD }, silent: true });
     
-    // Filter for SQL files and sort
-    const migrationFiles = files
-      .filter(file => file.endsWith('.sql'))
-      .sort();
-    
-    let hasErrors = false;
-    let totalIssues = 0;
-    
-    // Check each migration file
-    for (const filename of migrationFiles) {
-      console.log(`Checking ${filename}...`);
-      
-      // Read the file
-      const filePath = path.join(MIGRATIONS_DIR, filename);
-      const sql = await fs.readFile(filePath, 'utf-8');
-      
-      // Validate SQL syntax
-      const syntaxResult = await validateSqlSyntax(sql, filename);
-      if (!syntaxResult.valid) {
-        console.error(`❌ SQL syntax error in ${filename}:`);
-        console.error(`   ${syntaxResult.message}`);
-        if (syntaxResult.position) {
-          // Calculate line number from position
-          const lines = sql.substring(0, parseInt(syntaxResult.position, 10)).split('\n');
-          const lineNumber = lines.length;
-          console.error(`   Error near line ${lineNumber}`);
-        }
-        if (syntaxResult.hint) {
-          console.error(`   Hint: ${syntaxResult.hint}`);
-        }
-        hasErrors = true;
-        totalIssues++;
-      }
-      
-      // Check for common issues
-      const issues = checkForCommonIssues(sql, filename);
-      if (issues.length > 0) {
-        console.warn(`⚠️ Potential issues in ${filename}:`);
-        issues.forEach(issue => {
-          console.warn(`   - ${issue.message}`);
-        });
-        totalIssues += issues.length;
-      }
-      
-      if (!syntaxResult.valid || issues.length > 0) {
-        console.log('');
-      } else {
-        console.log(`✅ No issues found\n`);
-      }
-    }
-    
-    // Summary
-    if (hasErrors) {
-      console.error(`\n❌ Validation failed with ${totalIssues} issue(s). Please fix the errors before deploying.`);
-      process.exit(1);
-    } else if (totalIssues > 0) {
-      console.warn(`\n⚠️ Validation completed with ${totalIssues} warning(s). Please review before deploying.`);
-      process.exit(0);
-    } else {
-      console.log(`\n✅ All migrations passed validation successfully!`);
-      process.exit(0);
-    }
+    console.log('✅ PostgreSQL is running');
+    return true;
   } catch (error) {
-    console.error('Error validating migrations:', error);
-    process.exit(1);
-  } finally {
-    // Close the pool
-    await pool.end();
+    console.error('❌ PostgreSQL is not running or credentials are incorrect');
+    return false;
   }
 }
 
-// Run the validation
-validateMigrations().catch(error => {
-  console.error('Unhandled error:', error);
-  process.exit(1);
-});
+/**
+ * Check if test database exists
+ */
+async function databaseExists() {
+  try {
+    await executeCommand('psql', [
+      '-h', DB_HOST,
+      '-p', DB_PORT,
+      '-U', DB_USER,
+      '-d', DB_NAME,
+      '-c', 'SELECT 1'
+    ], { env: { PGPASSWORD: DB_PASSWORD }, silent: true });
+    
+    console.log(`✅ Database '${DB_NAME}' exists`);
+    return true;
+  } catch (error) {
+    console.log(`Database '${DB_NAME}' does not exist or is not accessible`);
+    return false;
+  }
+}
+
+/**
+ * Create a fresh test database
+ */
+async function createTestDatabase() {
+  // Drop the database if it exists
+  try {
+    await executeCommand('psql', [
+      '-h', DB_HOST,
+      '-p', DB_PORT,
+      '-U', DB_USER,
+      '-c', `DROP DATABASE IF EXISTS ${DB_NAME}`
+    ], { env: { PGPASSWORD: DB_PASSWORD } });
+    
+    console.log(`✅ Database '${DB_NAME}' dropped (if it existed)`);
+  } catch (error) {
+    console.error(`Failed to drop database: ${error.message}`);
+  }
+  
+  // Create a fresh database
+  try {
+    await executeCommand('psql', [
+      '-h', DB_HOST,
+      '-p', DB_PORT,
+      '-U', DB_USER,
+      '-c', `CREATE DATABASE ${DB_NAME}`
+    ], { env: { PGPASSWORD: DB_PASSWORD } });
+    
+    console.log(`✅ Database '${DB_NAME}' created`);
+  } catch (error) {
+    console.error(`Failed to create database: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Import SQL dump
+ */
+async function importSqlDump() {
+  try {
+    // Check if dump file exists
+    await fs.access(SQL_DUMP_PATH);
+    
+    // Import the SQL dump
+    await executeCommand('psql', [
+      '-h', DB_HOST,
+      '-p', DB_PORT,
+      '-U', DB_USER,
+      '-d', DB_NAME,
+      '-f', SQL_DUMP_PATH
+    ], { env: { PGPASSWORD: DB_PASSWORD } });
+    
+    console.log(`✅ SQL dump imported from ${SQL_DUMP_PATH}`);
+  } catch (error) {
+    console.error(`Failed to import SQL dump: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Run migrations
+ */
+async function runMigrations() {
+  console.log('Running migrations...');
+  
+  try {
+    await initializeMigrations({
+      requestId: 'test-migrations',
+      path: 'test-script',
+      method: 'TEST'
+    });
+    
+    console.log('✅ Migrations completed successfully');
+  } catch (error) {
+    console.error('❌ Migrations failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Main function
+ */
+async function main() {
+  try {
+    console.log('=== Testing Database Migrations ===');
+    
+    // Check if PostgreSQL is running
+    if (!(await checkPostgres())) {
+      console.error('Please ensure PostgreSQL is running and credentials are correct');
+      process.exit(1);
+    }
+    
+    // Create a fresh test database
+    await createTestDatabase();
+    
+    // Import SQL dump if specified
+    if (await fs.access(SQL_DUMP_PATH).then(() => true).catch(() => false)) {
+      await importSqlDump();
+    } else {
+      console.log(`SQL dump file not found at ${SQL_DUMP_PATH}, starting with empty database`);
+    }
+    
+    // Run migrations
+    await runMigrations();
+    
+    console.log('\n✅ Migration test completed successfully!');
+  } catch (error) {
+    console.error('\n❌ Migration test failed:', error.message);
+    process.exit(1);
+  }
+}
+
+// Run the main function
+main();

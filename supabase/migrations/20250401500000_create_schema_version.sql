@@ -33,6 +33,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Register this migration
+-- Register this migration using ON CONFLICT DO NOTHING to prevent errors
 INSERT INTO schema_version (version, description)
-VALUES ('20250401500000', 'Create schema_version table');
+VALUES ('20250401500000', 'Create schema_version table')
+ON CONFLICT (version) DO NOTHING;

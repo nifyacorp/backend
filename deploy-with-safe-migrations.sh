@@ -1,75 +1,77 @@
 #!/bin/bash
-# Deploy the backend with the production-safe migration system
+# Production-safe deployment script for NIFYA backend
 
-# Set this script to exit on first error
 set -e
 
-echo "🚀 Deploying backend with production-safe migrations..."
+# Colors for pretty output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-# Get the current directory
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$DIR"
+echo -e "${YELLOW}=== NIFYA Backend Deployment with Safe Migrations ===${NC}\n"
 
-# Check if we're in the backend directory
-if [[ $(basename "$PWD") != "backend" ]]; then
-  echo "❌ Error: This script must be run from the backend directory"
+# Check if running in Cloud Run environment
+if [ -z "$PORT" ]; then
+  echo -e "${YELLOW}PORT environment variable not set, assuming local deployment${NC}"
+  export PORT=8080
+fi
+
+# Create backup of database if possible
+if [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_NAME" ]; then
+  echo -e "${YELLOW}Checking if database backup is possible...${NC}"
+  
+  # Only try to create backup if pg_dump is available
+  if command -v pg_dump &> /dev/null; then
+    BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).sql"
+    echo -e "${YELLOW}Creating database backup to $BACKUP_FILE...${NC}"
+    
+    if PGPASSWORD=$DB_PASSWORD pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME > $BACKUP_FILE 2>/dev/null; then
+      echo -e "${GREEN}✅ Database backup created successfully${NC}"
+    else
+      echo -e "${YELLOW}⚠️ Could not create database backup, continuing without it${NC}"
+    fi
+  else
+    echo -e "${YELLOW}pg_dump not found, skipping database backup${NC}"
+  fi
+fi
+
+# Verify migration files
+MIGRATIONS_DIR="./supabase/migrations"
+if [ ! -d "$MIGRATIONS_DIR" ]; then
+  echo -e "${RED}❌ Migrations directory not found: $MIGRATIONS_DIR${NC}"
   exit 1
 fi
 
-# Step 1: Create a backup of the database
-echo "📦 Creating database backup..."
-DB_NAME=${DB_NAME:-$(grep DB_NAME .env | cut -d '=' -f2)}
-BACKUP_FILE="db_backup_$(date +%Y%m%d_%H%M%S).sql"
+MIGRATION_COUNT=$(ls -1 $MIGRATIONS_DIR/*.sql 2>/dev/null | wc -l)
+if [ "$MIGRATION_COUNT" -eq "0" ]; then
+  echo -e "${RED}❌ No migration files found in $MIGRATIONS_DIR${NC}"
+  exit 1
+fi
 
-if command -v pg_dump &> /dev/null; then
-  pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME}" -f "$BACKUP_FILE" || echo "⚠️ Warning: Database backup failed. Proceeding anyway..."
-  echo "✅ Database backup created: $BACKUP_FILE"
+echo -e "${GREEN}Found $MIGRATION_COUNT migration files in $MIGRATIONS_DIR${NC}"
+
+# Install dependencies if package.json has changed
+if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
+  echo -e "${YELLOW}Installing dependencies...${NC}"
+  npm install
+  echo -e "${GREEN}✅ Dependencies installed${NC}"
 else
-  echo "⚠️ Warning: pg_dump not found. Skipping database backup."
+  echo -e "${GREEN}✅ Dependencies already up to date${NC}"
 fi
 
-# Step 2: Make sure the safe-migrations.js is in place
-echo "🔄 Ensuring production-safe migration system is in place..."
-if [[ ! -f "src/infrastructure/database/safe-migrations.js" ]]; then
-  echo "❌ Error: safe-migrations.js not found! Make sure you've added this file."
-  exit 1
-fi
-
-# Step 3: Update client.js to use the safe migrations system
-echo "🔄 Updating database client to use safe migrations..."
-grep -q 'safe-migrations.js' src/infrastructure/database/client.js || {
-  echo "⚠️ Migration system not updated in client.js. Updating now..."
-  sed -i 's/import { initializeMigrations } from \x27\.\/migrations\.js\x27;/import { initializeMigrations } from \x27\.\/safe-migrations.js\x27;/' src/infrastructure/database/client.js
-}
-
-# Step 4: Add the schema_version migration if not already there
-echo "🔄 Checking for schema_version migration..."
-if [[ ! -f "supabase/migrations/20250401500000_create_schema_version.sql" ]]; then
-  echo "❌ Error: create_schema_version migration not found! Make sure you've added this file."
-  exit 1
-fi
-
-# Step 5: Fix any JSON syntax errors in existing migrations
-echo "🔄 Checking for migration syntax issues..."
-if [[ -f "supabase/migrations/20250401000000_add_entity_type_column.sql.fixed" ]]; then
-  echo "📄 Found fixed migration file, replacing the original..."
-  cp "supabase/migrations/20250401000000_add_entity_type_column.sql.fixed" "supabase/migrations/20250401000000_add_entity_type_column.sql"
-fi
-
-# Step 6: Build the project
-echo "🔨 Building the project..."
-npm run build
-
-# Step 7: Deploy using standard deployment script
-echo "🚀 Deploying the application..."
-if [[ -f "./deploy-with-version.sh" ]]; then
-  ./deploy-with-version.sh
+# Run production build if needed
+if [ ! -d "dist" ] || [ "package.json" -nt "dist" ]; then
+  echo -e "${YELLOW}Building application...${NC}"
+  npm run build
+  echo -e "${GREEN}✅ Build completed${NC}"
 else
-  echo "⚠️ Warning: deploy-with-version.sh not found. Using gcloud deploy directly..."
-  gcloud run deploy backend --source . --region us-central1 --platform managed
+  echo -e "${GREEN}✅ Build already up to date${NC}"
 fi
 
-echo "✅ Backend deployed successfully with production-safe migrations!"
-echo ""
-echo "📝 Note: If you encounter any issues, you can restore the database backup:"
-echo "   psql -U postgres -d $DB_NAME -f $BACKUP_FILE"
+# Start the application with NODE_ENV=production
+echo -e "${YELLOW}Starting application with safe migrations...${NC}"
+echo -e "${YELLOW}==============================================${NC}"
+NODE_ENV=production node app.js
+
+echo -e "\n${GREEN}=== Deployment completed ===${NC}"
