@@ -57,7 +57,8 @@ console.log('Database configuration:', {
   timestamp: new Date().toISOString()
 });
 
-const pool = new Pool(dbConfig);
+// Create database connection pool
+export const pool = new Pool(dbConfig);
 
 pool.on('error', (err) => {
   console.error('Unexpected database error:', {

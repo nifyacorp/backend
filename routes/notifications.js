@@ -5,37 +5,57 @@ const notificationService = require('../services/notification-service');
 
 /**
  * Get user notifications
+ * 
+ * Endpoint that returns notifications with a standardized structure
+ * matching exactly what the frontend expects.
  */
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
     const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
-    const includeRead = req.query.includeRead === 'true';
+    const page = parseInt(req.query.page) || 1;
+    // Support both offset and page-based pagination
+    const offset = req.query.offset ? parseInt(req.query.offset) : (page - 1) * limit;
+    // Support unread filter with different param formats
+    const unread = req.query.unread === 'true' || req.query.unread === true;
+    const includeRead = !unread;
+    // Check if we're filtering by subscription
+    const subscriptionId = req.query.subscriptionId || null;
 
-    logger.debug('Fetching user notifications', { userId, limit, offset, includeRead });
+    logger.debug('Fetching user notifications', { 
+      userId, 
+      limit, 
+      offset, 
+      page,
+      includeRead,
+      unread,
+      subscriptionId 
+    });
 
+    // Get notifications with filtering
     const notifications = await notificationService.getUserNotifications(userId, {
       limit,
       offset,
-      includeRead
+      includeRead,
+      subscriptionId
     });
 
     // Count unread notifications for this user
     const unreadCount = await notificationService.countUnreadNotifications(userId);
     
-    // Format response object to match what frontend expects
-    res.status(200).json({
-      status: 'success',
-      data: {
-        notifications,
-        total: notifications.length, // Should be improved to return actual total count
-        unread: unreadCount,
-        page: parseInt(req.query.page) || 1,
-        limit,
-        hasMore: notifications.length >= limit // If we got a full page, there might be more
-      }
-    });
+    // Format response object to match exactly what frontend expects
+    // Note: We're matching the NotificationsResponse interface from frontend
+    const response = {
+      notifications,
+      total: notifications.length, // Should be improved to return actual total count
+      unread: unreadCount,
+      page: page,
+      limit,
+      hasMore: notifications.length >= limit // If we got a full page, there might be more
+    };
+    
+    // Standard response format
+    res.status(200).json(response);
   } catch (error) {
     logger.error('Error fetching notifications', {
       error: error.message,
@@ -44,8 +64,13 @@ router.get('/', async (req, res) => {
     });
 
     res.status(500).json({ 
-      status: 'error',
-      message: 'Failed to fetch notifications'
+      error: 'Failed to fetch notifications',
+      notifications: [],
+      total: 0,
+      unread: 0,
+      page: parseInt(req.query.page) || 1,
+      limit: parseInt(req.query.limit) || 20,
+      hasMore: false
     });
   }
 });

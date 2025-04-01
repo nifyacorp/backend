@@ -122,116 +122,105 @@ function extractNotificationTitle(content, type, userId) {
 
 /**
  * Normalize notification content for consistent structure
- * regardless of the source or format
+ * regardless of the source or format.
+ * 
+ * This standardized function ensures consistent field naming and structure
+ * that exactly matches the frontend's expected format.
  * 
  * @param {Object} notification - The raw notification object
- * @returns {Object} Normalized notification with consistent fields
+ * @returns {Object} Normalized notification with consistent camelCase fields
  */
 function normalizeNotification(notification) {
   try {
     // Ensure content is an object
-    let content = notification.content;
-    if (typeof content === 'string') {
+    let contentObj = notification.content;
+    if (typeof contentObj === 'string') {
       try {
-        content = JSON.parse(content);
+        contentObj = JSON.parse(contentObj);
       } catch (e) {
-        content = { message: content };
+        contentObj = { message: contentObj };
       }
     }
 
     // Extract the title using our robust extraction logic
-    const title = extractNotificationTitle(content, notification.type, notification.user_id);
+    const title = extractNotificationTitle(contentObj, notification.type, notification.user_id || notification.userId);
 
-    // Create a normalized notification object
-    // Extract entity_type from content with more extensive fallback options
-    // to align with notification-worker output
-    let entity_type = '';
-    if (content && typeof content === 'object') {
+    // Extract entity_type with standardized approach
+    let entityType = '';
+    if (contentObj && typeof contentObj === 'object') {
       // Direct entity_type field
-      if (content.entity_type) {
-        entity_type = content.entity_type;
+      if (contentObj.entity_type) {
+        entityType = contentObj.entity_type;
       } 
+      else if (contentObj.entityType) {
+        entityType = contentObj.entityType;
+      }
       // Check for entity_type in metadata
-      else if (content.metadata && content.metadata.entity_type) {
-        entity_type = content.metadata.entity_type;
+      else if (contentObj.metadata && (contentObj.metadata.entity_type || contentObj.metadata.entityType)) {
+        entityType = contentObj.metadata.entity_type || contentObj.metadata.entityType;
       }
       // Construct from document_type for BOE documents
-      else if (content.document_type) {
-        entity_type = `boe:${content.document_type.toLowerCase()}`;
+      else if (contentObj.document_type || contentObj.documentType) {
+        entityType = `boe:${(contentObj.document_type || contentObj.documentType).toLowerCase()}`;
       }
       // Check notification type
       else if (notification.type) {
         // Handle BOE notifications
         if (notification.type.toLowerCase().includes('boe')) {
-          entity_type = 'boe:boe_document';
+          entityType = 'boe:boe_document';
         } else {
           // Use type as fallback
-          entity_type = notification.type.toLowerCase().replace(/_/g, ':');
+          entityType = notification.type.toLowerCase().replace(/_/g, ':');
         }
       }
     }
     
-    // Extract sourceUrl from various possible locations
-    const sourceUrl = content.sourceUrl || content.source_url || content.url || 
-                     (content.links && content.links.html) || '';
+    // Extract sourceUrl from various possible locations with standardized naming
+    const sourceUrl = contentObj.sourceUrl || contentObj.source_url || contentObj.url || 
+                     (contentObj.links && contentObj.links.html) || '';
     
-    // Get subscription_name if available
-    const subscription_name = content.subscription_name || '';
+    // Get subscription_name with consistent naming
+    const subscriptionName = contentObj.subscription_name || contentObj.subscriptionName || '';
     
-    // Get metadata object with special handling for BOE documents to align with notification-worker
-    let metadata = content.metadata || {};
+    // Get metadata with standardized handling
+    let metadata = contentObj.metadata || {};
     
-    // If this is a BOE notification, ensure we have the proper metadata structure
-    if (entity_type.startsWith('boe:') || (notification.type && notification.type.includes('BOE'))) {
-      // If metadata is stringified JSON, parse it
-      if (typeof metadata === 'string') {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          // Keep as is if parsing fails
-          metadata = { raw: metadata };
-        }
-      }
-      
-      // Add expected BOE fields if missing but available in content
-      if (content.document_type && !metadata.document_type) {
-        metadata.document_type = content.document_type;
-      }
-      
-      if (content.issuing_body && !metadata.issuing_body) {
-        metadata.issuing_body = content.issuing_body;
-      }
-      
-      if (content.publication_date && !metadata.publication_date) {
-        metadata.publication_date = content.publication_date;
+    // Ensure metadata is an object
+    if (typeof metadata === 'string') {
+      try {
+        metadata = JSON.parse(metadata);
+      } catch (e) {
+        metadata = { raw: metadata };
       }
     }
     
-    // Ensure we have a proper document_type to match notification-worker output
-    let document_type = '';
+    // Extract subscriptionId with fallbacks
+    const subscriptionId = contentObj.subscriptionId || contentObj.subscription_id || '';
     
-    if (content && typeof content === 'object') {
-      document_type = content.document_type || 
-                     (metadata && metadata.document_type) || 
-                     (entity_type.startsWith('boe:') ? 'boe_document' : '');
-    }
+    // Handle readAt if available
+    const readAt = notification.read_at || notification.readAt || 
+                 (notification.read ? new Date().toISOString() : undefined);
+                 
+    // Serialize content for consistent format
+    // The frontend expects a string for the content field
+    const serializedContent = typeof contentObj === 'string' 
+      ? contentObj 
+      : JSON.stringify(contentObj);
     
-    // Construct normalized notification object with fields that match
-    // notification-worker's output structure
+    // Construct normalized notification object matching frontend expected format exactly
     return {
       id: notification.id,
-      userId: notification.user_id || notification.userId,
-      subscriptionId: content.subscriptionId || content.subscription_id || '',
-      subscription_name,
-      entity_type,
-      document_type,
-      type: notification.type,
-      title,
-      content: typeof content === 'string' ? content : JSON.stringify(content), 
-      sourceUrl,
-      metadata,
-      read: notification.read || false,
-      createdAt: notification.created_at || notification.createdAt || new Date().toISOString()
+      userId: notification.user_id || notification.userId || '',
+      subscriptionId: subscriptionId,
+      subscription_name: subscriptionName,
+      entity_type: entityType,
+      title: title,
+      content: serializedContent,
+      sourceUrl: sourceUrl,
+      metadata: metadata,
+      read: !!notification.read,
+      createdAt: notification.created_at || notification.createdAt || new Date().toISOString(),
+      readAt: readAt
     };
   } catch (error) {
     logger.error('Error normalizing notification', {
@@ -239,19 +228,18 @@ function normalizeNotification(notification) {
       notification: notification?.id
     });
     
-    // Return a valid object even on error
+    // Return a valid object even on error that matches frontend expectations
     return {
-      id: notification.id || 'error',
-      userId: notification.user_id || notification.userId || 'unknown',
-      type: notification.type || 'ERROR',
-      title: 'Error Processing Notification',
-      content: { error: 'Failed to normalize notification content' },
-      entity_type: 'error:processing',
-      metadata: {},
-      sourceUrl: '',
-      subscription_name: '',
+      id: notification.id || `error-${Date.now()}`,
+      userId: notification.user_id || notification.userId || '',
       subscriptionId: '',
-      read: notification.read || false,
+      subscription_name: '',
+      entity_type: 'error:processing',
+      title: 'Error Processing Notification',
+      content: JSON.stringify({ error: 'Failed to normalize notification content' }),
+      sourceUrl: '',
+      metadata: {},
+      read: false,
       createdAt: notification.created_at || notification.createdAt || new Date().toISOString()
     };
   }

@@ -175,7 +175,15 @@ async function createNotification({ userId, type, content, transactionId }) {
 }
 
 /**
- * Deliver notification in real-time
+ * Deliver notification in real-time with standardized format
+ * 
+ * @param {Object} params Delivery parameters
+ * @param {string} params.notificationId The notification ID
+ * @param {string} params.userId The user ID
+ * @param {string} params.type The notification type
+ * @param {Object} params.content The notification content
+ * @param {string} params.transactionId Correlation ID for tracing
+ * @returns {Promise<boolean>} Success indicator
  */
 async function deliverNotificationRealtime({ notificationId, userId, type, content, transactionId }) {
   logger.debug('Attempting real-time notification delivery', {
@@ -196,20 +204,37 @@ async function deliverNotificationRealtime({ notificationId, userId, type, conte
         correlationId: transactionId
       });
 
+      // Create a standardized notification object matching frontend expectations
+      const notificationObj = {
+        id: notificationId,
+        userId: userId,
+        type: type,
+        title: extractNotificationTitle(content, type, userId),
+        content: typeof content === 'string' ? content : JSON.stringify(content),
+        metadata: content.metadata || {},
+        entity_type: content.entity_type || '',
+        subscriptionId: content.subscriptionId || content.subscription_id || '',
+        subscription_name: content.subscription_name || content.subscriptionName || '',
+        sourceUrl: content.sourceUrl || content.source_url || content.url || '',
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Run the notification through our normalizer to ensure consistent format
+      const normalizedNotification = normalizeNotification({
+        id: notificationId,
+        user_id: userId,
+        type,
+        content: typeof content === 'object' ? JSON.stringify(content) : content,
+        read: false,
+        created_at: new Date().toISOString()
+      });
+
       // Send to all user's active connections
       connections.forEach(socket => {
-        // Prepare notification data with proper title extraction
-        const title = extractNotificationTitle(content, type, userId);
-        
-        socketManager.sendToSocket(socket, 'notification', {
-          id: notificationId,
-          type,
-          title,
-          content,
-          timestamp: new Date().toISOString()
-        });
+        socketManager.sendToSocket(socket, 'notification', normalizedNotification);
 
-        logger.debug('Notification sent via WebSocket', {
+        logger.debug('Notification sent via WebSocket with standardized format', {
           userId,
           notificationId,
           socketId: socket.id,
@@ -239,6 +264,7 @@ async function deliverNotificationRealtime({ notificationId, userId, type, conte
   } catch (error) {
     logger.error('Error delivering notification in real-time', {
       error: error.message,
+      stack: error.stack,
       notificationId,
       userId,
       correlationId: transactionId
@@ -296,106 +322,82 @@ async function processQueuedNotification(message) {
 }
 
 /**
- * Get user's unread notifications
+ * Get user's notifications with standardized format
+ * 
+ * @param {string} userId - The user ID
+ * @param {Object} options - Query options including pagination and filters
+ * @param {number} options.limit - Maximum number of notifications to return
+ * @param {number} options.offset - Offset for pagination
+ * @param {boolean} options.includeRead - Whether to include read notifications
+ * @param {string} options.subscriptionId - Filter by subscription ID (optional)
+ * @returns {Promise<Array>} Array of standardized notification objects
  */
-async function getUserNotifications(userId, options = { limit: 20, offset: 0, includeRead: false }) {
+async function getUserNotifications(userId, options = { limit: 20, offset: 0, includeRead: false, subscriptionId: null }) {
   try {
+    // Start building the base query
     let query = 'SELECT * FROM notifications WHERE user_id = ?';
     const queryParams = [userId];
 
+    // Apply read/unread filter
     if (!options.includeRead) {
       query += ' AND read = FALSE';
     }
+    
+    // Apply subscription filter if provided
+    if (options.subscriptionId) {
+      // Filter by subscription ID using JSON_EXTRACT to look within the content JSON
+      query += ' AND JSON_EXTRACT(content, "$.subscriptionId") = ? OR JSON_EXTRACT(content, "$.subscription_id") = ?';
+      queryParams.push(options.subscriptionId, options.subscriptionId);
+    }
 
+    // Add sorting and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(options.limit, options.offset);
 
+    // Execute the query
     const notifications = await db.query(query, queryParams);
 
     logger.debug('Retrieved user notifications', {
       userId,
       count: notifications.length,
-      includeRead: options.includeRead
+      includeRead: options.includeRead,
+      subscriptionId: options.subscriptionId || 'all'
     });
 
-    // Apply normalization to ensure consistent notification format
+    // Process all notifications through our improved normalizer to ensure consistent format
     return notifications.map(notification => {
       try {
-        // Parse content if it's a string
-        const normalizedContent = typeof notification.content === 'string' 
-          ? JSON.parse(notification.content) 
-          : notification.content;
-        
-        // Create a working notification object
-        const workingNotification = {
-          ...notification,
-          content: normalizedContent
-        };
-        
-        // Use our helper to normalize the notification
-        const normalizedNotification = normalizeNotification(workingNotification);
-        
-        // Debug log to diagnose field issues
-        logger.debug('Normalized notification', {
-          id: normalizedNotification.id,
-          title: normalizedNotification.title,
-          type: normalizedNotification.type,
-          fields: Object.keys(normalizedNotification)
-        });
-        
-        // Add entity_type field if it exists in content
-        if (normalizedContent.entity_type) {
-          normalizedNotification.entity_type = normalizedContent.entity_type;
-        }
-        
-        // Add subscription_name if it exists in content
-        if (normalizedContent.subscription_name) {
-          normalizedNotification.subscription_name = normalizedContent.subscription_name;
-        }
-        
-        // Ensure we have source URL
-        if (normalizedContent.sourceUrl || normalizedContent.source_url || normalizedContent.url) {
-          normalizedNotification.sourceUrl = normalizedContent.sourceUrl || normalizedContent.source_url || normalizedContent.url;
-        }
-        
-        // Add metadata object directly to normalize notification object
-        if (normalizedContent.metadata) {
-          normalizedNotification.metadata = normalizedContent.metadata;
-        } else {
-          // Use content as metadata if no dedicated metadata field
-          normalizedNotification.metadata = normalizedContent;
-        }
-        
-        return normalizedNotification;
+        // Use our centralized normalizer which now matches frontend expectations exactly
+        return normalizeNotification(notification);
       } catch (error) {
-        logger.error('Error normalizing specific notification', {
+        logger.error('Error normalizing notification', {
           error: error.message,
-          notification_id: notification.id,
-          content_sample: typeof notification.content === 'string' 
-            ? notification.content.substring(0, 100) 
-            : JSON.stringify(notification.content).substring(0, 100)
+          notification_id: notification.id
         });
         
-        // Return a minimal valid notification to prevent client errors
-        return {
-          id: notification.id || 'error-' + Date.now(),
-          userId: notification.user_id || 'unknown',
-          type: notification.type || 'ERROR',
-          title: 'Notification',
-          content: { error: 'Error processing notification' },
-          entity_type: 'error:processing',
-          metadata: {},
-          read: notification.read || false,
-          createdAt: notification.created_at || new Date().toISOString()
-        };
+        // Use the normalizer's error fallback for consistent error handling
+        return normalizeNotification({
+          id: notification.id || `error-${Date.now()}`,
+          user_id: userId,
+          type: 'ERROR',
+          read: false,
+          created_at: new Date().toISOString(),
+          content: JSON.stringify({ 
+            error: 'Error processing notification',
+            originalError: error.message 
+          })
+        });
       }
     });
   } catch (error) {
     logger.error('Error fetching user notifications', {
       error: error.message,
-      userId
+      stack: error.stack,
+      userId,
+      options
     });
-    throw error;
+    // Return empty array instead of throwing to prevent frontend errors
+    return [];
   }
 }
 

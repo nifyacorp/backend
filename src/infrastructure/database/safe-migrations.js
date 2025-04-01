@@ -12,7 +12,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { query, withTransaction } from './client.js';
+import { query, withTransaction, pool } from './client.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../shared/logging/logger.js';
 
@@ -203,22 +203,38 @@ async function applyMigration(migrationFile, appliedMigrations, context = {}) {
   }
   
   // Apply migration within a transaction
+  // Since we're having issues with the transaction helper, use a direct approach
+  const client = await pool.connect();
+  
   try {
-    await withTransaction(null, async (client) => {
-      // Execute the migration
-      await client.query(sqlContent);
-      
-      // Record the migration as applied
-      await client.query(
-        'INSERT INTO schema_version (version, description) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING',
-        [version, `Migration from file ${migrationFile}`]
-      );
-      
-      logRequest(context, `Migration ${version} applied successfully`);
-    }, { logger: { error: logError, info: logRequest }, context });
+    logRequest(context, "Starting transaction");
+    await client.query('BEGIN');
+    
+    // Execute the migration
+    await client.query(sqlContent);
+    
+    // Record the migration as applied
+    await client.query(
+      'INSERT INTO schema_version (version, description) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING',
+      [version, `Migration from file ${migrationFile}`]
+    );
+    
+    await client.query('COMMIT');
+    logRequest(context, `Migration ${version} applied successfully`);
     
     return true;
   } catch (error) {
+    // Rollback on error
+    try {
+      await client.query('ROLLBACK');
+      logError(context, "Transaction rolled back due to error");
+    } catch (rollbackError) {
+      logError(context, "Failed to rollback transaction", {
+        error: rollbackError.message,
+        originalError: error.message
+      });
+    }
+    
     // Enhance error with location information
     const errorLocation = getErrorLocation(error, sqlContent);
     
@@ -242,6 +258,9 @@ async function applyMigration(migrationFile, appliedMigrations, context = {}) {
         detail: error.detail
       }
     );
+  } finally {
+    client.release();
+    logRequest(context, "Transaction client released");
   }
 }
 
