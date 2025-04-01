@@ -246,8 +246,20 @@ export async function initializeDatabase() {
     // First verify connection with retry
     await attemptDatabaseConnection();
 
-    // Then run migrations
-    await initializeMigrations();
+    // Decide which initialization method to use
+    if (process.env.USE_STARTUP_MIGRATION === 'true') {
+      // Import and run the startup migration
+      const { runStartupMigration } = await import('./startup-migration.js');
+      const migrationSuccess = await runStartupMigration();
+      
+      if (!migrationSuccess) {
+        console.warn('⚠️ Startup migration had issues, will try traditional migrations');
+        await initializeMigrations();
+      }
+    } else {
+      // Use the traditional migration system
+      await initializeMigrations();
+    }
     
     console.log('Database initialization completed successfully');
   } catch (error) {

@@ -54,12 +54,21 @@ $$;
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255),
   role VARCHAR(50) DEFAULT 'user',
+  email_verified BOOLEAN DEFAULT false,
+  notification_settings JSONB DEFAULT '{
+    "emailNotifications": true,
+    "notificationEmail": null,
+    "emailFrequency": "daily",
+    "instantNotifications": false,
+    "language": "es"
+  }'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- User email preferences
+-- User email preferences (legacy table, consider removing if using notification_settings in users table)
 CREATE TABLE IF NOT EXISTS user_email_preferences (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   immediate BOOLEAN DEFAULT true,
@@ -132,16 +141,20 @@ CREATE TABLE IF NOT EXISTS subscription_processing (
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subscription_id UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
   title VARCHAR(255) NOT NULL,
   content TEXT,
+  source_url TEXT,
   read BOOLEAN DEFAULT false,
+  read_at TIMESTAMP WITH TIME ZONE,
   entity_type VARCHAR(255) DEFAULT 'notification:generic',
   source VARCHAR(50),
   data JSONB DEFAULT '{}'::jsonb,
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  email_sent BOOLEAN DEFAULT false
+  email_sent BOOLEAN DEFAULT false,
+  email_sent_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Indexes
@@ -149,8 +162,12 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_type_id ON subscriptions(type_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id ON subscription_processing(subscription_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_subscription_id ON notifications(subscription_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notifications_email_sent ON notifications(email_sent);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_user_email_preferences_user_id ON user_email_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_email_verified ON users(email_verified);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
