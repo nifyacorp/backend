@@ -45,27 +45,56 @@ const MIGRATION_ERRORS = {
  */
 async function ensureSchemaVersionTable() {
   try {
-    // Create schema_version table if it doesn't exist
-    await query(`
-      CREATE TABLE IF NOT EXISTS schema_version (
-        version VARCHAR(255) NOT NULL PRIMARY KEY,
-        applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        description TEXT
+    // Check if schema_version table exists first
+    const checkResult = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'schema_version'
       );
-      
-      -- Version checking function
-      CREATE OR REPLACE FUNCTION check_schema_version(required_version VARCHAR) 
-      RETURNS BOOLEAN AS $$
-      BEGIN
-        RETURN EXISTS (
-          SELECT 1 FROM schema_version 
-          WHERE version = required_version
-        );
-      END;
-      $$ LANGUAGE plpgsql;
     `);
     
-    console.log('Schema version table initialized');
+    const tableExists = checkResult.rows[0].exists;
+    
+    if (!tableExists) {
+      console.log('Creating schema_version table...');
+      
+      // Create schema_version table and helper functions
+      await query(`
+        CREATE TABLE schema_version (
+          version VARCHAR(255) NOT NULL PRIMARY KEY,
+          applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          description TEXT
+        );
+        
+        -- Version checking function
+        CREATE OR REPLACE FUNCTION check_schema_version(required_version VARCHAR) 
+        RETURNS BOOLEAN AS $$
+        BEGIN
+          RETURN EXISTS (
+            SELECT 1 FROM schema_version 
+            WHERE version = required_version
+          );
+        END;
+        $$ LANGUAGE plpgsql;
+        
+        -- Version registration function
+        CREATE OR REPLACE FUNCTION register_schema_version(version_id VARCHAR, version_description TEXT) 
+        RETURNS VOID AS $$
+        BEGIN
+          INSERT INTO schema_version (version, description)
+          VALUES (version_id, version_description)
+          ON CONFLICT (version) DO NOTHING;
+        END;
+        $$ LANGUAGE plpgsql;
+      `);
+      
+      console.log('Schema version table created');
+    } else {
+      console.log('Schema version table already exists');
+    }
+    
+    return true;
   } catch (error) {
     console.error('Failed to create schema_version table:', error);
     throw new AppError(
@@ -82,6 +111,23 @@ async function ensureSchemaVersionTable() {
  */
 async function getAppliedMigrations() {
   try {
+    // First check if schema_version table exists
+    const checkResult = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'schema_version'
+      );
+    `);
+    
+    const tableExists = checkResult.rows[0].exists;
+    
+    if (!tableExists) {
+      console.log('Schema version table does not exist, returning empty applied migrations set');
+      return new Set(); // No migrations applied yet
+    }
+    
+    // If the table exists, get the applied migrations
     const result = await query('SELECT version FROM schema_version ORDER BY applied_at');
     return new Set(result.rows.map(row => row.version));
   } catch (error) {

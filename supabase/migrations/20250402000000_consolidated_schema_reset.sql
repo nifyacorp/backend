@@ -8,32 +8,54 @@
   Make sure to have a backup before proceeding in a production environment.
 */
 
--- Only proceed if this is an empty database or explicit reset is requested
+-- Improve the safety checks to not rely on schema_version existence
 DO $$
+DECLARE
+  schema_version_exists BOOLEAN;
+  this_version_applied BOOLEAN;
+  has_existing_tables BOOLEAN;
+  reset_allowed BOOLEAN;
 BEGIN
-  -- Check if we already have schema_version table and this version is applied
-  IF EXISTS (
+  -- Check if schema_version table exists
+  SELECT EXISTS (
     SELECT 1 FROM information_schema.tables 
     WHERE table_schema = 'public' AND table_name = 'schema_version'
-  ) AND EXISTS (
-    SELECT 1 FROM schema_version WHERE version = '20250402000000'
-  ) THEN
-    RAISE NOTICE 'Migration 20250402000000 already applied, skipping';
-    RETURN;
+  ) INTO schema_version_exists;
+  
+  -- Check if this version is already applied (only if schema_version exists)
+  IF schema_version_exists THEN
+    -- Use dynamic SQL to avoid error if schema_version table doesn't exist
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM schema_version WHERE version = ''20250402000000'')' 
+    INTO this_version_applied;
+    
+    IF this_version_applied THEN
+      RAISE NOTICE 'Migration 20250402000000 already applied, skipping';
+      RETURN;
+    END IF;
+  ELSE
+    -- Schema version doesn't exist, so this version is not applied
+    this_version_applied := FALSE;
   END IF;
   
   -- Check if we're running in reset mode
-  -- This requires setting a specific GUC parameter before running:
-  -- SET LOCAL app.allow_schema_reset = 'true';
-  IF NOT current_setting('app.allow_schema_reset', TRUE) = 'true' THEN
-    -- Check if database has existing tables
-    IF EXISTS (
-      SELECT 1 FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      AND table_name NOT IN ('schema_version')
-    ) THEN
-      RAISE EXCEPTION 'Cannot apply consolidated schema to a database with existing tables. To force reset, set app.allow_schema_reset GUC parameter.';
-    END IF;
+  BEGIN
+    -- Try to get the reset parameter (with default FALSE if not set)
+    reset_allowed := current_setting('app.allow_schema_reset', TRUE) = 'true';
+  EXCEPTION WHEN OTHERS THEN
+    -- If parameter doesn't exist, default to false
+    reset_allowed := FALSE;
+  END;
+
+  -- Check if database has existing tables (excluding schema_version)
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    AND table_name NOT IN ('schema_version')
+  ) INTO has_existing_tables;
+  
+  -- Determine if we should proceed
+  IF has_existing_tables AND NOT reset_allowed THEN
+    RAISE EXCEPTION 'Cannot apply consolidated schema to a database with existing tables. To force reset, execute SET app.allow_schema_reset = ''true''; before running this migration.';
   END IF;
   
   -- If we get here, proceed with full reset

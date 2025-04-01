@@ -2,7 +2,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
-import { initializeMigrations } from './migrations.js';
+import { initializeMigrations } from './safe-migrations.js';
 
 dotenv.config();
 
