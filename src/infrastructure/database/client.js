@@ -2,14 +2,16 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
-// Choose between single schema and multiple migrations
-const USE_SINGLE_SCHEMA = true; // Set to false to use the old migration system
+// Migration system configuration
+// Prioritize startup migration, then fall back to single schema, then traditional migrations
+const USE_STARTUP_MIGRATION = process.env.USE_STARTUP_MIGRATION !== 'false'; // Default to true
+const USE_SINGLE_SCHEMA = process.env.USE_SINGLE_SCHEMA !== 'false'; // Default to true
 
-// Import the appropriate migration system
+// Import the migration systems
 import { initializeMigrations as initializeMultipleMigrations } from './safe-migrations.js';
 import { initializeMigrations as initializeSingleSchema } from './single-schema-migrations.js';
 
-// Use the selected migration system
+// The traditional migrations will only be used as fallback
 const initializeMigrations = USE_SINGLE_SCHEMA ? initializeSingleSchema : initializeMultipleMigrations;
 
 dotenv.config();
@@ -246,19 +248,44 @@ export async function initializeDatabase() {
     // First verify connection with retry
     await attemptDatabaseConnection();
 
-    // Decide which initialization method to use
-    if (process.env.USE_STARTUP_MIGRATION === 'true') {
-      // Import and run the startup migration
-      const { runStartupMigration } = await import('./startup-migration.js');
-      const migrationSuccess = await runStartupMigration();
-      
-      if (!migrationSuccess) {
-        console.warn('⚠️ Startup migration had issues, will try traditional migrations');
-        await initializeMigrations();
+    // Always try the startup migration first (unless explicitly disabled)
+    if (USE_STARTUP_MIGRATION) {
+      console.log('🔄 Using startup migration system...');
+      try {
+        // Import and run the startup migration
+        const { runStartupMigration } = await import('./startup-migration.js');
+        const migrationSuccess = await runStartupMigration();
+        
+        if (migrationSuccess) {
+          console.log('✅ Startup migration completed successfully');
+          console.log('Database initialization completed successfully');
+          return; // Exit early if startup migration succeeds
+        } else {
+          console.warn('⚠️ Startup migration had issues, falling back to single schema migrations');
+          // Will fall through to try single schema approach
+        }
+      } catch (error) {
+        console.error('❌ Error during startup migration:', error.message);
+        console.warn('⚠️ Falling back to single schema migrations');
+        // Will fall through to try single schema approach
+      }
+    }
+
+    // If we get here, either startup migration is disabled or it failed
+    if (USE_SINGLE_SCHEMA) {
+      console.log('🔄 Using single schema migration system...');
+      try {
+        await initializeSingleSchema();
+        console.log('✅ Single schema migration completed successfully');
+      } catch (error) {
+        console.error('❌ Error during single schema migration:', error.message);
+        console.warn('⚠️ Falling back to incremental migrations');
+        await initializeMultipleMigrations();
       }
     } else {
-      // Use the traditional migration system
-      await initializeMigrations();
+      // Use the traditional incremental migration system
+      console.log('🔄 Using incremental migration system...');
+      await initializeMultipleMigrations();
     }
     
     console.log('Database initialization completed successfully');
