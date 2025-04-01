@@ -18,6 +18,12 @@ A Node.js backend service built with Fastify for managing flexible user subscrip
   - Subscription filtering
   - Pagination support
   - Bulk operations (mark all as read, delete all)
+  - Email notification delivery with preferences
+- Email notification preferences:
+  - Enable/disable email notifications
+  - Custom notification email addresses
+  - Configurable daily digest time
+  - Test email functionality
 - Structured error handling and logging
 - PostgreSQL database with row-level security
 - Swagger API documentation
@@ -139,9 +145,11 @@ The service uses a PostgreSQL database with a comprehensive schema for managing 
 
 ### Core Tables
 - **users**: Core user data with preferences and notification settings
+  - Includes email_notifications, notification_email, and digest_time for email preferences
 - **subscription_types**: System and custom subscription categories
 - **subscriptions**: User subscriptions with prompts and frequency settings
 - **notifications**: Messages generated for users based on subscriptions
+  - Includes email_sent and email_sent_at tracking for email delivery
 - **subscription_templates**: Reusable subscription configurations
 
 ### Supporting Tables
@@ -227,6 +235,10 @@ For detailed information about the database schema, relationships, and migration
 ### Users
 - `GET /api/v1/users/me` - Get user profile
 - `PATCH /api/v1/users/me` - Update user profile
+- `GET /api/v1/users/me/email-preferences` - Get user email notification preferences
+- `PATCH /api/v1/users/me/email-preferences` - Update user email notification preferences
+- `POST /api/v1/users/me/test-email` - Send a test email notification
+- `POST /api/v1/notifications/mark-sent` - Mark notifications as sent via email (admin only)
 
 ## 🔑 Authentication
 
@@ -360,6 +372,38 @@ gcloud run deploy nifya-backend \
 - Protection against JSON prototype pollution
 
 ### Recent Fixes
+
+#### April 2025 Email Notification Preferences
+
+Added email notification preferences API endpoints:
+
+1. `GET /api/v1/users/me/email-preferences`
+   - Returns user's email notification settings
+   - Includes email_notifications flag, notification_email, and digest_time
+   - Returns default preferences if user has no settings
+
+2. `PATCH /api/v1/users/me/email-preferences`
+   - Updates user's email notification preferences
+   - Accepts partial updates (only fields that need to be changed)
+   - Supported preferences:
+     - email_notifications (boolean): Enable/disable email notifications
+     - notification_email (string|null): Custom email for notifications
+     - digest_time (string): Time for daily digest (format: HH:MM:SS)
+   - Returns updated preferences
+
+3. `POST /api/v1/users/me/test-email`
+   - Sends a test email to verify notification setup
+   - Uses the notification_email if set, otherwise falls back to user's primary email
+   - Publishes an event to the email service via PubSub
+   - Returns confirmation with the email address used
+
+4. `POST /api/v1/notifications/mark-sent`
+   - Administrative endpoint to mark notifications as sent
+   - Requires admin or service account permissions
+   - Updates email_sent and email_sent_at fields in the notifications table
+   - Used by the email notification service to track delivery
+
+These endpoints enable the email notification settings in the user profile section, allowing users to customize how they receive alerts via email.
 
 #### March 2025 API Compatibility and Error Handling Fixes
 
