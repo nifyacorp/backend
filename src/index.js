@@ -182,13 +182,42 @@ fastify.register(async function (fastify) {
 
 // Start server
 try {
-  // Initialize services
-  await initializeDatabase();
+  // Initialize auth service
   await authService.initialize();
   
+  // Determine if migrations should be delayed
+  const delayMigrations = process.env.DELAY_MIGRATIONS === 'true';
+  
+  if (delayMigrations) {
+    console.log('DELAY_MIGRATIONS=true: Will run database migrations after server start');
+  }
+  
+  // Start server first if migrations should be delayed
   const port = parseInt(process.env.PORT || '3000', 10);
-  await fastify.listen({ port, host: '0.0.0.0' });
-  console.log(`Server is running on ${fastify.server.address().port}`);
+  
+  if (delayMigrations) {
+    // Start server first, then run migrations
+    await fastify.listen({ port, host: '0.0.0.0' });
+    console.log(`Server is running on ${fastify.server.address().port}`);
+    
+    // Run migrations in background
+    console.log('Starting database migrations in background...');
+    
+    // Use setTimeout to run migrations after server has started
+    setTimeout(async () => {
+      try {
+        await initializeDatabase();
+        console.log('Database migrations completed successfully');
+      } catch (migrationErr) {
+        console.error('Failed to run migrations:', migrationErr);
+      }
+    }, 5000); // Wait 5 seconds before starting migrations
+  } else {
+    // Normal flow: run migrations first, then start server
+    await initializeDatabase();
+    await fastify.listen({ port, host: '0.0.0.0' });
+    console.log(`Server is running on ${fastify.server.address().port}`);
+  }
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);

@@ -2,7 +2,15 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
-import { initializeMigrations } from './safe-migrations.js';
+// Choose between single schema and multiple migrations
+const USE_SINGLE_SCHEMA = true; // Set to false to use the old migration system
+
+// Import the appropriate migration system
+import { initializeMigrations as initializeMultipleMigrations } from './safe-migrations.js';
+import { initializeMigrations as initializeSingleSchema } from './single-schema-migrations.js';
+
+// Use the selected migration system
+const initializeMigrations = USE_SINGLE_SCHEMA ? initializeSingleSchema : initializeMultipleMigrations;
 
 dotenv.config();
 
@@ -203,14 +211,40 @@ export async function initializeDatabase() {
     return;
   }
   
+  // Connection retry parameters
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY_MS = 3000; // 3 seconds
+  
+  // Function to retry database connection
+  async function attemptDatabaseConnection(retryCount = 0) {
+    try {
+      console.log(`Database connection attempt ${retryCount + 1}/${MAX_RETRIES}...`);
+      const result = await query('SELECT current_database() as db_name');
+      console.log('Database connection verified:', {
+        database: result.rows[0].db_name,
+        poolSize: pool.totalCount,
+        timestamp: new Date().toISOString()
+      });
+      return result;
+    } catch (error) {
+      if (retryCount < MAX_RETRIES - 1) {
+        console.log(`Connection failed, retrying in ${RETRY_DELAY_MS}ms...`, {
+          error: error.message,
+          attempt: retryCount + 1,
+          timestamp: new Date().toISOString()
+        });
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        return attemptDatabaseConnection(retryCount + 1);
+      } else {
+        console.error('Maximum connection retry attempts reached');
+        throw error;
+      }
+    }
+  }
+  
   try {
-    // First verify connection
-    const result = await query('SELECT current_database() as db_name');
-    console.log('Database connection verified:', {
-      database: result.rows[0].db_name,
-      poolSize: pool.totalCount,
-      timestamp: new Date().toISOString()
-    });
+    // First verify connection with retry
+    await attemptDatabaseConnection();
 
     // Then run migrations
     await initializeMigrations();
