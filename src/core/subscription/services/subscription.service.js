@@ -576,129 +576,30 @@ class SubscriptionService {
     }
   }
 
+  /**
+   * Delete a subscription and all its related records
+   * 
+   * This method uses the subscription repository to delete a subscription within a transaction
+   * ensuring that either all related records are deleted or none of them are.
+   * 
+   * @param {string} userId - User ID requesting the deletion
+   * @param {string} subscriptionId - ID of the subscription to delete
+   * @param {object} context - Request context for logging
+   * @returns {Promise<object>} - Result of the deletion operation
+   */
   async deleteSubscription(userId, subscriptionId, context) {
     logRequest(context, 'Deleting subscription', { userId, subscriptionId });
     
     try {
-      // First, check if the subscription exists and belongs to the user
-      let subscriptionExists = false;
+      // Use the repository to handle the deletion with proper transaction management
+      const result = await this.repository.delete(subscriptionId, {
+        userId,
+        force: false, // Don't force - perform proper user ownership checks
+        context
+      });
       
-      try {
-        const checkResult = await query(
-          'SELECT id FROM subscriptions WHERE id = $1 AND user_id = $2',
-          [subscriptionId, userId]
-        );
-        
-        if (checkResult.rows.length > 0) {
-          subscriptionExists = true;
-          logRequest(context, 'Subscription found and verified for deletion', { 
-            subscriptionId 
-          });
-        } else {
-          // Try a more permissive check without user_id to see if the subscription exists at all
-          const globalCheck = await query(
-            'SELECT id, user_id FROM subscriptions WHERE id = $1',
-            [subscriptionId]
-          );
-          
-          if (globalCheck.rows.length > 0) {
-            // Subscription exists but belongs to another user
-            logRequest(context, 'Subscription exists but belongs to another user', { 
-              subscriptionId,
-              ownerUserId: globalCheck.rows[0].user_id,
-              requestingUserId: userId
-            });
-            
-            // Still allow deletion if the user is an admin
-            const adminCheck = await query(
-              'SELECT role FROM users WHERE id = $1 AND role = $2',
-              [userId, 'admin']
-            );
-            
-            if (adminCheck.rows.length > 0) {
-              subscriptionExists = true;
-              logRequest(context, 'Admin user allowed to delete subscription', { 
-                subscriptionId,
-                adminUserId: userId
-              });
-            } else {
-              throw new AppError(
-                SUBSCRIPTION_ERRORS.PERMISSION_ERROR.code,
-                'You do not have permission to delete this subscription',
-                403,
-                { subscriptionId }
-              );
-            }
-          } else {
-            logRequest(context, 'Subscription not found for deletion', { 
-              subscriptionId 
-            });
-            
-            // Return success with alreadyRemoved flag instead of throwing an error
-            return { 
-              message: 'Subscription already removed',
-              id: subscriptionId,
-              alreadyRemoved: true
-            };
-          }
-        }
-      } catch (checkError) {
-        // Log error but continue with deletion attempt
-        logError(context, checkError, 'Error checking subscription existence');
-        // Be optimistic and try to delete anyway
-        subscriptionExists = true;
-      }
-      
-      if (subscriptionExists) {
-        // Try to delete the subscription with various fallbacks
-        // First attempt: Delete where user is the owner
-        const deleteResult = await query(
-          'DELETE FROM subscriptions WHERE id = $1 AND user_id = $2 RETURNING id',
-          [subscriptionId, userId]
-        );
-        
-        // If nothing was deleted but we allowed admin access,
-        // try deleting without the user_id restriction
-        if (deleteResult.rows.length === 0) {
-          const adminDeleteResult = await query(
-            'DELETE FROM subscriptions WHERE id = $1 RETURNING id',
-            [subscriptionId]
-          );
-          
-          if (adminDeleteResult.rows.length === 0) {
-            logRequest(context, 'No rows affected by deletion, subscription may be already deleted', { 
-              subscriptionId 
-            });
-          } else {
-            logRequest(context, 'Admin deletion successful', { subscriptionId });
-          }
-        } else {
-          logRequest(context, 'User deletion successful', { subscriptionId });
-        }
-        
-        // Clean up related records
-        try {
-          // Delete related processing records
-          await query(
-            'DELETE FROM subscription_processing WHERE subscription_id = $1',
-            [subscriptionId]
-          );
-          
-          // Clean up any notifications related to this subscription
-          await query(
-            'DELETE FROM notifications WHERE data->\'subscription_id\' = $1::jsonb',
-            [JSON.stringify(subscriptionId)]
-          );
-          
-          logRequest(context, 'Cleaned up related subscription records', { 
-            subscriptionId 
-          });
-        } catch (cleanupError) {
-          // Log but don't fail the operation
-          logError(context, cleanupError, 'Error cleaning up related subscription records');
-        }
-        
-        // Publish an event for the subscription deletion
+      // If deletion was successful, publish an event
+      if (!result.alreadyRemoved) {
         try {
           logPubSub(context, 'Publishing subscription.deleted event', { 
             subscriptionId 
@@ -715,20 +616,17 @@ class SubscriptionService {
         }
       }
       
-      return { 
-        message: 'Subscription deleted successfully',
-        id: subscriptionId,
-        alreadyRemoved: !subscriptionExists
-      };
+      return result;
     } catch (error) {
       logError(context, error);
       
-      if (error instanceof AppError) {
+      // If it's an AppError with status 403 (permission error), we should rethrow it
+      if (error instanceof AppError && error.status === 403) {
         throw error;
       }
       
-      // Never throw an error for deletion - always return success response
-      // so the frontend can remove the subscription from the UI
+      // For all other errors, return a success response with error details
+      // This ensures frontend can remove the subscription from the UI
       logRequest(context, 'Error during deletion but returning success response', {
         error: error.message,
         subscriptionId

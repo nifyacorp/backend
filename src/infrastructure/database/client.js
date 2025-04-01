@@ -299,3 +299,89 @@ export async function withRLSContext(userId, callback) {
     client.release();
   }
 }
+
+/**
+ * Executes a callback function within a database transaction with RLS context set
+ * This ensures atomicity for complex database operations
+ * 
+ * @param {string} userId - The user ID to set in the RLS context
+ * @param {Function} callback - The function to execute within the transaction
+ * @param {Object} [options] - Options for the transaction
+ * @param {Object} [options.logger] - Logger to use for logging transaction details 
+ * @param {string} [options.context] - Context information for logging
+ * @returns {Promise<any>} - The result of the callback function
+ */
+export async function withTransaction(userId, callback, options = {}) {
+  const { logger, context } = options;
+  const log = (level, message, details = {}) => {
+    if (logger && logger[level]) {
+      logger[level](context, message, details);
+    } else {
+      console[level === 'error' ? 'error' : 'log'](`Transaction ${message}:`, {
+        userId,
+        ...details,
+        timestamp: new Date().toISOString()
+      });
+    }
+  };
+
+  // Skip in development mode with validation disabled
+  if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
+    log('info', 'Skipping transaction in development mode');
+    return await callback({ 
+      query: async (text, params) => ({ rows: [], rowCount: 0 }),
+      isInTransaction: true
+    });
+  }
+  
+  // Validate that userId is a valid UUID to prevent SQL injection
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (userId && !uuidRegex.test(userId)) {
+    throw new Error('Invalid UUID format for user ID');
+  }
+  
+  const client = await pool.connect();
+  
+  try {
+    log('info', 'Starting transaction');
+    await client.query('BEGIN');
+    
+    // Set RLS context if userId is provided
+    if (userId) {
+      await client.query(`SET LOCAL app.current_user_id = '${userId}'`, []);
+      log('info', 'Set RLS context for transaction');
+    }
+    
+    // Create a transaction client with an isInTransaction flag
+    const txClient = {
+      ...client,
+      isInTransaction: true
+    };
+    
+    // Execute the callback within the transaction
+    const result = await callback(txClient);
+    await client.query('COMMIT');
+    log('info', 'Transaction committed successfully');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+      log('error', 'Transaction rolled back due to error', {
+        error: error.message,
+        code: error.code,
+        detail: error.detail
+      });
+    } catch (rollbackError) {
+      log('error', 'Failed to rollback transaction', {
+        error: rollbackError.message,
+        originalError: error.message
+      });
+    }
+    
+    // Rethrow the original error
+    throw error;
+  } finally {
+    client.release();
+    log('info', 'Transaction client released');
+  }
+}
