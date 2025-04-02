@@ -362,7 +362,32 @@ expressRouter.get('/health', async (req, res) => {
  */
 expressRouter.get('/user', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Output detailed debugging information
+    console.log('Diagnostics user endpoint called:', {
+      hasUser: !!req.user,
+      userId: req.user?.id,
+      userEmail: req.user?.email,
+      hasToken: !!req.user?.token,
+      tokenSub: req.user?.token?.sub,
+      headers: {
+        auth: req.headers.authorization ? `${req.headers.authorization.substring(0, 15)}...` : 'missing',
+        userId: req.headers['x-user-id'] || req.headers['X-User-ID'] || 'missing',
+        contentType: req.headers['content-type']
+      }
+    });
+    
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'User ID is not available in the request',
+        auth_info: {
+          hasUser: !!req.user,
+          hasToken: !!req.user?.token
+        }
+      });
+    }
     
     // Check if user exists in database
     const result = await query(
@@ -370,16 +395,86 @@ expressRouter.get('/user', authMiddleware, async (req, res) => {
       [userId]
     );
     
+    const userExists = result.rows.length > 0;
+    
+    // If user doesn't exist, create it automatically
+    if (!userExists) {
+      console.log('User not found in database, creating user record...', { userId });
+      
+      try {
+        // Extract user info from token or request
+        const email = req.user.email || 'auto-created@example.com';
+        const name = req.user.name || req.user.email?.split('@')[0] || 'Auto-created User';
+        
+        // Create user record
+        const createResult = await query(
+          `INSERT INTO users (
+            id,
+            email,
+            name,
+            preferences,
+            notification_settings
+          ) VALUES ($1, $2, $3, $4, $5)
+          RETURNING id, email, name`,
+          [
+            userId,
+            email,
+            name,
+            JSON.stringify({}),
+            JSON.stringify({
+              emailNotifications: true,
+              emailFrequency: 'immediate',
+              instantNotifications: true,
+              notificationEmail: email
+            })
+          ]
+        );
+        
+        console.log('User created successfully:', { 
+          userId, 
+          email, 
+          created: !!createResult.rows[0] 
+        });
+        
+        return res.json({
+          status: 'success',
+          message: 'User created successfully',
+          user: createResult.rows[0],
+          exists: true,
+          user_id: userId,
+          created: true
+        });
+      } catch (createError) {
+        console.error('Error creating user:', createError);
+        
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to create user record',
+          error: createError.message,
+          user_id: userId,
+          exists: false
+        });
+      }
+    }
+    
+    // Return existing user information
     res.json({
       status: 'success',
-      user: result.rows[0] || null,
-      exists: result.rows.length > 0,
-      user_id: userId
+      user: result.rows[0],
+      exists: true,
+      user_id: userId,
+      auth_info: {
+        token_sub: req.user?.token?.sub || 'not available',
+        token_email: req.user?.token?.email || 'not available'
+      }
     });
   } catch (error) {
+    console.error('Error in user diagnostics endpoint:', error);
+    
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -399,13 +494,42 @@ expressRouter.get('/user', authMiddleware, async (req, res) => {
  */
 expressRouter.post('/create-user', authMiddleware, async (req, res) => {
   try {
+    console.log('Create user endpoint called:', {
+      hasUser: !!req.user,
+      userId: req.user?.id,
+      bodyEmail: req.body?.email,
+      tokenEmail: req.user?.email,
+      headers: {
+        auth: req.headers.authorization ? `${req.headers.authorization.substring(0, 15)}...` : 'missing',
+        userId: req.headers['x-user-id'] || req.headers['X-User-ID'] || 'missing',
+        contentType: req.headers['content-type']
+      }
+    });
+    
+    if (!req.user) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication required',
+        details: 'The user object is not available in the request'
+      });
+    }
+    
     const userId = req.user.id;
-    const email = req.user.email || req.body.email || 'test@example.com';
-    const name = req.user.name || req.body.name || 'Test User';
+    
+    if (!userId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'User ID is required',
+        details: 'The user.id property is not available in the request'
+      });
+    }
+    
+    const email = req.user.email || req.body?.email || 'test@example.com';
+    const name = req.user.name || req.body?.name || 'Test User';
     
     // First check if user exists
     const existingUser = await query(
-      'SELECT id FROM users WHERE id = $1',
+      'SELECT id, email, name FROM users WHERE id = $1',
       [userId]
     );
     
@@ -414,35 +538,94 @@ expressRouter.post('/create-user', authMiddleware, async (req, res) => {
         status: 'success',
         message: 'User already exists',
         user_id: userId,
-        created: false
+        created: false,
+        user: existingUser.rows[0]
       });
     }
     
-    // Create the user with the userService
-    const context = {
-      requestId: 'diagnostic-create-user',
-      path: '/api/diagnostics/create-user',
-      token: {
-        sub: userId,
-        email: email,
-        name: name
+    // Direct database creation for testing
+    try {
+      console.log('Creating user record directly in database', { userId, email, name });
+      
+      const createResult = await query(
+        `INSERT INTO users (
+          id,
+          email,
+          name,
+          preferences,
+          notification_settings
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, email, name`,
+        [
+          userId,
+          email,
+          name,
+          JSON.stringify({}),
+          JSON.stringify({
+            emailNotifications: true,
+            emailFrequency: 'immediate',
+            instantNotifications: true,
+            notificationEmail: email
+          })
+        ]
+      );
+      
+      return res.json({
+        status: 'success',
+        message: 'User created successfully',
+        user_id: userId,
+        created: true,
+        user: createResult.rows[0],
+        method: 'direct_db_insert'
+      });
+    } catch (dbError) {
+      console.error('Error creating user directly in database:', dbError);
+      
+      // Fall back to using userService as a backup method
+      try {
+        console.log('Falling back to userService method');
+        
+        // Create the user with the userService
+        const context = {
+          requestId: 'diagnostic-create-user',
+          path: '/api/diagnostics/create-user',
+          token: {
+            sub: userId,
+            email: email,
+            name: name
+          }
+        };
+        
+        const user = await userService.getUserProfile(userId, context);
+        
+        return res.json({
+          status: 'success',
+          message: 'User created successfully via fallback method',
+          user_id: userId,
+          created: true,
+          user: user,
+          method: 'user_service_fallback'
+        });
+      } catch (serviceError) {
+        console.error('Both user creation methods failed:', serviceError);
+        
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to create user with both methods',
+          errors: {
+            dbError: dbError.message,
+            serviceError: serviceError.message
+          }
+        });
       }
-    };
-    
-    const user = await userService.getUserProfile(userId, context);
-    
-    res.json({
-      status: 'success',
-      message: 'User created successfully',
-      user_id: userId,
-      created: true,
-      user: user
-    });
+    }
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('Unexpected error creating user:', error);
+    
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -623,17 +806,38 @@ expressRouter.get('/db-tables', async (req, res) => {
 
 // Add simple diagnostics endpoint for non-authenticated health check
 expressRouter.get('/', async (req, res) => {
+  // Get package information for version display
+  const packageVersion = process.env.npm_package_version || '1.0.0';
+  const environment = process.env.NODE_ENV || 'development';
+  
   res.json({
     status: 'ok',
     message: 'Diagnostics API is available',
-    endpoints: [
-      '/health',
-      '/user',
-      '/create-user',
-      '/db-info',
-      '/db-status',
-      '/db-tables'
-    ]
+    service_info: {
+      version: packageVersion,
+      environment: environment,
+      node_version: process.version,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    },
+    endpoints: {
+      infrastructure: [
+        '/health',
+        '/db-status',
+        '/db-tables',
+        '/db-info'
+      ],
+      authentication: [
+        '/user',
+        '/create-user',
+        '/user-exists/:userId'
+      ],
+      notifications: [
+        '/notifications/:userId',
+        '/notifications/create-test'
+      ]
+    },
+    documentation: "These endpoints are provided for diagnostic purposes and testing"
   });
 });
 

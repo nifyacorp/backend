@@ -49,18 +49,53 @@ await fastify.register(cors, {
   allowedHeaders: ALLOWED_HEADERS
 });
 
-// Configure empty bodies for DELETE requests
+// Improved content type parser for JSON with error handling and logging
 fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
+  // For DELETE requests, allow empty body
   if (req.method === 'DELETE' && (!body || body === '')) {
     done(null, {});
-  } else {
-    try {
-      const json = JSON.parse(body || '{}');
-      done(null, json);
-    } catch (err) {
-      err.statusCode = 400;
-      done(err, undefined);
+    return;
+  }
+  
+  try {
+    // Better handling of empty or malformed bodies
+    if (!body || body.trim() === '') {
+      console.log('Received empty request body, defaulting to empty object');
+      done(null, {});
+      return;
     }
+    
+    // Parse body and log details for debugging
+    const json = JSON.parse(body);
+    
+    // Log details for subscription creation
+    if (req.method === 'POST' && req.url.includes('/subscriptions')) {
+      console.log('Subscription creation body: ', {
+        url: req.url,
+        method: req.method,
+        contentType: req.headers['content-type'],
+        bodyLength: body.length,
+        hasName: !!json.name,
+        hasType: !!json.type,
+        bodyFields: Object.keys(json)
+      });
+    }
+    
+    done(null, json);
+  } catch (err) {
+    console.error('Error parsing request body:', {
+      error: err.message,
+      url: req.url,
+      method: req.method,
+      contentType: req.headers['content-type'],
+      bodyLength: body?.length,
+      bodyPreview: body?.substring(0, 100)
+    });
+    
+    // More detailed error for client
+    err.statusCode = 400;
+    err.message = `JSON parse error: ${err.message}. Please check request body format.`;
+    done(err, undefined);
   }
 });
 

@@ -165,32 +165,34 @@ export const authMiddleware = async (request, response, next) => {
       });
     }
     
-    const verificationResult = await authService.verifyToken(token);
-    
-    if (!verificationResult.valid) {
+    try {
+      // The verifyToken function returns the decoded token payload directly
+      const decodedToken = await authService.verifyToken(token);
+      
+      // Verify user ID matches token subject
+      if (userId && decodedToken.sub !== userId) {
+        return response.status(403).json({
+          status: 'error',
+          code: 'FORBIDDEN',
+          message: 'User ID mismatch'
+        });
+      }
+      
+      // Set user info on request
+      request.user = {
+        id: decodedToken.sub,
+        email: decodedToken.email,
+        name: decodedToken.name || decodedToken.email?.split('@')[0] || 'User',
+        token: decodedToken
+      };
+    } catch (verificationError) {
+      console.error('Token verification failed:', verificationError.message);
       return response.status(401).json({
         status: 'error',
         code: 'UNAUTHORIZED',
-        message: verificationResult.error || 'Invalid token'
+        message: verificationError.message || 'Invalid token'
       });
     }
-    
-    // Verify user ID matches token subject
-    if (userId && verificationResult.payload.sub !== userId) {
-      return response.status(403).json({
-        status: 'error',
-        code: 'FORBIDDEN',
-        message: 'User ID mismatch'
-      });
-    }
-    
-    // Set user info on request
-    request.user = {
-      id: verificationResult.payload.sub,
-      email: verificationResult.payload.email,
-      name: verificationResult.payload.name,
-      token: verificationResult.payload
-    };
     
     // Add token info to userContext for other services to use
     request.userContext = {
