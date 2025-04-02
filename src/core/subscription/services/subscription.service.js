@@ -332,14 +332,26 @@ class SubscriptionService {
       };
       
       // Format the subscription data correctly for the database
+      // Make sure prompts is an array for consistency with the database schema
+      let prompts = subscriptionData.prompts || [];
+      if (!Array.isArray(prompts)) {
+        if (typeof prompts === 'string') {
+          prompts = [prompts];
+        } else {
+          // Default to empty array for any non-array, non-string values
+          prompts = [];
+        }
+      }
+      
+      // Handle database schema differences
       const subscription = {
         ...defaults,
         name: subscriptionData.name,
         description: subscriptionData.description || '',
         type_id: type_id,
-        prompts: subscriptionData.prompts || [],
+        prompts: prompts,
         frequency: frequencyMap[subscriptionData.frequency] || 'daily',
-        logo: subscriptionData.logo || null,
+        logo: subscriptionData.logo || '',
         user_id: subscriptionData.userId,
         created_at: new Date(),
         updated_at: new Date()
@@ -347,16 +359,99 @@ class SubscriptionService {
       
       logRequest(context, 'Formatted subscription data for database', { subscription });
       
-      const fields = Object.keys(subscription);
-      const values = Object.values(subscription);
-      const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-      
-      const result = await query(
-        `INSERT INTO subscriptions (${fields.join(', ')}) 
-         VALUES (${placeholders})
-         RETURNING id, name, description, type_id, prompts, frequency, logo, active, created_at, updated_at`,
-        values
-      );
+      // First, check if we have all required columns in the database
+      try {
+        // Get column information for subscriptions table
+        const columnQuery = `
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'subscriptions'
+        `;
+        const columnResult = await query(columnQuery);
+        
+        // Get the available columns in the database
+        const availableColumns = columnResult.rows.map(r => r.column_name);
+        logRequest(context, 'Available columns in subscriptions table', { availableColumns });
+        
+        // Filter subscription object to only include columns that exist in the database
+        const validFields = Object.keys(subscription).filter(field => 
+          availableColumns.includes(field)
+        );
+        
+        if (validFields.length === 0) {
+          throw new Error('No valid fields found for subscription table');
+        }
+        
+        const validValues = validFields.map(field => subscription[field]);
+        const placeholders = validValues.map((_, i) => `$${i + 1}`).join(', ');
+        
+        logRequest(context, 'Using valid fields for insert', { validFields });
+        
+        const result = await query(
+          `INSERT INTO subscriptions (${validFields.join(', ')}) 
+           VALUES (${placeholders})
+           RETURNING id, name, description, type_id, prompts, frequency, active, created_at, updated_at`,
+          validValues
+        );
+        
+        // If we get here without error but 'logo' wasn't included, try to update it separately
+        if (!validFields.includes('logo') && subscription.logo) {
+          try {
+            await query(
+              `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS logo VARCHAR(255)`,
+              []
+            );
+            
+            await query(
+              `UPDATE subscriptions SET logo = $1 WHERE id = $2`,
+              [subscription.logo, result.rows[0].id]
+            );
+            
+            logRequest(context, 'Added logo column and updated subscription', { 
+              subscriptionId: result.rows[0].id 
+            });
+          } catch (logoError) {
+            logError(context, logoError, 'Error adding logo column or updating logo');
+            // Continue without failing the whole operation
+          }
+        }
+        
+        return result;
+      } catch (dbError) {
+        logError(context, dbError, 'Error checking subscription table schema');
+        
+        // Fall back to original approach
+        const fields = Object.keys(subscription);
+        const values = Object.values(subscription);
+        const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+        
+        try {
+          return await query(
+            `INSERT INTO subscriptions (${fields.join(', ')}) 
+             VALUES (${placeholders})
+             RETURNING id, name, description, type_id, prompts, frequency, active, created_at, updated_at`,
+            values
+          );
+        } catch (insertError) {
+          // If the error is about logo column, try without it
+          if (insertError.message?.includes('column "logo" of relation "subscriptions" does not exist')) {
+            logRequest(context, 'Logo column not found, trying insert without logo field');
+            
+            const fieldsWithoutLogo = fields.filter(f => f !== 'logo');
+            const valuesWithoutLogo = fieldsWithoutLogo.map(f => subscription[f]);
+            const placeholdersWithoutLogo = valuesWithoutLogo.map((_, i) => `$${i + 1}`).join(', ');
+            
+            return await query(
+              `INSERT INTO subscriptions (${fieldsWithoutLogo.join(', ')}) 
+               VALUES (${placeholdersWithoutLogo})
+               RETURNING id, name, description, type_id, prompts, frequency, active, created_at, updated_at`,
+              valuesWithoutLogo
+            );
+          } else {
+            throw insertError;
+          }
+        }
+      }
       
       // Get the subscription type for the response
       const typeResult = await query(
