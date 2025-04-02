@@ -3,6 +3,7 @@ import { AUTH_ERRORS } from '../../../core/types/auth.types.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import logger from '../../../shared/logger.js';
 import { AUTH_HEADER, USER_ID_HEADER, TOKEN_PREFIX } from '../../../shared/constants/headers.js';
+import { query } from '../../../infrastructure/database/client.js';
 
 const PUBLIC_PATHS = [
   '/health',
@@ -140,6 +141,84 @@ export async function authenticate(request, reply) {
 }
 
 /**
+ * Synchronizes the user from auth token to database
+ * Creates user record if it doesn't exist
+ */
+async function synchronizeUser(userId, userInfo, context) {
+  try {
+    logger.logAuth(context, 'Checking if user exists in database', { userId });
+    
+    // Check if user exists in database
+    const userResult = await query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    // If user exists, no need to synchronize
+    if (userResult.rows.length > 0) {
+      logger.logAuth(context, 'User exists in database, no sync needed', { userId });
+      return;
+    }
+    
+    // User doesn't exist, create them using token info
+    logger.logAuth(context, 'User not found in database, creating from token info', { 
+      userId,
+      email: userInfo.email,
+    });
+    
+    const email = userInfo.email;
+    const name = userInfo.name || email?.split('@')[0] || 'User';
+    
+    if (!email) {
+      throw new AppError(
+        AUTH_ERRORS.INVALID_TOKEN.code,
+        'Token missing required email claim for user creation',
+        401,
+        { userId }
+      );
+    }
+    
+    // Create the user
+    await query(
+      `INSERT INTO users (
+        id,
+        email,
+        name,
+        preferences,
+        notification_settings
+      ) VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO NOTHING`,
+      [
+        userId,
+        email,
+        name,
+        JSON.stringify({}),
+        JSON.stringify({
+          emailNotifications: true,
+          emailFrequency: 'immediate',
+          instantNotifications: true,
+          notificationEmail: email
+        })
+      ]
+    );
+    
+    logger.logAuth(context, 'User synchronized to database successfully', { 
+      userId,
+      email
+    });
+  } catch (error) {
+    logger.logError(context, 'Error synchronizing user', { 
+      userId,
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Don't throw error here, just log it
+    // We don't want auth to fail if sync fails
+  }
+}
+
+/**
  * Express-style middleware for authentication
  * This is included for compatibility with Express-style middleware
  */
@@ -247,7 +326,86 @@ export const authMiddleware = async (request, response, next) => {
 };
 
 // Export both authentication methods
+/**
+ * Synchronizes the user from auth token to database
+ * Creates user record if it doesn't exist
+ */
+async function synchronizeUser(userId, userInfo, context) {
+  try {
+    logger.logAuth(context, 'Checking if user exists in database', { userId });
+    
+    // Check if user exists in database
+    const userResult = await query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    // If user exists, no need to synchronize
+    if (userResult.rows.length > 0) {
+      logger.logAuth(context, 'User exists in database, no sync needed', { userId });
+      return;
+    }
+    
+    // User doesn't exist, create them using token info
+    logger.logAuth(context, 'User not found in database, creating from token info', { 
+      userId,
+      email: userInfo.email,
+    });
+    
+    const email = userInfo.email;
+    const name = userInfo.name || email?.split('@')[0] || 'User';
+    
+    if (!email) {
+      throw new AppError(
+        AUTH_ERRORS.INVALID_TOKEN.code,
+        'Token missing required email claim for user creation',
+        401,
+        { userId }
+      );
+    }
+    
+    // Create the user
+    await query(
+      `INSERT INTO users (
+        id,
+        email,
+        name,
+        preferences,
+        notification_settings
+      ) VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO NOTHING`,
+      [
+        userId,
+        email,
+        name,
+        JSON.stringify({}),
+        JSON.stringify({
+          emailNotifications: true,
+          emailFrequency: 'immediate',
+          instantNotifications: true,
+          notificationEmail: email
+        })
+      ]
+    );
+    
+    logger.logAuth(context, 'User synchronized to database successfully', { 
+      userId,
+      email
+    });
+  } catch (error) {
+    logger.logError(context, 'Error synchronizing user', { 
+      userId,
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Don't throw error here, just log it
+    // We don't want auth to fail if sync fails
+  }
+}
+
 export default {
   authenticate,
-  authMiddleware
+  authMiddleware,
+  synchronizeUser
 };
