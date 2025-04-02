@@ -91,7 +91,7 @@ export async function registerCrudRoutes(fastify, options) {
       requestId: request.id,
       path: request.url,
       method: request.method,
-      token: request.context?.token || request.user?.token || {
+      token: request.userContext?.token || request.user?.token || {
         sub: request.user?.id,
         email: request.user?.email,
         name: request.user?.name
@@ -218,7 +218,7 @@ export async function registerCrudRoutes(fastify, options) {
       requestId: request.id,
       path: request.url,
       method: request.method,
-      token: request.context?.token || request.user?.token || {
+      token: request.userContext?.token || request.user?.token || {
         sub: request.user?.id,
         email: request.user?.email,
         name: request.user?.name
@@ -314,7 +314,7 @@ export async function registerCrudRoutes(fastify, options) {
       requestId: request.id,
       path: request.url,
       method: request.method,
-      token: request.context?.token || request.user?.token || {
+      token: request.userContext?.token || request.user?.token || {
         sub: request.user?.id,
         email: request.user?.email,
         name: request.user?.name
@@ -424,7 +424,7 @@ export async function registerCrudRoutes(fastify, options) {
       requestId: request.id,
       path: request.url,
       method: request.method,
-      token: request.context?.token || request.user?.token || {
+      token: request.userContext?.token || request.user?.token || {
         sub: request.user?.id,
         email: request.user?.email,
         name: request.user?.name
@@ -557,7 +557,7 @@ export async function registerCrudRoutes(fastify, options) {
       requestId: request.id,
       path: request.url,
       method: request.method,
-      token: request.context?.token || request.user?.token || {
+      token: request.userContext?.token || request.user?.token || {
         sub: request.user?.id,
         email: request.user?.email,
         name: request.user?.name

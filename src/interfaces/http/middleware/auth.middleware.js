@@ -98,12 +98,13 @@ export async function authenticate(request, reply) {
       token: decoded
     };
     
-    // Add token info to request context for other services to use
-    request.context = request.context || {};
-    request.context.token = {
-      sub: decoded.sub,
-      email: decoded.email,
-      name: decoded.name
+    // Add token info to userContext for other services to use
+    request.userContext = {
+      token: {
+        sub: decoded.sub,
+        email: decoded.email,
+        name: decoded.name
+      }
     };
 
     logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { 
@@ -187,7 +188,17 @@ export const authMiddleware = async (request, response, next) => {
     request.user = {
       id: verificationResult.payload.sub,
       email: verificationResult.payload.email,
-      name: verificationResult.payload.name
+      name: verificationResult.payload.name,
+      token: verificationResult.payload
+    };
+    
+    // Add token info to userContext for other services to use
+    request.userContext = {
+      token: {
+        sub: verificationResult.payload.sub,
+        email: verificationResult.payload.email,
+        name: verificationResult.payload.name
+      }
     };
     
     next();

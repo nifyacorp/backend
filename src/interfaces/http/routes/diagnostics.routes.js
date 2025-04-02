@@ -499,6 +499,110 @@ expressRouter.get('/db-info', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/diagnostics/db-status:
+ *   get:
+ *     summary: Get database connection status
+ *     description: Returns detailed status of the database connection
+ *     tags: [Diagnostics]
+ *     responses:
+ *       200:
+ *         description: Database status retrieved successfully
+ */
+expressRouter.get('/db-status', async (req, res) => {
+  try {
+    const startTime = Date.now();
+    // Test basic query
+    const basicResult = await query('SELECT NOW()');
+    const basicTime = Date.now() - startTime;
+    
+    // Test more complex query
+    const complexStartTime = Date.now();
+    const complexResult = await query(`
+      SELECT COUNT(*) as tables_count 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    const complexTime = Date.now() - complexStartTime;
+    
+    // Test transaction
+    const txnStartTime = Date.now();
+    const client = await global.pool.connect();
+    let txnTime = 0;
+    
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT 1');
+      await client.query('COMMIT');
+      txnTime = Date.now() - txnStartTime;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    
+    res.json({
+      status: 'success',
+      database: {
+        connected: true,
+        server_time: basicResult.rows[0].now,
+        tables_count: parseInt(complexResult.rows[0].tables_count),
+        response_times: {
+          basic_query_ms: basicTime,
+          complex_query_ms: complexTime,
+          transaction_ms: txnTime
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      database: {
+        connected: false
+      }
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/diagnostics/db-tables:
+ *   get:
+ *     summary: Get database tables information
+ *     description: Returns list of tables and their structures
+ *     tags: [Diagnostics]
+ *     responses:
+ *       200:
+ *         description: Database tables retrieved successfully
+ */
+expressRouter.get('/db-tables', async (req, res) => {
+  try {
+    // Get list of tables
+    const tablesResult = await query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    const tables = tablesResult.rows.map(row => row.table_name);
+    
+    res.json({
+      status: 'success',
+      tables: tables,
+      count: tables.length
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
 // Add simple diagnostics endpoint for non-authenticated health check
 expressRouter.get('/', async (req, res) => {
   res.json({
@@ -508,7 +612,9 @@ expressRouter.get('/', async (req, res) => {
       '/health',
       '/user',
       '/create-user',
-      '/db-info'
+      '/db-info',
+      '/db-status',
+      '/db-tables'
     ]
   });
 });
