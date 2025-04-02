@@ -121,6 +121,21 @@ export async function authenticate(request, reply) {
       }
     };
 
+    // Synchronize user to database if necessary
+    try {
+      await synchronizeUser(userId, 
+        { 
+          email: decoded.email, 
+          name: decoded.name || decoded.email?.split('@')[0] || 'User' 
+        }, 
+        { requestId: request.id, path: request.url }
+      );
+    } catch (syncError) {
+      // Just log the error but don't fail authentication
+      logger.logError({ requestId: request.id, path: request.url }, 
+        `User sync error: ${syncError.message}`, { userId });
+    }
+
     logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { 
       userId,
       requestId: request.id
@@ -137,6 +152,84 @@ export async function authenticate(request, reply) {
     });
     
     return reply;
+  }
+}
+
+/**
+ * Synchronizes the user from auth token to database
+ * Creates user record if it doesn't exist
+ */
+async function synchronizeUser(userId, userInfo, context) {
+  try {
+    logger.logAuth(context, 'Checking if user exists in database', { userId });
+    
+    // Check if user exists in database
+    const userResult = await query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    // If user exists, no need to synchronize
+    if (userResult.rows.length > 0) {
+      logger.logAuth(context, 'User exists in database, no sync needed', { userId });
+      return;
+    }
+    
+    // User doesn't exist, create them using token info
+    logger.logAuth(context, 'User not found in database, creating from token info', { 
+      userId,
+      email: userInfo.email,
+    });
+    
+    const email = userInfo.email;
+    const name = userInfo.name || email?.split('@')[0] || 'User';
+    
+    if (!email) {
+      throw new AppError(
+        AUTH_ERRORS.INVALID_TOKEN.code,
+        'Token missing required email claim for user creation',
+        401,
+        { userId }
+      );
+    }
+    
+    // Create the user
+    await query(
+      `INSERT INTO users (
+        id,
+        email,
+        name,
+        preferences,
+        notification_settings
+      ) VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO NOTHING`,
+      [
+        userId,
+        email,
+        name,
+        JSON.stringify({}),
+        JSON.stringify({
+          emailNotifications: true,
+          emailFrequency: 'immediate',
+          instantNotifications: true,
+          notificationEmail: email
+        })
+      ]
+    );
+    
+    logger.logAuth(context, 'User synchronized to database successfully', { 
+      userId,
+      email
+    });
+  } catch (error) {
+    logger.logError(context, 'Error synchronizing user', { 
+      userId,
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Don't throw error here, just log it
+    // We don't want auth to fail if sync fails
   }
 }
 
@@ -296,6 +389,20 @@ export const authMiddleware = async (request, response, next) => {
         name: decodedToken.name || decodedToken.email?.split('@')[0] || 'User',
         token: decodedToken
       };
+      
+      // Synchronize user to database if necessary
+      try {
+        await synchronizeUser(decodedToken.sub, 
+          { 
+            email: decodedToken.email, 
+            name: decodedToken.name || decodedToken.email?.split('@')[0] || 'User' 
+          }, 
+          { requestId: request.headers['x-request-id'] || 'unknown', path: request.url }
+        );
+      } catch (syncError) {
+        // Just log the error but don't fail authentication
+        console.error('User sync error:', syncError.message);
+      }
     } catch (verificationError) {
       console.error('Token verification failed:', verificationError.message);
       return response.status(401).json({
@@ -308,9 +415,9 @@ export const authMiddleware = async (request, response, next) => {
     // Add token info to userContext for other services to use
     request.userContext = {
       token: {
-        sub: verificationResult.payload.sub,
-        email: verificationResult.payload.email,
-        name: verificationResult.payload.name
+        sub: decodedToken.sub,
+        email: decodedToken.email,
+        name: decodedToken.name
       }
     };
     
