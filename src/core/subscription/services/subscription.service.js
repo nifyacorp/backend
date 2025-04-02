@@ -344,12 +344,40 @@ class SubscriptionService {
       }
       
       // Handle database schema differences
+      // Make sure prompts is in the correct JSON format for Postgres
+      let jsonPrompts;
+      try {
+        // If prompts is already an array, convert to JSON string
+        if (Array.isArray(prompts)) {
+          jsonPrompts = JSON.stringify(prompts);
+        } else if (typeof prompts === 'string') {
+          // If it's a string, try to parse it as JSON first
+          try {
+            JSON.parse(prompts); // Just to validate it's valid JSON
+            jsonPrompts = prompts; // Already a JSON string
+          } catch (e) {
+            // Not valid JSON string, so wrap as array and stringify
+            jsonPrompts = JSON.stringify([prompts]);
+          }
+        } else {
+          // Default to empty array
+          jsonPrompts = '[]';
+        }
+        
+        // Validate the JSON is valid
+        JSON.parse(jsonPrompts);
+      } catch (jsonError) {
+        console.error('Error formatting prompts as JSON:', jsonError);
+        // Fallback to safe empty array
+        jsonPrompts = '[]';
+      }
+      
       const subscription = {
         ...defaults,
         name: subscriptionData.name,
         description: subscriptionData.description || '',
         type_id: type_id,
-        prompts: prompts,
+        prompts: jsonPrompts, // Use the properly formatted JSON string
         frequency: frequencyMap[subscriptionData.frequency] || 'daily',
         logo: subscriptionData.logo || '',
         user_id: subscriptionData.userId,

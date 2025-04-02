@@ -64,6 +64,49 @@ export class TemplateRepository {
   }
 
   async createSubscription(userId, typeId, template, prompts, frequency, metadata) {
+    // Ensure prompts is correctly formatted as JSONB for Postgres
+    let jsonPrompts;
+    try {
+      // If prompts is already a string, ensure it's valid JSON
+      if (typeof prompts === 'string') {
+        try {
+          // Validate the JSON string
+          JSON.parse(prompts);
+          jsonPrompts = prompts;
+        } catch (err) {
+          // Not valid JSON, wrap it as an array
+          jsonPrompts = JSON.stringify([prompts]);
+        }
+      } else if (Array.isArray(prompts)) {
+        // If it's an array, stringify it
+        jsonPrompts = JSON.stringify(prompts);
+      } else {
+        // Default to empty array
+        jsonPrompts = '[]';
+      }
+    } catch (err) {
+      console.error('Error formatting prompts as JSON:', err);
+      // Default to empty array
+      jsonPrompts = '[]';
+    }
+    
+    // Ensure metadata is valid JSON
+    let jsonMetadata;
+    try {
+      if (typeof metadata === 'string') {
+        // Validate the JSON string
+        JSON.parse(metadata);
+        jsonMetadata = metadata;
+      } else {
+        // Convert object to JSON string
+        jsonMetadata = JSON.stringify(metadata || {});
+      }
+    } catch (err) {
+      console.error('Error formatting metadata as JSON:', err);
+      // Default to empty object
+      jsonMetadata = '{}';
+    }
+    
     return await query(
       `INSERT INTO subscriptions (
         user_id,
@@ -75,7 +118,7 @@ export class TemplateRepository {
         frequency,
         active,
         settings
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
+      ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, true, $8::jsonb)
       RETURNING 
         id,
         name,
@@ -91,10 +134,10 @@ export class TemplateRepository {
         typeId,
         template.name,
         template.description,
-        prompts,
-        template.logo,
+        jsonPrompts,
+        template.logo || null,
         frequency,
-        JSON.stringify(metadata || {})
+        jsonMetadata
       ]
     );
   }
