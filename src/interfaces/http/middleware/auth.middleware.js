@@ -47,21 +47,34 @@ export async function authenticate(request, reply) {
       hasAuthExact: !!authHeaderExact,
       hasUserIdLower: !!userIdLower,
       hasUserIdExact: !!userIdExact,
+      authHeader: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
       path: request.url,
       requestId: request.id
     });
 
+    // Check for missing header
+    if (!authHeader) {
+      throw new AppError(
+        AUTH_ERRORS.MISSING_HEADERS.code,
+        'Authorization header is required',
+        401,
+        { providedHeader: null }
+      );
+    }
+    
     // Extract token, ensuring proper Bearer format
-    if (!authHeader || !authHeader.startsWith(TOKEN_PREFIX)) {
+    // More permissive check - case insensitive
+    if (!authHeader.match(/^bearer\s+.+$/i)) {
       throw new AppError(
         AUTH_ERRORS.MISSING_HEADERS.code,
         `Invalid ${AUTH_HEADER} header format. Must be: ${TOKEN_PREFIX}<token>`,
         401,
-        { providedHeader: authHeader }
+        { providedHeader: authHeader.substring(0, 15) + '...' }
       );
     }
 
-    const token = authHeader.split(' ')[1];
+    // Extract token more reliably (case insensitive and handles extra spaces)
+    const token = authHeader.replace(/^bearer\s+/i, '');
     
     if (!token || !userId) {
       throw new AppError(
@@ -142,20 +155,39 @@ export const authMiddleware = async (request, response, next) => {
     const authHeader = authHeaderExact || authHeaderLower;
     const userId = userIdExact || userIdLower;
     
+    // Log authentication details for debugging
+    console.log('Express auth middleware:', {
+      url: request.url,
+      hasAuthHeader: !!authHeader,
+      authHeaderPreview: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
+      hasUserId: !!userId
+    });
+    
     // Skip authentication for public paths
     if (PUBLIC_PATHS.some(path => request.url.startsWith(path))) {
       return next();
     }
     
-    if (!authHeader || !authHeader.startsWith(TOKEN_PREFIX)) {
+    // Check for missing authorization header
+    if (!authHeader) {
       return response.status(401).json({
         status: 'error',
         code: 'UNAUTHORIZED',
-        message: 'Authentication required'
+        message: 'Authorization header is required'
       });
     }
     
-    const token = authHeader.replace(TOKEN_PREFIX, '').trim();
+    // Check header format (case insensitive)
+    if (!authHeader.match(/^bearer\s+.+$/i)) {
+      return response.status(401).json({
+        status: 'error',
+        code: 'UNAUTHORIZED',
+        message: 'Invalid Authorization header format. Must be: Bearer <token>'
+      });
+    }
+    
+    // Extract token (case insensitive and handles extra spaces)
+    const token = authHeader.replace(/^bearer\s+/i, '');
     
     if (!token) {
       return response.status(401).json({

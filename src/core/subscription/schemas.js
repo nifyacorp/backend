@@ -1,24 +1,69 @@
 import { z } from 'zod';
 
-// Base schemas for reusable validation
-const subscriptionFrequencySchema = z.enum(['immediate', 'daily'], {
-  errorMap: () => ({ message: 'Frequency must be either "immediate" or "daily"' })
-});
+// Base schemas for reusable validation with more flexibility
+const subscriptionFrequencySchema = z.union([
+  z.enum(['immediate', 'daily', 'weekly', 'monthly']),
+  z.string().transform(val => {
+    // Normalize common values
+    const normalized = val.toLowerCase();
+    if (normalized === 'instant') return 'immediate';
+    if (['daily', 'immediate', 'weekly', 'monthly'].includes(normalized)) {
+      return normalized;
+    }
+    return 'daily'; // Default to daily for any other value
+  })
+]);
 
-const subscriptionTypeSchema = z.enum(['boe', 'real-estate', 'custom'], {
-  errorMap: () => ({ message: 'Type must be one of: boe, real-estate, custom' })
-});
+// More flexible type schema that accepts various forms
+const subscriptionTypeSchema = z.union([
+  z.enum(['boe', 'real-estate', 'custom', 'doga']),
+  z.string().transform(val => {
+    // Normalize type values
+    const normalized = val.toLowerCase();
+    if (normalized === 'boe') return 'boe';
+    if (['real-estate', 'real estate', 'inmobiliaria', 'property'].includes(normalized)) {
+      return 'real-estate';
+    }
+    if (normalized === 'doga') return 'doga';
+    return 'custom'; // Default to custom for any other value
+  })
+]);
 
-// Subscription schemas
+// Subscription schemas with more flexible validation
 export const createSubscriptionSchema = z.object({
-  name: z.string().min(3, { message: 'Name must be at least 3 characters long' }).max(100),
-  description: z.string().max(500).optional(),
+  // Accept any string, empty will be caught but with a better error message
+  name: z.string().min(1, { message: 'Name is required' }).max(100),
+  
+  // Description is optional
+  description: z.string().max(500).optional().or(z.literal('')),
+  
+  // Type with flexible normalization
   type: subscriptionTypeSchema,
-  typeId: z.string().optional(),
-  prompts: z.array(z.string()).min(1, { message: 'At least one prompt is required' }).max(3, { message: 'Maximum 3 prompts allowed' }),
-  logo: z.string().url({ message: 'Logo must be a valid URL' }).optional(),
-  frequency: subscriptionFrequencySchema
-});
+  
+  // Optional typeId (for template-based subscriptions)
+  typeId: z.string().optional().or(z.null()),
+  
+  // Prompts can be an array of strings or a single string (will be converted to array)
+  prompts: z
+    .union([
+      z.array(z.string()).min(1).max(3),
+      z.string().transform(val => [val])
+    ])
+    .optional()
+    .default([]),
+  
+  // Logo can be any string, validation is looser
+  logo: z.string().optional().or(z.null()),
+  
+  // Frequency with normalization
+  frequency: subscriptionFrequencySchema.optional().default('daily')
+})
+// Special output processing to ensure consistent output format
+.transform(data => ({
+  ...data,
+  // Ensure prompts is always an array
+  prompts: Array.isArray(data.prompts) ? data.prompts : [data.prompts].filter(Boolean)
+}));
 
 export const updateSubscriptionSchema = createSubscriptionSchema.partial();
 

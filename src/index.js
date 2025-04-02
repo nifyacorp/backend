@@ -58,6 +58,17 @@ fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function
   }
   
   try {
+    // Log raw request details
+    console.log(`Request body parser (${req.method} ${req.url}):`, {
+      contentType: req.headers['content-type'],
+      contentLength: req.headers['content-length'],
+      bodyLength: body?.length || 0,
+      bodyEmpty: !body || body.trim() === '',
+      authHeader: req.headers.authorization ? 
+        `${req.headers.authorization.substring(0, 10)}...` : 'missing',
+      userIdHeader: req.headers['x-user-id'] || 'missing'
+    });
+    
     // Better handling of empty or malformed bodies
     if (!body || body.trim() === '') {
       console.log('Received empty request body, defaulting to empty object');
@@ -68,16 +79,50 @@ fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function
     // Parse body and log details for debugging
     const json = JSON.parse(body);
     
-    // Log details for subscription creation
-    if (req.method === 'POST' && req.url.includes('/subscriptions')) {
-      console.log('Subscription creation body: ', {
+    // Log all POST request bodies for debugging
+    if (req.method === 'POST') {
+      console.log(`Parsed ${req.url} request body:`, {
         url: req.url,
-        method: req.method,
         contentType: req.headers['content-type'],
-        bodyLength: body.length,
-        hasName: !!json.name,
-        hasType: !!json.type,
-        bodyFields: Object.keys(json)
+        bodyKeys: Object.keys(json),
+        hasName: 'name' in json,
+        nameType: json.name !== undefined ? typeof json.name : 'undefined',
+        nameValue: json.name !== undefined ? String(json.name).substring(0, 20) : 'undefined',
+        hasType: 'type' in json,
+        hasPrompts: 'prompts' in json,
+        promptsType: json.prompts !== undefined ? 
+          (Array.isArray(json.prompts) ? 'array' : typeof json.prompts) : 'undefined'
+      });
+    }
+    
+    // Special handling for subscription creation
+    if (req.method === 'POST' && req.url.includes('/subscriptions')) {
+      // Handle prompts that might be a string instead of array
+      if (json.prompts && typeof json.prompts === 'string') {
+        try {
+          // First try to parse as JSON string that contains an array
+          json.prompts = JSON.parse(json.prompts);
+        } catch (e) {
+          // If that fails, treat it as a single prompt string
+          json.prompts = [json.prompts];
+        }
+      } else if (!json.prompts) {
+        // Default to empty array if missing
+        json.prompts = [];
+      }
+      
+      // Ensure name is a string
+      if (json.name === null || json.name === undefined) {
+        json.name = '';
+      } else if (typeof json.name !== 'string') {
+        json.name = String(json.name);
+      }
+      
+      console.log('Processed subscription body:', { 
+        name: json.name,
+        type: json.type || 'not provided',
+        promptsCount: Array.isArray(json.prompts) ? json.prompts.length : 'not an array',
+        keys: Object.keys(json)
       });
     }
     
@@ -95,6 +140,35 @@ fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function
     // More detailed error for client
     err.statusCode = 400;
     err.message = `JSON parse error: ${err.message}. Please check request body format.`;
+    done(err, undefined);
+  }
+});
+
+// Add support for form-urlencoded content for better compatibility
+fastify.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, function (req, body, done) {
+  try {
+    console.log(`Parsing form data for ${req.method} ${req.url}`, {
+      bodyLength: body?.length || 0,
+      bodyPreview: body ? body.substring(0, 50) + '...' : 'empty'
+    });
+    
+    const parsed = new URLSearchParams(body);
+    const result = {};
+    
+    for (const [key, value] of parsed.entries()) {
+      result[key] = value;
+    }
+    
+    console.log('Parsed form data:', { 
+      keys: Object.keys(result),
+      hasName: 'name' in result
+    });
+    
+    done(null, result);
+  } catch (err) {
+    console.error(`Form data parse error for ${req.method} ${req.url}:`, err);
+    err.statusCode = 400;
+    err.message = `Form data parse error: ${err.message}`;
     done(err, undefined);
   }
 });

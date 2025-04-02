@@ -211,7 +211,36 @@ export async function registerCrudRoutes(fastify, options) {
         }
       }
     },
-    preHandler: validateZod(createSubscriptionSchema)
+    preValidation: (request, reply, done) => {
+      // Log the raw request before any validation or parsing
+      console.log('Subscription creation - Raw request:', {
+        method: request.method,
+        url: request.url,
+        headers: {
+          contentType: request.headers['content-type'],
+          contentLength: request.headers['content-length'],
+          authorization: request.headers.authorization ? 
+            `${request.headers.authorization.substring(0, 10)}...` : 'missing'
+        },
+        bodyKeys: Object.keys(request.body || {}),
+        bodyPreview: JSON.stringify(request.body).substring(0, 200)
+      });
+      done();
+    },
+    preHandler: [
+      (request, reply, done) => {
+        // Log request body after parsing but before validation
+        console.log('Subscription creation - After parsing:', {
+          bodyIsObject: typeof request.body === 'object',
+          bodyIsNull: request.body === null,
+          bodyHasName: request.body && 'name' in request.body,
+          bodyKeys: request.body ? Object.keys(request.body) : [],
+          bodyString: JSON.stringify(request.body)
+        });
+        done();
+      },
+      validateZod(createSubscriptionSchema)
+    ]
   }, async (request, reply) => {
     // Create context with token info from request if available
     const context = {
@@ -230,7 +259,23 @@ export async function registerCrudRoutes(fastify, options) {
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
       
-      const { name, type, typeId, description, prompts, frequency, logo, metadata } = request.body;
+      // More defensive handling of request.body
+      if (!request.body) {
+        console.error('Request body is missing or null');
+        throw new AppError('VALIDATION_ERROR', 'Request body is missing', 400);
+      }
+      
+      console.log('Request body type:', typeof request.body);
+      
+      // Safe extraction of body properties with defaults
+      const name = request.body.name || '';
+      const type = request.body.type || '';
+      const typeId = request.body.typeId;
+      const description = request.body.description || '';
+      const prompts = request.body.prompts || [];
+      const frequency = request.body.frequency || 'daily';
+      const logo = request.body.logo;
+      const metadata = request.body.metadata;
       
       // Log the full request body for debugging
       logRequest(context, 'Creating subscription - Raw request data', {

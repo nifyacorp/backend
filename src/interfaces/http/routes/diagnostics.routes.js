@@ -1,6 +1,7 @@
 import { query } from '../../../infrastructure/database/client.js';
 import logger from '../../../shared/logger.js';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { userService } from '../../../core/user/user.service.js';
 
@@ -370,13 +371,40 @@ expressRouter.get('/user', authMiddleware, async (req, res) => {
       hasToken: !!req.user?.token,
       tokenSub: req.user?.token?.sub,
       headers: {
-        auth: req.headers.authorization ? `${req.headers.authorization.substring(0, 15)}...` : 'missing',
+        auth: req.headers.authorization ? 
+          `${req.headers.authorization.substring(0, 10)}...${req.headers.authorization.substring(req.headers.authorization.length - 5)}` : 
+          'missing',
         userId: req.headers['x-user-id'] || req.headers['X-User-ID'] || 'missing',
-        contentType: req.headers['content-type']
-      }
+        contentType: req.headers['content-type'],
+        allHeaders: Object.keys(req.headers)
+      },
+      userObject: req.user ? JSON.stringify(req.user) : 'missing'
     });
     
-    const userId = req.user?.id;
+    // Get userId from multiple possible sources for maximum reliability
+    let userId = req.user?.id || req.user?.token?.sub;
+    
+    // Additional fallback sources if we still don't have a userId
+    if (!userId) {
+      // Try to get it from headers
+      userId = req.headers['x-user-id'] || req.headers['X-User-ID'];
+      
+      // Try to extract directly from authorization header if present
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (authHeader && authHeader.match(/^bearer\s+.+$/i)) {
+        try {
+          const token = authHeader.replace(/^bearer\s+/i, '');
+          // Try to decode without verification for diagnostics only
+          const decoded = jwt.decode(token);
+          if (decoded && decoded.sub) {
+            userId = decoded.sub;
+            console.log('Extracted userId from token decode:', userId);
+          }
+        } catch (tokenError) {
+          console.error('Failed to decode token:', tokenError.message);
+        }
+      }
+    }
     
     if (!userId) {
       return res.status(400).json({
@@ -384,7 +412,9 @@ expressRouter.get('/user', authMiddleware, async (req, res) => {
         message: 'User ID is not available in the request',
         auth_info: {
           hasUser: !!req.user,
-          hasToken: !!req.user?.token
+          hasToken: !!req.user?.token,
+          headers: Object.keys(req.headers),
+          authHeaderPresent: !!(req.headers.authorization || req.headers.Authorization)
         }
       });
     }
