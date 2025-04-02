@@ -298,43 +298,77 @@ fastify.register(async function (fastify) {
 
 // Start server
 try {
+  // Get PORT from environment with fallback
+  const port = parseInt(process.env.PORT || '8080', 10);
+  
+  // Log server configuration
+  console.log('Starting server with configuration:', {
+    port,
+    host: '0.0.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+  
   // Initialize auth service
-  await authService.initialize();
+  try {
+    console.log('Initializing auth service...');
+    await authService.initialize();
+    console.log('Auth service initialized successfully');
+  } catch (authError) {
+    console.error('Auth service initialization error (continuing anyway):', authError);
+    // Continue anyway - in Cloud Run this may not be critical
+  }
   
   // Determine if migrations should be delayed
   const delayMigrations = process.env.DELAY_MIGRATIONS === 'true';
   
   if (delayMigrations) {
     console.log('DELAY_MIGRATIONS=true: Will run database migrations after server start');
-  }
-  
-  // Start server first if migrations should be delayed
-  const port = parseInt(process.env.PORT || '3000', 10);
-  
-  if (delayMigrations) {
+    
     // Start server first, then run migrations
-    await fastify.listen({ port, host: '0.0.0.0' });
-    console.log(`Server is running on ${fastify.server.address().port}`);
-    
-    // Run migrations in background
-    console.log('Starting database migrations in background...');
-    
-    // Use setTimeout to run migrations after server has started
-    setTimeout(async () => {
-      try {
-        await initializeDatabase();
-        console.log('Database migrations completed successfully');
-      } catch (migrationErr) {
-        console.error('Failed to run migrations:', migrationErr);
-      }
-    }, 5000); // Wait 5 seconds before starting migrations
+    try {
+      // Start server immediately so it can respond to health checks
+      await fastify.listen({ port, host: '0.0.0.0' });
+      console.log(`Server is running on port ${port}`);
+      
+      // Run migrations in background
+      console.log('Starting database migrations in background...');
+      
+      // Use setTimeout to run migrations after server has started
+      setTimeout(async () => {
+        try {
+          await initializeDatabase();
+          console.log('Database migrations completed successfully');
+        } catch (migrationErr) {
+          console.error('Failed to run migrations (continuing anyway):', migrationErr);
+        }
+      }, 5000); // Wait 5 seconds before starting migrations
+    } catch (listenError) {
+      console.error(`Failed to start server on port ${port}:`, listenError);
+      throw listenError;
+    }
   } else {
-    // Normal flow: run migrations first, then start server
-    await initializeDatabase();
-    await fastify.listen({ port, host: '0.0.0.0' });
-    console.log(`Server is running on ${fastify.server.address().port}`);
+    // Normal flow: try migrations, but start server even if they fail
+    try {
+      console.log('Running database migrations before server start...');
+      await initializeDatabase();
+      console.log('Database migrations completed successfully');
+    } catch (migrationErr) {
+      console.error('Failed to run migrations (continuing anyway):', migrationErr);
+      // Continue anyway - in Cloud Run, we want the server to start regardless
+    }
+    
+    try {
+      // Start server even if migrations failed
+      await fastify.listen({ port, host: '0.0.0.0' });
+      console.log(`Server is running on port ${port}`);
+    } catch (listenError) {
+      console.error(`Failed to start server on port ${port}:`, listenError);
+      throw listenError;
+    }
   }
 } catch (err) {
+  console.error('Fatal error during server startup:', err);
   fastify.log.error(err);
   process.exit(1);
 }

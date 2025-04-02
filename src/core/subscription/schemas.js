@@ -29,8 +29,8 @@ const subscriptionTypeSchema = z.union([
   })
 ]);
 
-// Subscription schemas with more flexible validation
-export const createSubscriptionSchema = z.object({
+// Base subscription schema that can be used for both create and update
+const baseSubscriptionSchema = {
   // Accept any string, empty will be caught but with a better error message
   name: z.string().min(1, { message: 'Name is required' }).max(100),
   
@@ -57,15 +57,24 @@ export const createSubscriptionSchema = z.object({
   
   // Frequency with normalization
   frequency: subscriptionFrequencySchema.optional().default('daily')
-})
-// Special output processing to ensure consistent output format
-.transform(data => ({
-  ...data,
-  // Ensure prompts is always an array
-  prompts: Array.isArray(data.prompts) ? data.prompts : [data.prompts].filter(Boolean)
-}));
+};
 
-export const updateSubscriptionSchema = createSubscriptionSchema.partial();
+// Subscription schemas with more flexible validation
+export const createSubscriptionSchema = z.object(baseSubscriptionSchema)
+  // Special output processing to ensure consistent output format
+  .transform(data => ({
+    ...data,
+    // Ensure prompts is always an array
+    prompts: Array.isArray(data.prompts) ? data.prompts : [data.prompts].filter(Boolean)
+  }));
+
+// Create a standard partial schema for updates
+export const updateSubscriptionSchema = z.object({
+  ...Object.entries(baseSubscriptionSchema).reduce((acc, [key, schema]) => {
+    acc[key] = schema.optional();
+    return acc;
+  }, {})
+});
 
 export const toggleSubscriptionSchema = z.object({
   active: z.boolean({
