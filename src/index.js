@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
-import express from 'fastify-express';
+import express from '@fastify/express';
 import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
 import { templateRoutes } from './interfaces/http/routes/template.routes.js';

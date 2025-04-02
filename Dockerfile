@@ -12,6 +12,7 @@ COPY package*.json ./
 
 # Install dependencies and generate lock file
 RUN npm install --no-audit --no-fund && \
+    npm install @fastify/express && \
     npm prune --production && \
     npm cache clean --force
 
