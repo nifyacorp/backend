@@ -127,6 +127,52 @@ class SubscriptionService {
         400
       );
     }
+    
+    // Check if user exists and create if needed
+    try {
+      const userCheck = await query('SELECT id FROM users WHERE id = $1', [subscriptionData.userId]);
+      
+      if (userCheck.rows.length === 0) {
+        logRequest(context, 'User does not exist, creating user record first', { 
+          userId: subscriptionData.userId 
+        });
+        
+        // Extract user info from token if available
+        const userEmail = context.token?.email || 'auto-created@example.com';
+        const userName = context.token?.name || 'Auto-created User';
+        
+        // Create user record
+        await query(
+          `INSERT INTO users (
+            id,
+            email,
+            name,
+            preferences,
+            notification_settings
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            subscriptionData.userId,
+            userEmail,
+            userName,
+            JSON.stringify({}),
+            JSON.stringify({
+              emailNotifications: true,
+              emailFrequency: 'immediate',
+              instantNotifications: true,
+              notificationEmail: userEmail
+            })
+          ]
+        );
+        
+        logRequest(context, 'Created user record for subscription', { 
+          userId: subscriptionData.userId,
+          email: userEmail
+        });
+      }
+    } catch (userError) {
+      logError(context, userError, 'Failed to check/create user');
+      // Continue with subscription creation attempt
+    }
 
     try {
       // Get type_id from type name or use provided typeId directly

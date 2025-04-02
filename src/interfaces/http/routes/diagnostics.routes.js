@@ -209,6 +209,105 @@ export default async function diagnosticsRoutes(fastify) {
       };
     }
   });
+
+  // Check if user exists endpoint
+  fastify.get('/user-exists/:userId', async (request, reply) => {
+    try {
+      const userId = request.params.userId;
+
+      // Check if user exists in database
+      const result = await query(
+        'SELECT id, email, name FROM users WHERE id = $1',
+        [userId]
+      );
+
+      return {
+        status: 'success',
+        user: result.rows[0] || null,
+        exists: result.rows.length > 0,
+        user_id: userId
+      };
+    } catch (error) {
+      reply.code(500);
+      return {
+        status: 'error',
+        message: error.message
+      };
+    }
+  });
+
+  // Create user endpoint
+  fastify.post('/create-user', async (request, reply) => {
+    try {
+      const { userId, email, name } = request.body || {};
+      
+      if (!userId) {
+        reply.code(400);
+        return { 
+          status: 'error',
+          message: 'User ID is required' 
+        };
+      }
+      
+      // First check if user exists
+      const existingUserResult = await query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
+      );
+      
+      if (existingUserResult.rows.length > 0) {
+        return {
+          status: 'success',
+          message: 'User already exists',
+          user_id: userId,
+          created: false
+        };
+      }
+      
+      // Create the user
+      const createUserResult = await query(
+        `INSERT INTO users (
+          id,
+          email,
+          name,
+          preferences,
+          notification_settings
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, email, name`,
+        [
+          userId,
+          email || 'test@example.com',
+          name || 'Test User',
+          JSON.stringify({}),
+          JSON.stringify({
+            emailNotifications: true,
+            emailFrequency: 'immediate',
+            instantNotifications: true,
+            notificationEmail: email || 'test@example.com'
+          })
+        ]
+      );
+      
+      return {
+        status: 'success',
+        message: 'User created successfully',
+        user_id: userId,
+        created: true,
+        user: createUserResult.rows[0]
+      };
+    } catch (error) {
+      logger.logError({ service: 'diagnostics', method: 'createUser' }, error, {
+        timestamp: new Date().toISOString()
+      });
+      
+      reply.code(500);
+      return {
+        status: 'error',
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      };
+    }
+  });
 } 
 
 // Express compatible routes for API compatibility
@@ -398,6 +497,20 @@ expressRouter.get('/db-info', authMiddleware, async (req, res) => {
       message: error.message
     });
   }
+});
+
+// Add simple diagnostics endpoint for non-authenticated health check
+expressRouter.get('/', async (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Diagnostics API is available',
+    endpoints: [
+      '/health',
+      '/user',
+      '/create-user',
+      '/db-info'
+    ]
+  });
 });
 
 // Export the Express router

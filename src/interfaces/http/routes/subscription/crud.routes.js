@@ -86,10 +86,16 @@ export async function registerCrudRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
+    // Create context with token info from request if available
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.context?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
     };
 
     try {
@@ -207,10 +213,16 @@ export async function registerCrudRoutes(fastify, options) {
     },
     preHandler: validateZod(createSubscriptionSchema)
   }, async (request, reply) => {
+    // Create context with token info from request if available
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.context?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
     };
 
     try {
@@ -297,10 +309,16 @@ export async function registerCrudRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
+    // Create context with token info from request if available
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.context?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
     };
 
     try {
@@ -401,10 +419,16 @@ export async function registerCrudRoutes(fastify, options) {
       validateZod(updateSubscriptionSchema)
     ]
   }, async (request, reply) => {
+    // Create context with token info from request if available
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.context?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
     };
 
     try {
@@ -528,10 +552,16 @@ export async function registerCrudRoutes(fastify, options) {
       validateZod(toggleSubscriptionSchema)
     ]
   }, async (request, reply) => {
+    // Create context with token info from request if available
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.context?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
     };
 
     try {

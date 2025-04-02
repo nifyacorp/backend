@@ -90,9 +90,20 @@ export async function authenticate(request, reply) {
       );
     }
 
+    // Set user info on request
     request.user = {
       id: userId,
+      email: decoded.email,
+      name: decoded.name || decoded.email?.split('@')[0] || 'User',
       token: decoded
+    };
+    
+    // Add token info to request context for other services to use
+    request.context = request.context || {};
+    request.context.token = {
+      sub: decoded.sub,
+      email: decoded.email,
+      name: decoded.name
     };
 
     logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { 
