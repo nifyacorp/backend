@@ -2,40 +2,17 @@
 
 A comprehensive API backend designed for LLM-powered notification and subscription management, orchestrating content processing across multiple AI models.
 
-## 🧠 LLM Integration Features
+## 🧠 Key Features
 
-- **Multi-Model Orchestration**: Seamlessly routes processing tasks to specialized LLMs based on content type
-- **Context-Aware Processing**: Maintains user context and preferences across the AI processing pipeline
-- **Structured Data Extraction**: Transforms unstructured content into standardized notification formats
-- **Model-Agnostic Architecture**: Supports pluggable LLM providers (OpenAI, Gemini, Claude, etc.)
-- **Efficient Prompting System**: Optimizes token usage with dynamic prompt templating
-- **Streaming Response Integration**: Supports both streaming and batch processing modes
-- **Metadata Enrichment**: Attaches model-generated metadata for enhanced notification classification
-- **Confidence Scoring**: Includes LLM confidence metrics for generated content
+- **Multi-Model Orchestration**: Routes processing tasks to specialized LLMs based on content type
+- **Subscription Management**: Complete CRUD operations for user subscriptions
+- **Notification System**: Generates and delivers personalized notifications
+- **Real-time Updates**: Socket.IO integration for instant notification delivery
+- **User Synchronization**: Automatic synchronization between authentication and backend systems
+- **Secure API**: JWT authentication with robust permission controls
+- **Structured Data Processing**: Transforms unstructured content into standardized notification formats
 
-## 🔄 AI Pipeline Components
-
-The service functions as a neural orchestration layer, connecting various components:
-
-### Input Processing
-- **Content Scraping**: Extracts text from various sources (BOE, real estate listings, DOGA)
-- **Document Chunking**: Splits long documents for efficient LLM processing
-- **Prompt Construction**: Dynamically builds prompts based on subscription type and user preferences
-
-### LLM Processing
-- **Model Selection**: Routes content to appropriate specialized models
-- **Parallel Processing**: Distributes work across multiple LLM instances for efficiency
-- **Token Optimization**: Minimizes token usage through efficient prompt engineering
-- **Entity Recognition**: Extracts key entities from source documents
-- **Summarization**: Generates concise, relevant summaries based on user interests
-
-### Output Processing
-- **Response Merging**: Combines multi-chunk LLM outputs into coherent notifications
-- **Format Standardization**: Ensures consistent structure regardless of source model
-- **Relevance Filtering**: Applies post-processing to enhance signal-to-noise ratio
-- **Notification Enrichment**: Adds metadata for improved user experience
-
-## 📊 Technical Architecture
+## 📊 Architecture Overview
 
 ```
 ┌─────────────────────┐     ┌────────────────┐     ┌───────────────────┐
@@ -69,360 +46,378 @@ The service functions as a neural orchestration layer, connecting various compon
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## 🧪 LLM Integration Points
+## 🚀 Core Components
 
-### 1. Subscription Creation
-- Analyzes user-provided keywords and interests
-- Generates optimized search parameters for content sources
-- Creates efficient LLM instruction templates based on user intent
+### Auth Middleware
+(`src/interfaces/http/middleware/auth.middleware.js`)
 
-### 2. Content Processing
-- Routes content to specialized domain-specific models
-- Maintains processing threads for multi-part documents
-- Applies user context to enhance relevance determination
-
-### 3. Notification Generation
-- Transforms model outputs into user-friendly notifications
-- Extracts key entities and relationships
-- Generates summaries with varying detail levels based on notification medium
-
-### 4. Feedback Integration
-- Captures user engagement signals
-- Refines model prompts based on user feedback
-- Adjusts relevance thresholds to optimize notification quality
-
-## 🛠️ LLM-Optimized Components
-
-### Neural Routing System
-Intelligently distributes work across different AI models:
+Handles JWT verification and user synchronization:
 
 ```javascript
-// Example neural router implementation
-async function routeToOptimalModel(content, userPreferences) {
-  const contentType = detectContentType(content);
-  const complexity = assessComplexity(content);
-  const userContext = extractUserContext(userPreferences);
-  
-  // Select optimal model based on content characteristics
-  if (contentType === 'legal' && complexity > 0.7) {
-    return await processWithLegalSpecialist(content, userContext);
-  } else if (contentType === 'real-estate') {
-    return await processWithPropertyAnalyzer(content, userContext);
-  } else {
-    // Default general-purpose model
-    return await processWithGeneralModel(content, userContext);
-  }
+/**
+ * Authenticates requests using JWT tokens
+ * Also synchronizes users between auth service and database
+ */
+export async function authenticate(request, reply) {
+  // Verify JWT token
+  // Extract user information
+  // Synchronize user to database if they don't exist
+  // Set user context for downstream handlers
+}
+
+/**
+ * Synchronizes user from auth token to database
+ * Creates user record if it doesn't exist
+ */
+async function synchronizeUser(userId, userInfo, context) {
+  // Check if user exists in database
+  // If not, create user with info from JWT token
+  // Sets default preferences
 }
 ```
 
-### Dynamic Prompt Assembly
-Constructs efficient prompts to minimize token usage:
+### Subscription Service
+(`src/core/subscription/services/subscription.service.js`)
+
+Manages all subscription operations:
 
 ```javascript
-// Example prompt template system
-function constructPrompt(content, subscription, templateType) {
-  const baseTemplate = templates[templateType];
-  const userKeywords = subscription.prompts || [];
-  const systemContext = `Focus on these key areas: ${userKeywords.join(', ')}`;
-  
-  // Construct optimized multi-part prompt
-  return {
-    system: systemContext,
-    user: baseTemplate.replace('{content}', content)
-  };
+/**
+ * Creates a new subscription
+ * @param {Object} data - Subscription data with type, name, prompts
+ * @param {String} userId - User ID from auth
+ * @returns {Promise<Object>} Created subscription
+ */
+async function createSubscription(data, userId) {
+  // Validate input
+  // Handle special types
+  // Insert to database
+  // Return created subscription
+}
+
+/**
+ * Processes a subscription
+ * @param {String} id - Subscription ID
+ * @param {String} userId - User ID from auth
+ * @returns {Promise<Object>} Processing result
+ */
+async function processSubscription(id, userId) {
+  // Verify ownership
+  // Update status
+  // Publish processing request
+  // Return processing information
 }
 ```
 
-### Vector-Enhanced Relevance Scoring
-Uses embedding similarity to determine notification relevance:
+### Notification Service
+(`src/core/notification/service/notification-service.js`)
+
+Manages notifications:
 
 ```javascript
-// Example relevance determination
-async function determineRelevance(processedContent, userProfile) {
-  // Generate embeddings for content and user interests
-  const contentEmbedding = await generateEmbedding(processedContent);
-  const userInterests = await getUserInterestEmbeddings(userProfile.id);
-  
-  // Calculate similarity scores
-  const similarities = userInterests.map(interest => 
-    cosineSimilarity(contentEmbedding, interest.embedding)
-  );
-  
-  // Return relevance score and confidence
-  return {
-    relevanceScore: Math.max(...similarities),
-    confidence: calculateConfidenceMetric(similarities),
-    isRelevant: Math.max(...similarities) > RELEVANCE_THRESHOLD
-  };
+/**
+ * Retrieves notifications for a user
+ * @param {Object} query - Filter parameters
+ * @param {String} userId - User ID from auth
+ * @returns {Promise<Array>} List of notifications
+ */
+async function getNotifications(query, userId) {
+  // Apply filters
+  // Format for client
+  // Return sorted notifications
+}
+
+/**
+ * Creates a notification
+ * @param {Object} data - Notification data
+ * @returns {Promise<Object>} Created notification
+ */
+async function createNotification(data) {
+  // Validate input
+  // Insert to database
+  // Emit real-time event
+  // Return created notification
 }
 ```
 
-## 📝 Model Interaction Examples
+### Database Client
+(`src/infrastructure/database/client.js`)
 
-### Document Analysis System
+Manages database connections and queries:
+
 ```javascript
-// Example of document analyzer with chunking
-async function analyzeDocument(document, subscription) {
-  // Step 1: Split large document into manageable chunks
-  const chunks = documentChunker.splitDocument(document, {
-    maxTokens: 8000,
-    overlapTokens: 200
-  });
-  
-  // Step 2: Process each chunk with appropriate LLM
-  const modelResponses = await Promise.all(chunks.map(async chunk => {
-    const prompt = promptBuilder.buildAnalysisPrompt(chunk, subscription);
-    return llmClient.generateCompletion({
-      model: selectOptimalModel(chunk, subscription),
-      prompt: prompt,
-      temperature: 0.2,
-      max_tokens: 1500
-    });
-  }));
-  
-  // Step 3: Merge responses and extract key information
-  return responseProcessor.mergeAndExtract(modelResponses, {
-    subscription_type: subscription.type,
-    extraction_schema: schemas[subscription.type],
-    user_keywords: subscription.prompts
-  });
+/**
+ * Executes a database query
+ * @param {String} text - SQL query
+ * @param {Array} params - Query parameters
+ * @returns {Promise<Object>} Query result
+ */
+export async function query(text, params) {
+  // Get client from pool
+  // Execute query
+  // Release client
+  // Return result
 }
 ```
 
-### Notification Generation System
+## 🔑 API Endpoints
+
+### Authentication
+
+All authenticated routes require:
+- `Authorization: Bearer <token>` header
+- `X-User-ID: <user-id>` header
+
+### Subscription Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/subscriptions` | Get all user subscriptions |
+| GET | `/api/v1/subscriptions/:id` | Get subscription details |
+| POST | `/api/v1/subscriptions` | Create new subscription |
+| PUT | `/api/v1/subscriptions/:id` | Update subscription |
+| DELETE | `/api/v1/subscriptions/:id` | Delete subscription |
+| POST | `/api/v1/subscriptions/:id/process` | Process subscription |
+| GET | `/api/v1/subscriptions/types` | Get available subscription types |
+
+### Notification Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/notifications` | Get user notifications |
+| PUT | `/api/v1/notifications/:id/read` | Mark notification as read |
+| PUT | `/api/v1/notifications/read-all` | Mark all notifications as read |
+| DELETE | `/api/v1/notifications/:id` | Delete notification |
+
+### User Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/users/profile` | Get user profile |
+| PUT | `/api/v1/users/profile` | Update user profile |
+| GET | `/api/v1/users/email-preferences` | Get email notification preferences |
+| PUT | `/api/v1/users/email-preferences` | Update email notification preferences |
+
+## 📦 Data Models
+
+### Subscription Model
+
 ```javascript
-// Example notification generator
-async function generateNotification(analysisResult, subscription) {
-  // Step 1: Extract key information based on subscription type
-  const extractedInfo = extractorService.getRelevantInformation(
-    analysisResult, 
-    subscription.type,
-    subscription.prompts
-  );
-  
-  // Step 2: Generate notification content with specialized model
-  const notificationContent = await llmClient.generateCompletion({
-    model: 'notification-optimized-model',
-    prompt: promptBuilder.buildNotificationPrompt(extractedInfo, subscription),
-    temperature: 0.7,
-    max_tokens: 250
-  });
-  
-  // Step 3: Process and format the notification
-  return {
-    title: notificationContent.title || extractTitle(notificationContent),
-    content: notificationContent.content || formatContent(notificationContent),
-    metadata: {
-      source_type: subscription.type,
-      entity_type: extractedInfo.entityType,
-      confidence_score: analysisResult.confidence,
-      keywords: extractKeywords(notificationContent),
-      sentiment: analyzeSentiment(notificationContent)
-    }
-  };
-}
+/**
+ * Subscription object structure
+ * @typedef {Object} Subscription
+ * @property {string} id - UUID
+ * @property {string} user_id - User UUID
+ * @property {string} name - Subscription name
+ * @property {string} description - Optional description
+ * @property {string} type - Subscription type (e.g., "BOE", "real-estate")
+ * @property {Array<string>} prompts - List of user prompts (1-3)
+ * @property {string} status - Current status
+ * @property {Object} metadata - Additional data
+ * @property {Date} created_at - Creation timestamp
+ * @property {Date} updated_at - Last update timestamp
+ */
 ```
 
-## 🔍 Subscription and Notification Structure
+### Notification Model
 
-### Subscription JSON Schema
-```json
-{
-  "type": "object",
-  "properties": {
-    "id": { "type": "string", "format": "uuid" },
-    "user_id": { "type": "string", "format": "uuid" },
-    "name": { "type": "string" },
-    "type": { "type": "string", "enum": ["BOE", "DOGA", "real-estate"] },
-    "prompts": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Keywords and interests for LLM focus"
-    },
-    "frequency": { 
-      "type": "string", 
-      "enum": ["immediate", "daily", "weekly"] 
-    },
-    "ai_settings": {
-      "type": "object",
-      "properties": {
-        "preferred_model": { "type": "string" },
-        "summary_length": { "type": "string", "enum": ["short", "medium", "long"] },
-        "notification_confidence_threshold": { "type": "number", "minimum": 0, "maximum": 1 }
-      }
-    }
-  },
-  "required": ["user_id", "name", "type", "prompts"]
-}
+```javascript
+/**
+ * Notification object structure
+ * @typedef {Object} Notification
+ * @property {string} id - UUID
+ * @property {string} user_id - User UUID
+ * @property {string} subscription_id - Related subscription UUID
+ * @property {string} title - Notification title
+ * @property {string} content - Notification content
+ * @property {string} source_url - Original content URL
+ * @property {boolean} read - Read status
+ * @property {Object} metadata - Additional data
+ * @property {Date} created_at - Creation timestamp
+ */
 ```
 
-### Notification JSON Schema
-```json
-{
-  "type": "object",
-  "properties": {
-    "id": { "type": "string", "format": "uuid" },
-    "user_id": { "type": "string", "format": "uuid" },
-    "subscription_id": { "type": "string", "format": "uuid" },
-    "title": { "type": "string" },
-    "content": { "type": "string" },
-    "source_url": { "type": "string", "format": "uri" },
-    "created_at": { "type": "string", "format": "date-time" },
-    "read": { "type": "boolean" },
-    "metadata": {
-      "type": "object",
-      "properties": {
-        "entity_type": { "type": "string" },
-        "ai_generated": { "type": "boolean" },
-        "model_used": { "type": "string" },
-        "confidence_score": { "type": "number" },
-        "processing_time_ms": { "type": "number" },
-        "token_usage": {
-          "type": "object",
-          "properties": {
-            "prompt_tokens": { "type": "number" },
-            "completion_tokens": { "type": "number" },
-            "total_tokens": { "type": "number" }
-          }
-        },
-        "extracted_entities": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "type": { "type": "string" },
-              "value": { "type": "string" },
-              "confidence": { "type": "number" }
-            }
-          }
-        }
-      }
-    }
-  }
-}
+### User Model
+
+```javascript
+/**
+ * User object structure
+ * @typedef {Object} User
+ * @property {string} id - UUID
+ * @property {string} email - User email
+ * @property {string} name - Display name
+ * @property {Object} preferences - User preferences
+ * @property {Object} notification_settings - Notification settings
+ * @property {Date} created_at - Creation timestamp
+ * @property {Date} updated_at - Last update timestamp
+ */
 ```
 
-## 📈 AI Performance Metrics
-
-The system collects detailed metrics on LLM performance:
-
-- **Processing Latency**: Time taken for complete document analysis
-- **Token Efficiency**: Tokens used per notification generated
-- **Model Accuracy**: Relevance ratings from user feedback
-- **Entity Extraction Precision**: Accuracy of extracted key information
-- **Confidence Distribution**: Histogram of model confidence scores
-- **Cost Optimization**: Dollar cost per notification across models
-
-## 🔧 Development Guide
+## 🧰 Development Guide
 
 ### Environment Setup
+
+Create a `.env` file with:
+
+```env
+# Database connection
+DATABASE_URL=postgresql://username:password@localhost:5432/nifya
+
+# JWT configuration
+JWT_SECRET=your-secret-key
+
+# Server configuration
+PORT=3000
+NODE_ENV=development
+
+# PubSub configuration (optional)
+PUBSUB_PROJECT_ID=your-project-id
+PUBSUB_SUBSCRIPTION_TOPIC=subscription-processing
+```
+
+### Installation
+
 ```bash
 # Install dependencies
 npm install
-
-# Configure development environment
-cp .env.example .env
-# Edit .env with your LLM API keys
 
 # Run in development mode
 npm run dev
 ```
 
-### Testing LLM Integration
+### Available Scripts
+
+- `npm run dev` - Start development server with hot reloading
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm test` - Run tests
+
+### Database Migrations
+
+Database schema is managed through SQL migrations in the `supabase/migrations` directory. To apply migrations:
+
 ```bash
-# Run the LLM integration tests
-npm run test:llm
+# Apply all migrations
+npm run migrate
 
-# Test specific models
-npm run test:llm -- --model=gpt-4-turbo
-
-# Measure token efficiency
-npm run benchmark:tokens
-
-# Test prompt templates
-npm run validate:prompts
+# Create a new migration
+npm run migrate:create migration_name
 ```
 
-### Prompt Template Development
-The system uses a structured prompt template system to optimize LLM interactions:
+## 🔧 Key Files and Their Functions
 
-```
-/templates
-├── boe/
-│   ├── analysis.prompt.js     # Initial document analysis
-│   ├── extraction.prompt.js   # Entity extraction
-│   └── notification.prompt.js # Notification generation
-├── real-estate/
-│   ├── analysis.prompt.js
-│   ├── extraction.prompt.js
-│   └── notification.prompt.js
-└── shared/
-    ├── base.prompt.js         # Base prompt structure
-    └── system.prompt.js       # System context
-```
+### Core Configuration
 
-## 🌐 Neural Network Architecture
+- `src/index.js`: Main application entry point and server setup
+- `src/infrastructure/database/client.js`: Database connection and query handling
+- `src/core/auth/auth.service.js`: Authentication service and JWT handling
 
-The service employs a neural routing architecture to optimize model selection:
+### API Routes
 
-1. **Content Analysis Layer**: Evaluates document characteristics
-2. **User Context Layer**: Incorporates user preferences
-3. **Model Selection Layer**: Chooses optimal LLM for the task
-4. **Response Processing Layer**: Standardizes outputs
+- `src/interfaces/http/routes/subscription/crud.routes.js`: Subscription CRUD routes
+- `src/interfaces/http/routes/subscription/process.routes.js`: Subscription processing routes
+- `src/interfaces/http/routes/notification.routes.js`: Notification routes
+- `src/interfaces/http/routes/user.routes.js`: User profile routes
 
-This architecture ensures:
-- Efficient resource utilization
-- Optimal quality for each content type
-- Consistent user experience across models
-- Graceful fallback to alternative models
+### Core Services
 
-## 🔑 API Authentication
+- `src/core/subscription/services/subscription.service.js`: Subscription business logic
+- `src/core/notification/service/notification-service.js`: Notification business logic
+- `src/core/user/user.service.js`: User management business logic
 
-Protected endpoints require:
-1. JWT token in Authorization header:
-   ```
-   Authorization: Bearer <token>
-   ```
-2. User ID in custom header:
-   ```
-   X-User-ID: <user-id>
-   ```
+### Middlewares
 
-## 📱 Integration with Frontend
+- `src/interfaces/http/middleware/auth.middleware.js`: Authentication and user synchronization
+- `src/interfaces/http/middleware/errorHandler.js`: Global error handling
+- `src/interfaces/http/middleware/apiDocumenter.js`: Swagger documentation
 
-The backend provides a unified API for frontend applications:
+## 🔍 Recent Updates
 
-- **REST API**: Standard endpoints for CRUD operations
-- **WebSocket API**: Real-time notification delivery
-- **GraphQL API**: Flexible data fetching (experimental)
+### User Synchronization Fix
 
-Frontend applications can leverage:
-- Real-time notification updates
-- Subscription management interfaces
-- User preference configuration
-- Notification timeline visualization
+Recently implemented improved user synchronization between authentication and backend:
+
+1. Added `synchronizeUser` function in auth middleware that:
+   - Checks if user exists in database upon successful authentication
+   - Creates user record if it doesn't exist, using JWT token information
+   - Sets default preferences and notification settings
+
+2. Enhanced CORS configuration to allow connections from:
+   - Netlify domains
+   - Local development environments
+   - Cloud Run domains
+
+3. Fixed bugs in Express-style auth middleware:
+   - Corrected reference to decoded token
+   - Added user synchronization in Express middleware too
+   - Improved error handling for synchronization failures
+
+These changes ensure that users who exist in the authentication service but not in the backend database can successfully use features that rely on foreign key relationships.
+
+## 🐛 Troubleshooting
+
+### Database Connectivity Issues
+
+If experiencing database connection problems:
+- Verify DATABASE_URL is correct
+- Check if database server is running
+- Ensure network connectivity to database server
+- Verify that all required migrations have been applied
+
+### Authentication Failures
+
+If authentication is failing:
+- Verify that JWT_SECRET matches the one used by the authentication service
+- Check that Authorization headers are properly formatted (Bearer token)
+- Ensure user exists in the authentication service
+- Check if user synchronization is working correctly
+
+### API Errors
+
+Common API errors and solutions:
+- 401 Unauthorized: Check JWT token validity and headers
+- 403 Forbidden: Verify user has permission for the resource
+- 400 Bad Request: Check request body format against API schema
+- 404 Not Found: Verify resource IDs are correct
+- 500 Internal Server Error: Check server logs for detailed error information
+
+## 📋 API Documentation
+
+API documentation is available at `/documentation` when running the server. This provides:
+- Interactive API exploration
+- Request/response schema examples
+- Authentication information
+- Test endpoints directly from the browser
 
 ## 🚀 Deployment
 
-```bash
-# Build for production
-npm run build
+### Google Cloud Run
 
-# Deploy to Google Cloud Run
-gcloud run deploy backend \
-  --image gcr.io/PROJECT_ID/backend \
+```bash
+# Build the container
+gcloud builds submit --tag gcr.io/PROJECT_ID/nifya-backend
+
+# Deploy to Cloud Run
+gcloud run deploy nifya-backend \
+  --image gcr.io/PROJECT_ID/nifya-backend \
   --platform managed \
-  --region us-central1 \
-  --set-env-vars NODE_ENV=production
+  --set-env-vars DATABASE_URL=postgresql://...,JWT_SECRET=...,NODE_ENV=production
 ```
 
-## 📚 Further Documentation
+### Docker Deployment
 
-- [API Documentation](./api-docs.md)
-- [LLM Integration Guide](./llm-integration.md)
-- [Database Schema](./db-schema.md)
-- [Deployment Guide](./deployment.md)
-- [Troubleshooting](./troubleshooting.md)
+```bash
+# Build the image
+docker build -t nifya-backend .
+
+# Run the container
+docker run -p 3000:3000 \
+  -e DATABASE_URL=postgresql://... \
+  -e JWT_SECRET=... \
+  -e NODE_ENV=production \
+  nifya-backend
+```
 
 ---
 
