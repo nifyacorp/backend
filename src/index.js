@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
+import express from 'fastify-express';
 import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
 import { templateRoutes } from './interfaces/http/routes/template.routes.js';
@@ -10,7 +11,7 @@ import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 import { ALLOWED_HEADERS } from './shared/constants/headers.js';
-import diagnosticsRoutes from './interfaces/http/routes/diagnostics.routes.js';
+import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './interfaces/http/routes/diagnostics.routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -146,6 +147,12 @@ function formatUptime(uptime) {
 
 // Register diagnostics routes (public for testing)
 fastify.register(diagnosticsRoutes, { prefix: '/api/v1/diagnostics' });
+
+// Register express plugin for compatibility with Express middleware
+await fastify.register(express);
+
+// Register Express-compatible diagnostics endpoints
+fastify.use('/api/diagnostics', diagnosticsExpressRouter);
 
 await fastify.register(swaggerUI, {
   routePrefix: '/documentation'

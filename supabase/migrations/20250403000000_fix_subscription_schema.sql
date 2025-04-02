@@ -1,12 +1,4 @@
-/*
-  # Fix subscription schema issues (April 3, 2025)
-  
-  This migration addresses the database schema mismatch error related to the 
-  "logo" column in the subscriptions table. It adds the column if it doesn't exist
-  and does some schema cleanup to match the code expectations.
-*/
-
--- Add logo column to subscriptions table if it doesn't exist
+-- Fix subscription schema to ensure logo column exists
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -19,61 +11,41 @@ BEGIN
   END IF;
 END $$;
 
--- Check for and fix other column type mismatches
-DO $$
+-- Create function to automatically create user record if it doesn't exist
+CREATE OR REPLACE FUNCTION create_user_if_not_exists()
+RETURNS TRIGGER AS $$
 BEGIN
-  -- Check if prompts is array type or jsonb
-  IF EXISTS (
-    SELECT 1 
-    FROM information_schema.columns 
-    WHERE table_name = 'subscriptions' 
-    AND column_name = 'prompts'
-    AND data_type = 'ARRAY'
-  ) THEN
-    -- Convert array to jsonb if needed
-    ALTER TABLE subscriptions 
-    ALTER COLUMN prompts TYPE jsonb USING array_to_json(prompts)::jsonb;
+  -- Check if the user exists in the users table
+  IF NOT EXISTS (SELECT 1 FROM users WHERE id = NEW.user_id) THEN
+    -- Insert a new user record
+    INSERT INTO users (id, email, name, preferences, notification_settings)
+    VALUES (
+      NEW.user_id, 
+      'auto_created@example.com', 
+      'Auto-created User', 
+      '{}'::jsonb, 
+      '{"emailNotifications": true, "emailFrequency": "immediate", "instantNotifications": true}'::jsonb
+    );
   END IF;
   
-  -- Check if type_id is VARCHAR or UUID
-  IF EXISTS (
-    SELECT 1 
-    FROM information_schema.columns 
-    WHERE table_name = 'subscriptions' 
-    AND column_name = 'type_id'
-    AND udt_name = 'uuid'
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger on subscriptions table to ensure user exists
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'ensure_user_exists_trigger'
   ) THEN
-    -- This is more complex - we need to convert UUIDs to string IDs
-    -- Create a temporary column
-    ALTER TABLE subscriptions ADD COLUMN temp_type_id VARCHAR(255);
-    
-    -- Copy the UUID values as strings
-    UPDATE subscriptions SET temp_type_id = type_id::text;
-    
-    -- Drop the foreign key constraint
-    ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_type_id_fkey;
-    
-    -- Drop the old column
-    ALTER TABLE subscriptions DROP COLUMN type_id;
-    
-    -- Rename the new column
-    ALTER TABLE subscriptions RENAME COLUMN temp_type_id TO type_id;
-    
-    -- Add the foreign key constraint back
-    ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_type_id_fkey 
-      FOREIGN KEY (type_id) REFERENCES subscription_types(id);
+    CREATE TRIGGER ensure_user_exists_trigger
+    BEFORE INSERT ON subscriptions
+    FOR EACH ROW
+    EXECUTE FUNCTION create_user_if_not_exists();
   END IF;
 END $$;
 
--- Register this migration version if schema_version table exists
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'public' AND table_name = 'schema_version'
-  ) THEN
-    INSERT INTO schema_version (version, description)
-    VALUES ('20250403000000', 'Fix subscription schema issues')
-    ON CONFLICT DO NOTHING;
-  END IF;
-END $$;
+-- Note: This script adds:
+-- 1. The logo column to subscriptions table if it doesn't exist
+-- 2. A trigger function to automatically create user records when subscriptions are created
+--    with a user_id that doesn't exist in the users table
