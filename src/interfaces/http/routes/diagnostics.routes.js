@@ -528,7 +528,14 @@ expressRouter.get('/db-status', async (req, res) => {
     
     // Test transaction
     const txnStartTime = Date.now();
-    const client = await global.pool.connect();
+    
+    // Import pool asynchronously to ensure it's properly initialized
+    const { pool } = await import('../../../infrastructure/database/client.js');
+    if (!pool) {
+      throw new Error('Database pool is not available');
+    }
+    
+    const client = await pool.connect();
     let txnTime = 0;
     
     try {
@@ -537,10 +544,21 @@ expressRouter.get('/db-status', async (req, res) => {
       await client.query('COMMIT');
       txnTime = Date.now() - txnStartTime;
     } catch (err) {
-      await client.query('ROLLBACK');
+      // Only try to rollback if we successfully began the transaction
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Error during rollback:', rollbackErr);
+      }
       throw err;
     } finally {
-      client.release();
+      if (client) {
+        try {
+          client.release();
+        } catch (releaseErr) {
+          console.error('Error releasing client:', releaseErr);
+        }
+      }
     }
     
     res.json({

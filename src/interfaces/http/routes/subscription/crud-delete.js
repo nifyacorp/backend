@@ -43,7 +43,12 @@ export function registerDeleteEndpoint(fastify) {
     const context = {
       requestId: request.id,
       path: request.url,
-      method: request.method
+      method: request.method,
+      token: request.userContext?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
     };
 
     try {
