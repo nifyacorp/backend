@@ -245,6 +245,92 @@ class UserService {
       );
     }
   }
+
+  async updateNotificationSettings(userId, settings, context) {
+    logRequest(context, 'Updating notification settings', { 
+      userId,
+      updateFields: Object.keys(settings)
+    });
+
+    try {
+      // Validate settings
+      if (settings.emailFrequency && settings.emailFrequency !== 'daily') {
+        throw new AppError(
+          'INVALID_EMAIL_FREQUENCY',
+          'Invalid email frequency. Supported values: daily',
+          400,
+          { allowedFrequencies: ['daily'] }
+        );
+      }
+
+      // Prepare updates object for metadata
+      const updates = {};
+      if (settings.emailNotifications !== undefined) {
+        updates.emailNotifications = settings.emailNotifications;
+      }
+      if (settings.notificationEmail !== undefined) {
+        updates.notificationEmail = settings.notificationEmail;
+      }
+      if (settings.emailFrequency !== undefined) {
+        updates.emailFrequency = settings.emailFrequency;
+      }
+      if (settings.instantNotifications !== undefined) {
+        updates.instantNotifications = settings.instantNotifications;
+      }
+
+      // Update the user metadata
+      const result = await query(
+        `UPDATE users 
+         SET 
+           metadata = metadata || $1::jsonb,
+           updated_at = NOW()
+         WHERE id = $2
+         RETURNING 
+           metadata->>'emailNotifications' as "emailNotifications",
+           metadata->>'notificationEmail' as "notificationEmail",
+           metadata->>'emailFrequency' as "emailFrequency",
+           metadata->>'instantNotifications' as "instantNotifications"`,
+        [
+          JSON.stringify(updates),
+          userId
+        ]
+      );
+
+      if (result.rows.length === 0) {
+        throw new AppError(
+          USER_ERRORS.NOT_FOUND.code,
+          USER_ERRORS.NOT_FOUND.message,
+          404,
+          { userId }
+        );
+      }
+
+      // Convert string booleans to actual booleans
+      const notificationSettings = result.rows[0];
+      notificationSettings.emailNotifications = notificationSettings.emailNotifications === 'true';
+      notificationSettings.instantNotifications = notificationSettings.instantNotifications === 'true';
+
+      logRequest(context, 'Notification settings updated', {
+        userId,
+        updatedFields: Object.keys(settings)
+      });
+
+      return notificationSettings;
+    } catch (error) {
+      logError(context, error, { userId });
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        USER_ERRORS.UPDATE_ERROR.code,
+        'Failed to update notification settings',
+        500,
+        { originalError: error.message }
+      );
+    }
+  }
 }
 
 export const userService = new UserService();

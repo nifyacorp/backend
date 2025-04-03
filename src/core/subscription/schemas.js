@@ -43,14 +43,23 @@ const baseSubscriptionSchema = {
   // Optional typeId (for template-based subscriptions)
   typeId: z.string().optional().or(z.null()),
   
-  // Prompts can be an array of strings or a single string (will be converted to array)
+  // Prompts can be an array of strings, a single string, or null/undefined
   prompts: z
     .union([
       z.array(z.string()).min(1).max(3),
-      z.string().transform(val => [val])
+      z.string().transform(val => [val]),
+      z.null().transform(() => []),
+      z.undefined().transform(() => [])
     ])
     .optional()
-    .default([]),
+    .default([])
+    .transform(val => {
+      // Ensure we always have a valid array, even if the input is unusual
+      if (!val) return [];
+      if (typeof val === 'string') return [val];
+      if (Array.isArray(val)) return val;
+      return [];
+    }),
   
   // Logo can be any string, validation is looser
   logo: z.string().optional().or(z.null()),

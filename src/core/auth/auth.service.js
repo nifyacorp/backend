@@ -8,7 +8,13 @@ class AuthService {
     this.isProduction = process.env.NODE_ENV === 'production';
     this.secretClient = this.isProduction ? new SecretManagerServiceClient() : null;
     this.JWT_SECRET = null;
+    this.JWT_REFRESH_SECRET = null;
     this.secretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/JWT_SECRET/versions/latest`;
+    this.refreshSecretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/JWT_REFRESH_SECRET/versions/latest`;
+    
+    // Token expiration settings
+    this.accessTokenExpiration = '15m';  // 15 minutes
+    this.refreshTokenExpiration = '7d';  // 7 days
     
     console.log('🔐 Initializing auth service:', {
       environment: this.isProduction ? 'production' : 'development',
@@ -21,7 +27,7 @@ class AuthService {
   async initialize() {
     // For local development, use the JWT_SECRET from environment variables
     if (!this.isProduction) {
-      console.log('📦 Using local JWT secret for development');
+      console.log('📦 Using local JWT secrets for development');
       
       if (!process.env.JWT_SECRET) {
         throw new AppError(
@@ -33,7 +39,12 @@ class AuthService {
       
       this.JWT_SECRET = process.env.JWT_SECRET;
       
-      console.log('✅ Local JWT secret loaded successfully', {
+      // For refresh tokens, use the same secret if refresh secret is not provided
+      this.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+      
+      console.log('✅ Local JWT secrets loaded successfully', {
+        secretLength: this.JWT_SECRET.length,
+        hasRefreshSecret: !!this.JWT_REFRESH_SECRET,
         timestamp: new Date().toISOString()
       });
       
@@ -41,21 +52,38 @@ class AuthService {
     }
     
     try {
-      console.log('📦 Fetching JWT secret from Secret Manager...');
+      console.log('📦 Fetching JWT secrets from Secret Manager...');
       
-      const [version] = await this.secretClient.accessSecretVersion({
+      // Fetch access token secret
+      const [accessVersion] = await this.secretClient.accessSecretVersion({
         name: this.secretName
       });
       
-      this.JWT_SECRET = version.payload.data.toString();
+      this.JWT_SECRET = accessVersion.payload.data.toString();
       
-      console.log('✅ JWT secret loaded successfully from Secret Manager', {
-        secretLength: this.JWT_SECRET.length,
+      try {
+        // Try to fetch refresh token secret
+        const [refreshVersion] = await this.secretClient.accessSecretVersion({
+          name: this.refreshSecretName
+        });
+        
+        this.JWT_REFRESH_SECRET = refreshVersion.payload.data.toString();
+      } catch (refreshError) {
+        // If refresh secret is not available, use the same secret as access token
+        console.warn('⚠️ JWT refresh secret not found, using access token secret instead', {
+          error: refreshError.message
+        });
+        this.JWT_REFRESH_SECRET = this.JWT_SECRET;
+      }
+      
+      console.log('✅ JWT secrets loaded successfully from Secret Manager', {
+        accessSecretLength: this.JWT_SECRET.length,
+        hasRefreshSecret: !!this.JWT_REFRESH_SECRET,
         timestamp: new Date().toISOString()
       });
       
     } catch (error) {
-      console.error('❌ Failed to load JWT secret:', {
+      console.error('❌ Failed to load JWT secrets:', {
         error: error.message,
         name: error.name,
         timestamp: new Date().toISOString()
@@ -63,31 +91,35 @@ class AuthService {
       
       throw new AppError(
         AUTH_ERRORS.SECRET_ERROR.code,
-        'Failed to initialize JWT secret',
+        'Failed to initialize JWT secrets',
         500,
         { originalError: error.message }
       );
     }
   }
 
-  verifyToken(token) {
-    console.log('🔑 Verifying JWT token...', {
+  verifyToken(token, isRefreshToken = false) {
+    const secretToUse = isRefreshToken ? this.JWT_REFRESH_SECRET : this.JWT_SECRET;
+    const tokenType = isRefreshToken ? 'refresh' : 'access';
+    
+    console.log(`🔑 Verifying JWT ${tokenType} token...`, {
       hasToken: !!token,
       tokenFormat: token ? `${token.substring(0, 20)}...` : 'none',
-      hasSecret: !!this.JWT_SECRET,
-      secretLength: this.JWT_SECRET?.length,
-      secretFirstChar: this.JWT_SECRET ? this.JWT_SECRET[0] : null,
-      secretLastChar: this.JWT_SECRET ? this.JWT_SECRET[this.JWT_SECRET.length - 1] : null,
+      hasSecret: !!secretToUse,
+      secretLength: secretToUse?.length,
+      secretFirstChar: secretToUse ? secretToUse[0] : null,
+      secretLastChar: secretToUse ? secretToUse[secretToUse.length - 1] : null,
+      isRefreshToken,
       timestamp: new Date().toISOString()
     });
 
-    if (!this.JWT_SECRET) {
-      console.error('❌ JWT verification failed: Secret not initialized');
+    if (!secretToUse) {
+      console.error(`❌ JWT ${tokenType} verification failed: Secret not initialized`);
       throw new AppError(
         AUTH_ERRORS.SECRET_ERROR.code,
         'JWT secret not initialized or expired',
         500,
-        { secretInitialized: !!this.JWT_SECRET }
+        { secretInitialized: !!secretToUse, tokenType }
       );
     }
 
@@ -101,6 +133,7 @@ class AuthService {
         tokenType: decodedHeader?.header?.typ,
         payloadClaims: decodedHeader?.payload ? Object.keys(decodedHeader.payload) : [],
         issuer: decodedHeader?.payload?.iss,
+        tokenType: decodedHeader?.payload?.type,
         timestamp: new Date().toISOString()
       });
 
@@ -112,7 +145,28 @@ class AuthService {
         signatureLength: signature?.length,
         timestamp: new Date().toISOString()
       });
-      const decoded = jwt.verify(token, this.JWT_SECRET);
+      
+      // Verify with the appropriate secret based on token type
+      const decoded = jwt.verify(token, secretToUse);
+      
+      // Additional validation for token type
+      if (isRefreshToken && decoded.type !== 'refresh') {
+        console.error('❌ Token type mismatch: Expected refresh token but got:', decoded.type);
+        throw new AppError(
+          AUTH_ERRORS.INVALID_TOKEN.code,
+          'Invalid token type: Expected refresh token',
+          401
+        );
+      }
+      
+      if (!isRefreshToken && decoded.type !== 'access') {
+        console.error('❌ Token type mismatch: Expected access token but got:', decoded.type);
+        throw new AppError(
+          AUTH_ERRORS.INVALID_TOKEN.code,
+          'Invalid token type: Expected access token',
+          401
+        );
+      }
       
       if (!decoded || !decoded.sub) {
         throw new AppError(
@@ -125,14 +179,69 @@ class AuthService {
       return decoded;
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        throw new AppError('TOKEN_EXPIRED', 'Token has expired', 401);
+        throw new AppError('TOKEN_EXPIRED', `${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} token has expired`, 401);
       }
       if (error instanceof AppError) {
         throw error;
       }
       throw new AppError(
         AUTH_ERRORS.INVALID_TOKEN.code,
-        'Invalid token: ' + error.message,
+        `Invalid ${tokenType} token: ${error.message}`,
+        401,
+        { originalError: error.message, tokenType }
+      );
+    }
+  }
+  
+  /**
+   * Generate a new access token using a refresh token
+   * @param {string} refreshToken - The refresh token
+   * @returns {Promise<Object>} New tokens
+   */
+  async refreshAccessToken(refreshToken) {
+    try {
+      // Verify the refresh token
+      const decoded = this.verifyToken(refreshToken, true);
+      
+      // Generate a new access token
+      const accessToken = jwt.sign(
+        {
+          sub: decoded.sub,
+          email: decoded.email,
+          name: decoded.name,
+          email_verified: decoded.email_verified,
+          type: 'access'
+        },
+        this.JWT_SECRET,
+        { expiresIn: this.accessTokenExpiration }
+      );
+      
+      // Return the new access token
+      return {
+        accessToken,
+        user: {
+          id: decoded.sub,
+          email: decoded.email,
+          name: decoded.name,
+          email_verified: decoded.email_verified
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error refreshing access token:', {
+        error: error.message,
+        name: error.name,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Re-throw AppErrors
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      // Otherwise, wrap in an AppError
+      throw new AppError(
+        AUTH_ERRORS.INVALID_TOKEN.code,
+        'Invalid refresh token',
         401,
         { originalError: error.message }
       );

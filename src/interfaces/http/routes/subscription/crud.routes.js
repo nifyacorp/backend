@@ -265,11 +265,12 @@ export async function registerCrudRoutes(fastify, options) {
             oneOf: [
               {
                 type: 'array',
-                items: { type: 'string', minLength: 1 },
-                minItems: 1,
+                items: { type: 'string' },
+                minItems: 0,
                 maxItems: 3
               },
-              { type: 'string', minLength: 1 }
+              { type: 'string' },
+              { type: 'null' }
             ]
           },
           frequency: { type: 'string' }, // Accept any frequency, will be normalized in service
@@ -353,7 +354,34 @@ export async function registerCrudRoutes(fastify, options) {
       const type = request.body.type || '';
       const typeId = request.body.typeId;
       const description = request.body.description || '';
-      const prompts = request.body.prompts || [];
+      
+      // Enhanced prompts handling to support multiple formats
+      let prompts = [];
+      if (request.body.prompts) {
+        if (Array.isArray(request.body.prompts)) {
+          prompts = request.body.prompts;
+        } else if (typeof request.body.prompts === 'string') {
+          prompts = [request.body.prompts];
+        } else {
+          // Try to parse if it's a JSON string
+          try {
+            const parsedPrompts = JSON.parse(request.body.prompts);
+            prompts = Array.isArray(parsedPrompts) ? parsedPrompts : [String(request.body.prompts)];
+          } catch (e) {
+            // If parsing fails, use as a single string
+            prompts = [String(request.body.prompts)];
+          }
+        }
+      }
+      
+      // Log the processed prompts for debugging
+      console.log('Processed prompts:', {
+        original: request.body.prompts,
+        processed: prompts,
+        type: typeof request.body.prompts,
+        isArray: Array.isArray(request.body.prompts)
+      });
+      
       const frequency = request.body.frequency || 'daily';
       const logo = request.body.logo;
       const metadata = request.body.metadata;

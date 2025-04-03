@@ -310,7 +310,13 @@ fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
 
 // Legacy API routes handler - create a compatibility layer for old endpoints
 fastify.register(async function (fastify) {
-  // Handle legacy routes
+  // Import auth routes
+  const { default: authRoutes } = await import('./routes/auth.js');
+  
+  // Register Express-compatible auth routes
+  fastify.use('/api/auth', authRoutes);
+  
+  // Handle legacy subscription routes
   fastify.get('/api/subscriptions', async (request, reply) => {
     return reply.redirect(301, '/api/v1/subscriptions');
   });
@@ -379,54 +385,154 @@ fastify.register(async function (fastify) {
   // Forward /api/v1/me to /api/v1/users/me
   fastify.get('/api/v1/me', userServiceWrapper);
   
-  // Add forwards for PATCH endpoints
-  fastify.patch('/api/v1/me', async (request, reply) => {
-    // Forward to the user routes implementation
+  // Add direct handler for user profile endpoints
+  // This ensures endpoints are available at /api/v1/me as well as /api/v1/users/me
+  fastify.patch('/api/v1/me', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 2, maxLength: 100 },
+          bio: { type: 'string', maxLength: 500 },
+          theme: { type: 'string', enum: ['light', 'dark', 'system'] },
+          language: { type: 'string', enum: ['es', 'en', 'ca'] }
+        },
+        required: [],
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            profile: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                email: { type: 'string', format: 'email' },
+                name: { type: 'string' },
+                avatar: { type: 'string', nullable: true },
+                bio: { type: 'string', nullable: true },
+                theme: { type: 'string' },
+                language: { type: 'string' },
+                emailNotifications: { type: 'boolean' },
+                notificationEmail: { type: 'string', format: 'email', nullable: true },
+                lastLogin: { type: 'string', format: 'date-time' },
+                emailVerified: { type: 'boolean' },
+                subscriptionCount: { type: 'integer' },
+                notificationCount: { type: 'integer' },
+                lastNotification: { type: 'string', format: 'date-time', nullable: true }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { userService } = await import('./core/user/user.service.js');
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.user?.token
+    };
+    
     try {
-      const response = await fastify.inject({
-        method: 'PATCH',
-        url: '/api/v1/users/me',
-        headers: request.headers,
-        payload: request.body
+      logRequest(context, 'Processing direct profile update request', {
+        userId: request.user?.id,
+        updateFields: Object.keys(request.body)
       });
       
-      const statusCode = response.statusCode;
-      const payload = JSON.parse(response.payload);
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
       
-      return reply.code(statusCode).send(payload);
+      const profile = await userService.updateUserProfile(
+        request.user.id,
+        request.body,
+        context
+      );
+      
+      return { profile };
     } catch (error) {
-      console.error('Error forwarding PATCH /api/v1/me request:', error);
-      return reply.code(500).send({
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
         error: 'INTERNAL_ERROR',
-        message: 'Failed to process profile update',
+        message: 'An unexpected error occurred',
         status: 500,
         timestamp: new Date().toISOString()
-      });
+      };
+      reply.code(response.status).send(response);
+      return reply;
     }
   });
   
-  fastify.patch('/api/v1/me/notification-settings', async (request, reply) => {
-    // Forward to the user routes implementation
+  // Add direct handler for notification settings
+  fastify.patch('/api/v1/me/notification-settings', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          emailNotifications: { type: 'boolean' },
+          notificationEmail: { type: 'string', format: 'email', nullable: true },
+          emailFrequency: { type: 'string', enum: ['daily'] },
+          instantNotifications: { type: 'boolean' }
+        },
+        required: [],
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            settings: {
+              type: 'object',
+              properties: {
+                emailNotifications: { type: 'boolean' },
+                notificationEmail: { type: 'string', format: 'email', nullable: true },
+                emailFrequency: { type: 'string', enum: ['daily'] },
+                instantNotifications: { type: 'boolean' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { userService } = await import('./core/user/user.service.js');
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.user?.token
+    };
+    
     try {
-      const response = await fastify.inject({
-        method: 'PATCH',
-        url: '/api/v1/users/me/notification-settings',
-        headers: request.headers,
-        payload: request.body
+      logRequest(context, 'Processing direct notification settings update', {
+        userId: request.user?.id,
+        updateFields: Object.keys(request.body)
       });
       
-      const statusCode = response.statusCode;
-      const payload = JSON.parse(response.payload);
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
       
-      return reply.code(statusCode).send(payload);
+      const settings = await userService.updateNotificationSettings(
+        request.user.id,
+        request.body,
+        context
+      );
+      
+      return { settings };
     } catch (error) {
-      console.error('Error forwarding PATCH /api/v1/me/notification-settings request:', error);
-      return reply.code(500).send({
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
         error: 'INTERNAL_ERROR',
         message: 'Failed to process notification settings update',
         status: 500,
         timestamp: new Date().toISOString()
-      });
+      };
+      reply.code(response.status).send(response);
+      return reply;
     }
   });
   
