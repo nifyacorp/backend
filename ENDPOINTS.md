@@ -15,8 +15,27 @@ This document provides a comprehensive list of all endpoints available in the NI
 ## Authentication Requirements
 
 Most endpoints require authentication using:
-- `Authorization: Bearer <token>` header
+- `Authorization: Bearer <token>` header (note the space after "Bearer")
 - `X-User-ID: <user-id>` header
+
+### Important Authentication Header Format
+
+The `Authorization` header must follow this exact format:
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+Note the space between `Bearer` and the token. Missing this space will result in authentication failures.
+
+### Common Authentication Errors
+
+| Error Code | Error Message | Description | Solution |
+|------------|---------------|-------------|----------|
+| 401 | MISSING_HEADERS | Authentication headers are missing or malformed | Ensure both Authorization and X-User-ID headers are provided in the correct format |
+| 401 | TOKEN_EXPIRED | JWT token has expired | Get a new token from `/api/auth/login` or use refresh token at `/api/auth/refresh` |
+| 401 | USER_MISMATCH | User ID in token doesn't match X-User-ID header | Ensure the user ID in the X-User-ID header matches the user in the JWT token |
+| 401 | INVALID_TOKEN | The JWT token is invalid | Get a new valid token from the authentication service |
+| 403 | FORBIDDEN | User has insufficient permissions | Request access or use an account with appropriate permissions |
 
 ## Notification Endpoints
 
@@ -171,3 +190,183 @@ POST /templates/:id/subscribe → Subscribe to template
 | GET | `/db-info` | Gets database schema information | Yes |
 | GET | `/db-status` | Gets database connection status | No |
 | GET | `/db-tables` | Lists database tables | No |
+
+## Error Handling
+
+All API endpoints follow a consistent error response format to make debugging easier. When an error occurs, the system will return a standardized error object with helpful information.
+
+### Standard Error Response Format
+
+```json
+{
+  "error": {
+    "code": "ERROR_TYPE",
+    "message": "Human-readable error description",
+    "request_id": "unique-request-id",
+    "timestamp": "2025-03-15T12:34:56Z",
+    "help": {
+      "endpoint_info": {
+        "description": "Description of the endpoint",
+        "auth_required": true|false,
+        "method": "GET|POST|PUT|DELETE"
+      },
+      "related_endpoints": [
+        {
+          "path": "/related/endpoint",
+          "methods": ["GET"],
+          "description": "A related endpoint that might help"
+        }
+      ],
+      "documentation_url": "https://docs.nifya.app/api/endpoint-path",
+      "required_parameters": [
+        {
+          "name": "parameter_name",
+          "type": "string|number|boolean|object",
+          "description": "Description of the parameter"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Common Error Codes and Solutions
+
+#### Authentication Errors
+
+| Error Code | Description | Solution |
+|------------|-------------|----------|
+| MISSING_HEADERS | Authentication headers are missing or malformed | Ensure proper Authorization header (`Bearer {token}`) and X-User-ID header |
+| TOKEN_EXPIRED | JWT token has expired | Get a new token or refresh the existing token |
+| INVALID_TOKEN | The JWT is invalid or malformed | Ensure the token is properly formatted and has not been tampered with |
+| USER_MISMATCH | User ID mismatch between token and header | Ensure X-User-ID matches the user in the token |
+
+#### Request Errors
+
+| Error Code | Description | Solution |
+|------------|-------------|----------|
+| INVALID_INPUT | Request data failed validation | Check the required_parameters in the error help section |
+| MISSING_FIELD | A required field is missing | Add the missing field to your request |
+| INVALID_FORMAT | A field has an incorrect format | Correct the format as specified in the error message |
+| RESOURCE_NOT_FOUND | The requested resource does not exist | Verify the resource ID or path |
+| DUPLICATE_RESOURCE | A resource with the same unique identifier already exists | Use a different identifier or update the existing resource |
+
+#### Server Errors
+
+| Error Code | Description | Solution |
+|------------|-------------|----------|
+| DATABASE_ERROR | Error connecting to the database | Retry the request; if persistent, contact support |
+| INTERNAL_ERROR | Unexpected server error | Retry the request; if persistent, contact support with the request_id |
+| SERVICE_UNAVAILABLE | Service temporarily unavailable | Retry after a short delay |
+
+### Example Error and Correction
+
+#### Invalid Request Example
+
+Request:
+```http
+POST /api/v1/subscriptions
+Authorization: BearereyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "name": "My Subscription"
+}
+```
+
+Error Response:
+```json
+{
+  "error": {
+    "code": "MISSING_HEADERS",
+    "message": "Authentication headers are missing or malformed",
+    "request_id": "req-123456",
+    "timestamp": "2025-03-15T12:34:56Z",
+    "help": {
+      "endpoint_info": {
+        "description": "Create a new subscription",
+        "auth_required": true,
+        "method": "POST"
+      },
+      "documentation_url": "https://docs.nifya.app/api/subscriptions",
+      "correct_format": "Authorization: Bearer {token} (note the space after Bearer)"
+    }
+  }
+}
+```
+
+#### Corrected Request
+
+```http
+POST /api/v1/subscriptions
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+X-User-ID: 65c6074d-dbc4-4091-8e45-b6aecffd9ab9
+Content-Type: application/json
+
+{
+  "name": "My Subscription",
+  "type": "boe",
+  "prompts": ["Search term 1"]
+}
+```
+
+## Endpoint-Specific Error Handling
+
+### Subscription Endpoints Errors
+
+#### Creating a Subscription
+
+Common errors when creating a subscription:
+
+| Error | Description | Solution |
+|-------|-------------|----------|
+| INVALID_SUBSCRIPTION_TYPE | The provided subscription type does not exist | Use one of the available types from GET `/subscriptions/types` |
+| MISSING_PROMPTS | No search prompts provided | Add at least one prompt to the "prompts" array |
+| TOO_MANY_PROMPTS | Too many search prompts provided | Limit prompts to a maximum of 3 |
+| INVALID_CONFIGURATION | Invalid configuration parameters | Check the configuration object structure for the specific subscription type |
+
+Example correct subscription creation:
+
+```json
+{
+  "name": "My BOE Subscription",
+  "type": "boe",
+  "prompts": ["Ayuntamiento Barcelona", "licitaciones"],
+  "frequency": "daily",
+  "configuration": {
+    "sections": ["all"]
+  }
+}
+```
+
+#### Processing a Subscription
+
+Common errors when processing a subscription:
+
+| Error | Description | Solution |
+|-------|-------------|----------|
+| SUBSCRIPTION_NOT_FOUND | Subscription ID doesn't exist | Verify the subscription ID |
+| NOT_SUBSCRIPTION_OWNER | User doesn't own the subscription | Ensure you're using the correct user account |
+| PROCESSOR_UNAVAILABLE | The processor service is unavailable | Try again later |
+| ALREADY_PROCESSING | Subscription is already being processed | Wait for current processing to complete |
+
+### Notification Endpoints Errors
+
+Common errors when working with notifications:
+
+| Error | Description | Solution |
+|-------|-------------|----------|
+| NOTIFICATION_NOT_FOUND | Notification ID doesn't exist | Verify the notification ID |
+| NOT_NOTIFICATION_OWNER | User doesn't own the notification | Ensure you're using the correct user account |
+| INVALID_PAGINATION | Invalid pagination parameters | Check limit and page/offset values |
+| INVALID_FILTER | Invalid filter parameters | Verify filter parameter values |
+
+### User Endpoints Errors
+
+Common errors when updating user information:
+
+| Error | Description | Solution |
+|-------|-------------|----------|
+| USER_NOT_FOUND | User doesn't exist in the database | Create user record via Authentication Service first |
+| INVALID_EMAIL_PREFERENCES | Invalid email preference settings | Check available preference options |
+| EMAIL_DELIVERY_FAILED | Test email failed to deliver | Verify email address or check email service status |
