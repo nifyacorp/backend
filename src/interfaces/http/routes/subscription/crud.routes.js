@@ -303,10 +303,25 @@ export async function registerCrudRoutes(fastify, options) {
         metadata
       }, context);
       
+      // Ensure we always return a valid subscription object, even if it's empty
+      const validSubscription = subscription && Object.keys(subscription).length > 0 
+        ? subscription 
+        : {
+          id: `temp-${Date.now()}`,
+          name,
+          description: description || '',
+          type: type || 'boe',
+          prompts: Array.isArray(prompts) ? prompts : [],
+          frequency: frequency || 'daily',
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      
       return reply.code(201).send({
         status: 'success',
         data: {
-          subscription
+          subscription: validSubscription
         }
       });
     } catch (error) {
