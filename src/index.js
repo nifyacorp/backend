@@ -194,19 +194,12 @@ fastify.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'st
   }
 });
 
-// Swagger documentation
+// Import enhanced API documentation utils
+import apiDocs from './shared/utils/api-docs.js';
+
+// Swagger documentation with enhanced configuration
 await fastify.register(swagger, {
-  swagger: {
-    info: {
-      title: 'Nifya Orchestration Service API',
-      description: 'API documentation for the Nifya Orchestration Service',
-      version: process.env.npm_package_version || '1.0.0'
-    },
-    host: process.env.SERVICE_URL || 'localhost:3000',
-    schemes: ['https'],
-    consumes: ['application/json'],
-    produces: ['application/json']
-  }
+  openapi: apiDocs.enhancedOpenAPIConfig
 });
 
 // Add health and version check routes
@@ -284,9 +277,23 @@ await fastify.register(express);
 // Register Express-compatible diagnostics endpoints
 fastify.use('/api/diagnostics', diagnosticsExpressRouter);
 
+// Register Swagger UI with enhanced configuration
 await fastify.register(swaggerUI, {
-  routePrefix: '/documentation'
+  routePrefix: '/documentation',
+  uiConfig: {
+    docExpansion: 'list',
+    deepLinking: true,
+    displayRequestDuration: true,
+    defaultModelsExpandDepth: 3,
+    defaultModelExpandDepth: 3,
+    showExtensions: true,
+    showCommonExtensions: true
+  },
+  staticCSP: true
 });
+
+// Set up additional documentation pages
+apiDocs.setupAdditionalDocs(fastify);
 
 // Register authentication middleware
 fastify.register(async function (fastify) {

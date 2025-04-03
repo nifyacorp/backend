@@ -6,7 +6,9 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "migrations": "node run-migrations.js",
-    "test:fixes": "node post-fix-test.js"
+    "test:fixes": "node post-fix-test.js",
+    "docs:generate": "node generate-api-docs.js",
+    "docs:serve": "npx serve -C"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
@@ -25,6 +27,8 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "glob": "^10.3.10",
+    "nodemon": "^3.1.0",
+    "serve": "^14.2.1"
   }
 }
