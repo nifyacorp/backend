@@ -9,7 +9,12 @@ export class SubscriptionRepository {
         limit = 20,
         sort = 'created_at',
         order = 'desc',
-        type = null
+        type = null,
+        active = null,
+        frequency = null,
+        search = null,
+        from = null,
+        to = null
       } = options;
       
       // Log the request parameters for debugging
@@ -24,6 +29,70 @@ export class SubscriptionRepository {
       
       // Build the query
       let queryParams = [userId];
+      let whereConditions = ['user_id = $1'];
+      let paramCounter = 2;
+      
+      // Add type filter if specified
+      if (type) {
+        // Check if type is a UUID (for direct type_id matching)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(type);
+        
+        if (isUuid) {
+          whereConditions.push(`type_id = $${paramCounter}`);
+        } else {
+          whereConditions.push(`type_id IN (
+            SELECT id FROM subscription_types 
+            WHERE LOWER(name) = LOWER($${paramCounter})
+          )`);
+        }
+        
+        queryParams.push(type);
+        paramCounter++;
+      }
+      
+      // Add active status filter if specified
+      if (active !== null) {
+        whereConditions.push(`active = $${paramCounter}`);
+        queryParams.push(active);
+        paramCounter++;
+      }
+      
+      // Add frequency filter if specified
+      if (frequency) {
+        whereConditions.push(`frequency = $${paramCounter}`);
+        queryParams.push(frequency);
+        paramCounter++;
+      }
+      
+      // Add search filter
+      if (search) {
+        whereConditions.push(`(
+          name ILIKE $${paramCounter} OR 
+          description ILIKE $${paramCounter} OR
+          EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(prompts::jsonb) as p 
+            WHERE p ILIKE $${paramCounter}
+          )
+        )`);
+        queryParams.push(`%${search}%`);
+        paramCounter++;
+      }
+      
+      // Add date range filters
+      if (from) {
+        whereConditions.push(`created_at >= $${paramCounter}`);
+        queryParams.push(from);
+        paramCounter++;
+      }
+      
+      if (to) {
+        whereConditions.push(`created_at <= $${paramCounter}`);
+        queryParams.push(to);
+        paramCounter++;
+      }
+      
+      // Combine where conditions
+      const whereClause = whereConditions.join(' AND ');
       
       // Validate and sanitize sort field to prevent SQL injection
       const validSortFields = ['created_at', 'updated_at', 'name', 'frequency', 'active'];
@@ -32,18 +101,18 @@ export class SubscriptionRepository {
       // Validate order
       const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
       
-      // Count total subscriptions for pagination - use simpler query
-      console.log('Repository: Executing count query');
+      // Count total subscriptions for pagination - use complete query with filters
+      console.log('Repository: Executing count query with filters');
       const countQuery = `SELECT COUNT(*) as total
          FROM subscriptions 
-         WHERE user_id = $1`;
+         WHERE ${whereClause}`;
       
       console.log('Count Query:', countQuery);
-      console.log('Count Params:', [userId]);
+      console.log('Count Params:', queryParams);
       
       const countResult = await query(
         countQuery,
-        [userId]
+        queryParams
       );
       
       if (!countResult || !countResult.rows || countResult.rows.length === 0) {
@@ -87,8 +156,8 @@ export class SubscriptionRepository {
         };
       }
       
-      // Get paginated subscriptions - simplify the query and avoid the join
-      console.log('Repository: Executing subscriptions query');
+      // Get paginated subscriptions with all filters
+      console.log('Repository: Executing subscriptions query with filters');
       const mainQuery = `SELECT 
           s.id,
           s.type_id,
@@ -101,16 +170,19 @@ export class SubscriptionRepository {
           s.created_at as "createdAt",
           s.updated_at as "updatedAt"
         FROM subscriptions s 
-        WHERE s.user_id = $1
+        WHERE ${whereClause}
         ORDER BY s.${sortField} ${sortOrder}
-        LIMIT $2 OFFSET $3`;
+        LIMIT $${paramCounter} OFFSET $${paramCounter + 1}`;
+      
+      // Add pagination parameters
+      queryParams.push(limit, offset);
       
       console.log('Main Query:', mainQuery);
-      console.log('Main Params:', [userId, limit, offset]);
+      console.log('Main Params:', queryParams);
       
       const result = await query(
         mainQuery,
-        [userId, limit, offset]
+        queryParams
       );
       
       if (!result || !result.rows || result.rows.length === 0) {

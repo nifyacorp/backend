@@ -55,7 +55,12 @@ export async function registerCrudRoutes(fastify, options) {
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
           sort: { type: 'string', enum: ['created_at', 'updated_at', 'name', 'frequency', 'active'], default: 'created_at' },
           order: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
-          type: { type: 'string' }
+          type: { type: 'string' },
+          status: { type: 'string', enum: ['active', 'inactive', 'all'], default: 'all' },
+          search: { type: 'string' },
+          frequency: { type: 'string', enum: ['immediate', 'daily', 'all'], default: 'all' },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' }
         }
       },
       response: {
@@ -77,6 +82,22 @@ export async function registerCrudRoutes(fastify, options) {
                     page: { type: 'integer' },
                     limit: { type: 'integer' },
                     totalPages: { type: 'integer' }
+                  }
+                },
+                filters: {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', nullable: true },
+                    status: { type: 'string', nullable: true },
+                    search: { type: 'string', nullable: true },
+                    frequency: { type: 'string', nullable: true },
+                    dateRange: {
+                      type: 'object',
+                      properties: {
+                        from: { type: 'string', format: 'date-time', nullable: true },
+                        to: { type: 'string', format: 'date-time', nullable: true }
+                      }
+                    }
                   }
                 }
               }
@@ -103,27 +124,69 @@ export async function registerCrudRoutes(fastify, options) {
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
       
-      const { page, limit, sort, order, type } = request.query;
+      // Extract all query parameters
+      const { 
+        page, 
+        limit, 
+        sort, 
+        order, 
+        type, 
+        status,
+        search,
+        frequency,
+        from,
+        to
+      } = request.query;
       
-      logRequest(context, 'Fetching user subscriptions', { 
-        userId: request.user.id,
-        page,
-        limit,
-        sort,
-        order,
+      // Build filter options
+      const filterOptions = {
+        page, 
+        limit, 
+        sort, 
+        order, 
         type
+      };
+      
+      // Add status filter if specified
+      if (status && status !== 'all') {
+        filterOptions.active = status === 'active';
+      }
+      
+      // Add frequency filter if specified
+      if (frequency && frequency !== 'all') {
+        filterOptions.frequency = frequency;
+      }
+      
+      // Add search filter if specified
+      if (search) {
+        filterOptions.search = search;
+      }
+      
+      // Add date range filters if specified
+      if (from) {
+        filterOptions.from = new Date(from);
+      }
+      
+      if (to) {
+        filterOptions.to = new Date(to);
+      }
+      
+      logRequest(context, 'Fetching user subscriptions with filters', { 
+        userId: request.user.id,
+        filterOptions
       });
       
       console.log('Route: getUserSubscriptions called with:', {
         userId: request.user.id,
         query: request.query,
+        filterOptions,
         requestId: request.id
       });
       
       const result = await subscriptionService.getUserSubscriptions(
         request.user.id, 
         context,
-        { page, limit, sort, order, type }
+        filterOptions
       );
       
       // Check if we received an error indicator from the service
@@ -131,6 +194,18 @@ export async function registerCrudRoutes(fastify, options) {
         console.log('Route: Service reported error:', result.error);
         // Still return a 200 with empty data
       }
+      
+      // Prepare filter information for response
+      const appliedFilters = {
+        type: type || null,
+        status: status || 'all',
+        search: search || null,
+        frequency: frequency || 'all',
+        dateRange: {
+          from: from || null,
+          to: to || null
+        }
+      };
       
       return {
         status: 'success',
@@ -141,7 +216,8 @@ export async function registerCrudRoutes(fastify, options) {
             page: parseInt(page || 1),
             limit: parseInt(limit || 20),
             totalPages: 0
-          }
+          },
+          filters: appliedFilters
         }
       };
     } catch (error) {
@@ -179,17 +255,22 @@ export async function registerCrudRoutes(fastify, options) {
     schema: {
       body: {
         type: 'object',
-        required: ['name', 'type', 'prompts', 'frequency'],
+        required: ['name', 'prompts'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 100 },
           type: { type: 'string' }, // Accept any type string, will be normalized in service
           typeId: { type: 'string' }, // Template ID from frontend
           description: { type: 'string', maxLength: 500 },
           prompts: { 
-            type: 'array',
-            items: { type: 'string', minLength: 1 },
-            minItems: 1,
-            maxItems: 3
+            oneOf: [
+              {
+                type: 'array',
+                items: { type: 'string', minLength: 1 },
+                minItems: 1,
+                maxItems: 3
+              },
+              { type: 'string', minLength: 1 }
+            ]
           },
           frequency: { type: 'string' }, // Accept any frequency, will be normalized in service
           logo: { type: 'string' },
@@ -291,7 +372,7 @@ export async function registerCrudRoutes(fastify, options) {
         frequency
       });
       
-      const subscription = await subscriptionService.createSubscription({
+      const result = await subscriptionService.createSubscription({
         userId: request.user.id,
         name,
         type,
@@ -303,20 +384,25 @@ export async function registerCrudRoutes(fastify, options) {
         metadata
       }, context);
       
-      // Ensure we always return a valid subscription object, even if it's empty
-      const validSubscription = subscription && Object.keys(subscription).length > 0 
-        ? subscription 
-        : {
-          id: `temp-${Date.now()}`,
-          name,
-          description: description || '',
-          type: type || 'boe',
-          prompts: Array.isArray(prompts) ? prompts : [],
-          frequency: frequency || 'daily',
-          active: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
+      // Extract the subscription from the result object
+      // The service returns a database result with rows property
+      const subscription = result?.rows?.[0] || {};
+      
+      // Create a properly formatted subscription object from the database result
+      const validSubscription = {
+        id: subscription.id || `temp-${Date.now()}`,
+        name: subscription.name || name,
+        description: subscription.description || description || '',
+        type: subscription.type || type || 'boe',
+        typeName: subscription.type_name || (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'BOE'),
+        typeId: subscription.type_id,
+        prompts: Array.isArray(subscription.prompts) ? subscription.prompts : 
+                (Array.isArray(prompts) ? prompts : []),
+        frequency: subscription.frequency || frequency || 'daily',
+        active: subscription.active !== undefined ? subscription.active : true,
+        createdAt: subscription.created_at || new Date().toISOString(),
+        updatedAt: subscription.updated_at || new Date().toISOString()
+      };
       
       return reply.code(201).send({
         status: 'success',

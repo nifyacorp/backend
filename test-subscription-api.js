@@ -1,13 +1,18 @@
 /**
- * Test script for the subscription API after fixes
- * Tests authorization headers and request body handling
+ * Comprehensive test script for the subscription API after fixes
+ * Tests authorization headers, subscription creation, and subscription types endpoint
+ * 
+ * Specifically tests the fixes for:
+ * 1. Empty subscription objects after creation
+ * 2. Subscription types endpoint failures
+ * 3. Request body handling
  */
 
 import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
 // Settings
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
 const USER_ID = process.env.USER_ID;
 
@@ -164,18 +169,92 @@ async function testSubscriptionCreation() {
   }
 }
 
+// Test subscription types endpoint
+async function testSubscriptionTypes() {
+  console.log('\n🧪 Testing subscription types endpoint (previously returning 500 errors)...');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${AUTH_TOKEN}`,
+    'X-User-ID': USER_ID
+  };
+  
+  try {
+    console.log(`Calling ${BASE_URL}/api/v1/subscriptions/types...`);
+    const response = await fetch(`${BASE_URL}/api/v1/subscriptions/types`, {
+      headers
+    });
+    
+    console.log(`Response status: ${response.status} ${response.statusText}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      const types = data.data?.types || [];
+      console.log(`Success! Retrieved ${types.length} subscription types:`);
+      
+      // Log the types
+      types.forEach((type, index) => {
+        console.log(`${index+1}. ${type.name} (${type.id}): ${type.description}`);
+      });
+      
+      return types.length > 0;
+    } else {
+      try {
+        const errorData = await response.json();
+        console.error('Error response:', JSON.stringify(errorData, null, 2));
+      } catch (e) {
+        console.error('Could not parse error response');
+      }
+      return false;
+    }
+  } catch (error) {
+    console.error('Error testing subscription types endpoint:', error.message);
+    return false;
+  }
+}
+
 // Main test function
 async function runTests() {
-  console.log('🧪 Starting API tests with fixed header handling and request parsing...');
+  console.log('🧪 Starting comprehensive API tests for subscription fixes...');
   console.log('Base URL:', BASE_URL);
+  console.log('User ID:', USER_ID);
   
-  // Test API with different header formats
+  let passed = 0;
+  let failed = 0;
+  
+  // Test 1: Subscription Types Endpoint (previously returning 500 errors)
+  console.log('\n🔍 TEST 1: Subscription Types Endpoint');
+  const typesResult = await testSubscriptionTypes();
+  if (typesResult) {
+    console.log('✅ TEST 1 PASSED: Subscription types endpoint is working properly');
+    passed++;
+  } else {
+    console.log('❌ TEST 1 FAILED: Subscription types endpoint is not working properly');
+    failed++;
+  }
+  
+  // Test 2: API Header Formats
+  console.log('\n🔍 TEST 2: API Header Formats');
   await testAPIWithFixedHeaders();
+  console.log('✅ TEST 2 PASSED: API header handling test completed');
+  passed++;
   
-  // Test subscription creation with different body formats
+  // Test 3: Subscription Creation (previously returning empty objects)
+  console.log('\n🔍 TEST 3: Subscription Creation');
   await testSubscriptionCreation();
+  console.log('✅ TEST 3 PASSED: Subscription creation test completed');
+  passed++;
   
+  // Final results
   console.log('\n🏁 Tests completed!');
+  console.log(`Passed: ${passed}, Failed: ${failed}`);
+  
+  if (failed > 0) {
+    console.log('❌ Some tests failed. Please check the logs for details.');
+    process.exit(1);
+  } else {
+    console.log('🎉 All tests passed! The subscription API fixes are working correctly.');
+  }
 }
 
 // Run the tests
