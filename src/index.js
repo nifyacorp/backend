@@ -11,6 +11,8 @@ import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 import { ALLOWED_HEADERS } from './shared/constants/headers.js';
+import { AppError } from './shared/errors/AppError.js';
+import { logRequest, logError } from './shared/logging/logger.js';
 import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './interfaces/http/routes/diagnostics.routes.js';
 
 const fastify = Fastify({
@@ -313,6 +315,78 @@ fastify.register(async function (fastify) {
   fastify.post('/api/subscriptions/:id/process', async (request, reply) => {
     return reply.redirect(308, `/api/v1/subscriptions/${request.params.id}/process`);
   });
+});
+
+// Add compatibility layer for /api/v1/me endpoints
+// These are used by the frontend but the actual implementation is at /api/v1/users/me
+fastify.register(async function (fastify) {
+  // This provides backwards compatibility with older API paths
+  // The frontend expects /api/v1/me but our implementation is at /api/v1/users/me
+  
+  // Use authentication middleware for these endpoints
+  fastify.addHook('preHandler', authenticate);
+  
+  // Create a wrapper for the user service
+  const userServiceWrapper = async (request, reply) => {
+    const { userService } = await import('./core/user/user.service.js');
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.user?.token
+    };
+    
+    try {
+      logRequest(context, 'Processing user profile request from compatibility layer', {
+        hasUser: !!request.user,
+        userId: request.user?.id
+      });
+      
+      if (!request.user?.id) {
+        throw new AppError(
+          'UNAUTHORIZED',
+          'No user ID available',
+          401
+        );
+      }
+      
+      const profile = await userService.getUserProfile(
+        request.user.id,
+        context
+      );
+      
+      return { profile };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  };
+  
+  // Forward /api/v1/me to /api/v1/users/me
+  fastify.get('/api/v1/me', userServiceWrapper);
+  
+  // Email preferences endpoints
+  const { 
+    getEmailPreferences, 
+    updateEmailPreferences, 
+    sendTestEmail 
+  } = await import('./core/user/interfaces/http/email-preferences.controller.js');
+  
+  // GET /api/v1/me/email-preferences
+  fastify.get('/api/v1/me/email-preferences', getEmailPreferences);
+  
+  // PATCH /api/v1/me/email-preferences
+  fastify.patch('/api/v1/me/email-preferences', updateEmailPreferences);
+  
+  // POST /api/v1/me/test-email
+  fastify.post('/api/v1/me/test-email', sendTestEmail);
 });
 
 // Start server

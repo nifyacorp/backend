@@ -43,6 +43,15 @@ class TypeService {
     }
   }
 
+  // Add a wrapper method to match the method name used in the routes
+  async createType(data, context) {
+    logRequest(context, 'Creating subscription type (via createType)', { 
+      createdBy: data.createdBy,
+      name: data.name
+    });
+    return this.createSubscriptionType(data.createdBy, data, context);
+  }
+
   async createSubscriptionType(userId, data, context) {
     logRequest(context, 'Creating subscription type', { userId });
 
