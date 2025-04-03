@@ -551,6 +551,17 @@ fastify.register(async function (fastify) {
   
   // POST /api/v1/me/test-email
   fastify.post('/api/v1/me/test-email', sendTestEmail);
+  
+  // Add compatibility routes for frontend - some frontend routes use /v1 instead of /api/v1
+  
+  // GET /v1/me/email-preferences (compatibility route)
+  fastify.get('/v1/me/email-preferences', getEmailPreferences);
+  
+  // PATCH /v1/me/email-preferences (compatibility route)
+  fastify.patch('/v1/me/email-preferences', updateEmailPreferences);
+  
+  // POST /v1/me/test-email (compatibility route)
+  fastify.post('/v1/me/test-email', sendTestEmail);
 });
 
 // Start server

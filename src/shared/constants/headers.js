@@ -18,7 +18,9 @@ export const ALLOWED_HEADERS = [
   AUTH_HEADER,
   USER_ID_HEADER,
   CONTENT_TYPE,
-  X_REQUESTED_WITH
+  ACCEPT,
+  X_REQUESTED_WITH,
+  'headers' // Add the 'headers' field to allow it in preflight requests
 ];
 
 // Content type values

@@ -1,5 +1,10 @@
 # NIFYA API Issues - Fix Plan
 
+## Latest Updates
+
+- **CORS and Routing Fix**: Fixed CORS header issues and added compatibility routes for email preferences endpoints (See [CORS-AND-ROUTING-FIX.md](./CORS-AND-ROUTING-FIX.md))
+- **User Routes Fix**: Fixed `/api/v1/me` and `/api/v1/me/notification-settings` endpoints (See [USER-ROUTES-FIX.md](./USER-ROUTES-FIX.md))
+
 Based on the test results, we've identified several issues across the NIFYA API that need to be addressed. This document outlines each issue, its impact, and the proposed fix.
 
 ## 1. Authentication Service Issues
@@ -50,13 +55,14 @@ Based on the test results, we've identified several issues across the NIFYA API 
 
 ## 3. Subscription Management Issues
 
-### 3.1. Subscription Creation Validation (CRITICAL)
+### 3.1. Subscription Creation Validation (CRITICAL) ✅ FIXED
 - **Issue**: Subscription creation fails with validation error on the "prompts" field
 - **Impact**: Users cannot create new subscriptions
 - **Fix**: 
-  - Update the subscription schema validation to properly handle different prompts formats
-  - Allow both string and array formats for backwards compatibility
-  - Add better error messages to help users with the correct format
+  - Updated the subscription schema validation to properly handle different prompts formats
+  - Allowed multiple formats (string, array, object, null) for backwards compatibility
+  - Added better error messages to help users with the correct format
+- **Status**: Fixed in [SUBSCRIPTION-VALIDATION-FIX.md](./SUBSCRIPTION-VALIDATION-FIX.md)
 
 ### 3.2. Empty Subscription Objects (MEDIUM)
 - **Issue**: Some subscription endpoints return empty objects or incomplete data

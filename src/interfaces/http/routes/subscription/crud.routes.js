@@ -266,11 +266,12 @@ export async function registerCrudRoutes(fastify, options) {
               {
                 type: 'array',
                 items: { type: 'string' },
-                minItems: 0,
+                minItems: 1,
                 maxItems: 3
               },
               { type: 'string' },
-              { type: 'null' }
+              { type: 'null' },
+              { type: 'object' } // Allow object format for flexibility
             ]
           },
           frequency: { type: 'string' }, // Accept any frequency, will be normalized in service

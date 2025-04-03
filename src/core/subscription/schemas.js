@@ -45,21 +45,35 @@ const baseSubscriptionSchema = {
   
   // Prompts can be an array of strings, a single string, or null/undefined
   prompts: z
-    .union([
-      z.array(z.string()).min(1).max(3),
-      z.string().transform(val => [val]),
-      z.null().transform(() => []),
-      z.undefined().transform(() => [])
-    ])
-    .optional()
-    .default([])
+    .any()
     .transform(val => {
-      // Ensure we always have a valid array, even if the input is unusual
-      if (!val) return [];
-      if (typeof val === 'string') return [val];
-      if (Array.isArray(val)) return val;
-      return [];
-    }),
+      // More robust transformation that handles any input format
+      if (val === null || val === undefined) return [];
+      
+      // Handle array inputs
+      if (Array.isArray(val)) {
+        return val.map(item => typeof item === 'string' ? item : String(item)).filter(Boolean);
+      }
+      
+      // Handle string inputs
+      if (typeof val === 'string') {
+        return [val];
+      }
+      
+      // Try to handle JSON string
+      if (typeof val === 'object') {
+        // Extract any string values we can find
+        return Object.values(val)
+          .filter(v => typeof v === 'string')
+          .filter(Boolean);
+      }
+      
+      // Fallback - convert to string and use as prompt
+      return [String(val)].filter(Boolean);
+    })
+    .pipe(
+      z.array(z.string()).max(3)
+    ),
   
   // Logo can be any string, validation is looser
   logo: z.string().optional().or(z.null()),
