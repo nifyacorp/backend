@@ -3,6 +3,12 @@ import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 
 class TypeService {
+  // Add a getTypes method that calls getSubscriptionTypes for backwards compatibility
+  async getTypes(userId, context) {
+    logRequest(context, 'Fetching subscription types (via getTypes)', { userId });
+    return this.getSubscriptionTypes(context);
+  }
+
   async getSubscriptionTypes(context) {
     logRequest(context, 'Fetching subscription types');
 

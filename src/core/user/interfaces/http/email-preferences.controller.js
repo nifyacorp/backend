@@ -24,9 +24,9 @@ export async function getEmailPreferences(request, reply) {
     
     const result = await query(
       `SELECT 
-        email_notifications, 
-        notification_email, 
-        digest_time
+        metadata->>'emailNotifications' as email_notifications, 
+        metadata->>'notificationEmail' as notification_email, 
+        metadata->>'digestTime' as digest_time
       FROM users
       WHERE id = $1`,
       [userId]
@@ -79,36 +79,35 @@ export async function updateEmailPreferences(request, reply) {
       digest_time
     });
     
-    // Build update query based on provided fields
-    const updates = [];
-    const values = [];
+    // Build a JSON object for metadata update
+    const metadataUpdates = {};
     
     // Only include fields that were provided in the request
     if (email_notifications !== undefined) {
-      updates.push(`email_notifications = $${updates.length + 2}`);
-      values.push(email_notifications);
+      metadataUpdates.emailNotifications = email_notifications;
     }
     
     if (notification_email !== undefined) {
-      updates.push(`notification_email = $${updates.length + 2}`);
-      values.push(notification_email);
+      metadataUpdates.notificationEmail = notification_email;
     }
     
     if (digest_time !== undefined) {
-      updates.push(`digest_time = $${updates.length + 2}`);
-      values.push(digest_time);
+      metadataUpdates.digestTime = digest_time;
     }
     
-    if (updates.length === 0) {
+    if (Object.keys(metadataUpdates).length === 0) {
       return { message: 'No changes to update' };
     }
     
     const result = await query(
       `UPDATE users 
-       SET ${updates.join(', ')} 
+       SET metadata = metadata || $2::jsonb
        WHERE id = $1
-       RETURNING email_notifications, notification_email, digest_time`,
-      [userId, ...values]
+       RETURNING 
+         metadata->>'emailNotifications' as email_notifications, 
+         metadata->>'notificationEmail' as notification_email, 
+         metadata->>'digestTime' as digest_time`,
+      [userId, JSON.stringify(metadataUpdates)]
     );
     
     // Publish event for preference change
@@ -163,7 +162,7 @@ export async function sendTestEmail(request, reply) {
     
     // Get user details for the test email
     const userResult = await query(
-      `SELECT email, notification_email 
+      `SELECT email, metadata->>'notificationEmail' as notification_email 
        FROM users
        WHERE id = $1`,
       [userId]

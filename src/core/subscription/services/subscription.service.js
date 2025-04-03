@@ -809,6 +809,247 @@ class SubscriptionService {
       };
     }
   }
+
+  /**
+   * Share a subscription with another user via email
+   * 
+   * @param {string} userId - ID of the user sharing the subscription
+   * @param {string} subscriptionId - ID of the subscription to share
+   * @param {string} targetEmail - Email address of the user to share with
+   * @param {string} message - Optional message to include in the sharing notification
+   * @param {object} context - Request context for logging
+   * @returns {Promise<object>} - Result of the sharing operation
+   */
+  async shareSubscription(userId, subscriptionId, targetEmail, message, context) {
+    logRequest(context, 'Sharing subscription', { 
+      userId, 
+      subscriptionId, 
+      targetEmail 
+    });
+    
+    try {
+      // First, check if the subscription exists and belongs to the user
+      const subscriptionCheck = await query(
+        'SELECT id, name, type_id FROM subscriptions WHERE id = $1 AND user_id = $2',
+        [subscriptionId, userId]
+      );
+      
+      if (subscriptionCheck.rows.length === 0) {
+        throw new AppError(
+          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
+          SUBSCRIPTION_ERRORS.NOT_FOUND.message,
+          404,
+          { subscriptionId }
+        );
+      }
+      
+      const subscription = subscriptionCheck.rows[0];
+      
+      // Check if target user exists by email
+      const userCheck = await query(
+        'SELECT id FROM users WHERE email = $1',
+        [targetEmail]
+      );
+      
+      let targetUserId;
+      
+      if (userCheck.rows.length === 0) {
+        // Create a placeholder user if the target doesn't exist yet
+        const result = await query(
+          `INSERT INTO users (
+            email,
+            name,
+            metadata
+          ) VALUES ($1, $2, $3)
+          RETURNING id`,
+          [
+            targetEmail,
+            targetEmail.split('@')[0], // Simple name from email
+            JSON.stringify({
+              pendingActivation: true,
+              invitedBy: userId
+            })
+          ]
+        );
+        
+        targetUserId = result.rows[0].id;
+        logRequest(context, 'Created placeholder user for subscription sharing', { 
+          targetEmail, 
+          targetUserId 
+        });
+      } else {
+        targetUserId = userCheck.rows[0].id;
+      }
+      
+      // Create sharing record
+      await query(
+        `INSERT INTO subscription_shares (
+          subscription_id,
+          shared_by,
+          shared_with,
+          message,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5)`,
+        [
+          subscriptionId,
+          userId,
+          targetUserId,
+          message || '',
+          new Date()
+        ]
+      );
+      
+      // Publish event for notification
+      try {
+        logPubSub(context, 'Publishing subscription.shared event', { 
+          subscriptionId,
+          targetUserId 
+        });
+        
+        await publishEvent('subscription.shared', {
+          subscription_id: subscriptionId,
+          subscription_name: subscription.name,
+          shared_by: userId,
+          shared_with: targetUserId,
+          shared_with_email: targetEmail,
+          message: message || '',
+          timestamp: new Date().toISOString()
+        });
+      } catch (pubsubError) {
+        logError(context, pubsubError, 'Failed to publish subscription.shared event');
+        // Continue without failing the whole operation
+      }
+      
+      return {
+        success: true,
+        message: `Subscription shared successfully with ${targetEmail}`,
+        subscription_id: subscriptionId,
+        target_email: targetEmail
+      };
+    } catch (error) {
+      logError(context, error);
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        'SUBSCRIPTION_SHARE_ERROR',
+        'Failed to share subscription',
+        500,
+        { originalError: error.message }
+      );
+    }
+  }
+  
+  /**
+   * Remove subscription sharing with a specific user
+   * 
+   * @param {string} userId - ID of the user who originally shared the subscription
+   * @param {string} subscriptionId - ID of the shared subscription
+   * @param {string} targetEmail - Email of the user to remove sharing with
+   * @param {object} context - Request context for logging
+   * @returns {Promise<object>} - Result of the operation
+   */
+  async removeSubscriptionSharing(userId, subscriptionId, targetEmail, context) {
+    logRequest(context, 'Removing subscription sharing', { 
+      userId, 
+      subscriptionId, 
+      targetEmail 
+    });
+    
+    try {
+      // First, check if the subscription exists and belongs to the user
+      const subscriptionCheck = await query(
+        'SELECT id FROM subscriptions WHERE id = $1 AND user_id = $2',
+        [subscriptionId, userId]
+      );
+      
+      if (subscriptionCheck.rows.length === 0) {
+        throw new AppError(
+          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
+          SUBSCRIPTION_ERRORS.NOT_FOUND.message,
+          404,
+          { subscriptionId }
+        );
+      }
+      
+      // Find the target user ID by email
+      const userCheck = await query(
+        'SELECT id FROM users WHERE email = $1',
+        [targetEmail]
+      );
+      
+      if (userCheck.rows.length === 0) {
+        throw new AppError(
+          'USER_NOT_FOUND',
+          'Target user not found',
+          404,
+          { email: targetEmail }
+        );
+      }
+      
+      const targetUserId = userCheck.rows[0].id;
+      
+      // Delete the sharing record
+      const result = await query(
+        `DELETE FROM subscription_shares
+         WHERE subscription_id = $1
+         AND shared_by = $2
+         AND shared_with = $3
+         RETURNING id`,
+        [subscriptionId, userId, targetUserId]
+      );
+      
+      if (result.rowCount === 0) {
+        throw new AppError(
+          'SHARE_NOT_FOUND',
+          'Subscription sharing not found',
+          404,
+          { subscriptionId, targetEmail }
+        );
+      }
+      
+      // Publish event for notification
+      try {
+        logPubSub(context, 'Publishing subscription.unshared event', { 
+          subscriptionId,
+          targetUserId 
+        });
+        
+        await publishEvent('subscription.unshared', {
+          subscription_id: subscriptionId,
+          shared_by: userId,
+          shared_with: targetUserId,
+          shared_with_email: targetEmail,
+          timestamp: new Date().toISOString()
+        });
+      } catch (pubsubError) {
+        logError(context, pubsubError, 'Failed to publish subscription.unshared event');
+        // Continue without failing the whole operation
+      }
+      
+      return {
+        success: true,
+        message: `Subscription sharing with ${targetEmail} removed successfully`,
+        subscription_id: subscriptionId,
+        target_email: targetEmail
+      };
+    } catch (error) {
+      logError(context, error);
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        'SUBSCRIPTION_UNSHARE_ERROR',
+        'Failed to remove subscription sharing',
+        500,
+        { originalError: error.message }
+      );
+    }
+  }
 }
 
 export const subscriptionService = new SubscriptionService(subscriptionRepository);

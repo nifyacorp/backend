@@ -12,15 +12,15 @@ class UserService {
         `SELECT 
           u.id,
           u.email,
-          u.name,
-          u.preferences->>'avatar' as avatar,
-          u.preferences->>'bio' as bio,
-          u.preferences->>'theme' as theme,
-          u.preferences->>'language' as language,
-          u.notification_settings->>'emailNotifications' as "emailNotifications",
-          u.notification_settings->>'notificationEmail' as "notificationEmail",
-          u.notification_settings->>'emailFrequency' as "emailFrequency",
-          u.notification_settings->>'instantNotifications' as "instantNotifications",
+          u.display_name as name,
+          u.metadata->>'avatar' as avatar,
+          u.metadata->>'bio' as bio,
+          u.metadata->>'theme' as theme,
+          u.metadata->>'language' as language,
+          u.metadata->>'emailNotifications' as "emailNotifications",
+          u.metadata->>'notificationEmail' as "notificationEmail",
+          u.metadata->>'emailFrequency' as "emailFrequency",
+          u.metadata->>'instantNotifications' as "instantNotifications",
           u.updated_at as "lastLogin",
           true as "emailVerified",
           (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id) as "subscriptionCount",
@@ -58,29 +58,27 @@ class UserService {
           `INSERT INTO users (
             id,
             email,
-            name,
-            preferences,
-            notification_settings
-          ) VALUES ($1, $2, $3, $4, $5)
+            display_name,
+            metadata
+          ) VALUES ($1, $2, $3, $4)
           RETURNING 
             id,
             email,
-            name,
-            preferences->>'avatar' as avatar,
-            preferences->>'bio' as bio,
-            preferences->>'theme' as theme,
-            preferences->>'language' as language,
-            notification_settings->>'emailNotifications' as "emailNotifications",
-            notification_settings->>'notificationEmail' as "notificationEmail",
-            notification_settings->>'emailFrequency' as "emailFrequency",
-            notification_settings->>'instantNotifications' as "instantNotifications",
+            display_name as name,
+            metadata->>'avatar' as avatar,
+            metadata->>'bio' as bio,
+            metadata->>'theme' as theme,
+            metadata->>'language' as language,
+            metadata->>'emailNotifications' as "emailNotifications",
+            metadata->>'notificationEmail' as "notificationEmail",
+            metadata->>'emailFrequency' as "emailFrequency",
+            metadata->>'instantNotifications' as "instantNotifications",
             updated_at as "lastLogin",
             true as "emailVerified"`,
           [
             userId,
             email,
             name,
-            JSON.stringify({}),
             JSON.stringify({
               emailNotifications: true,
               emailFrequency: 'immediate',
@@ -171,26 +169,31 @@ class UserService {
         notificationUpdates.instantNotifications = updates.instantNotifications;
       }
 
+      // Merge all updates into a single metadata update
+      const metadataUpdates = {
+        ...preferenceUpdates,
+        ...notificationUpdates
+      };
+
       const result = await query(
         `UPDATE users 
          SET 
-           name = COALESCE($1, name),
-           preferences = preferences || $2::jsonb,
-           notification_settings = notification_settings || $3::jsonb,
+           display_name = COALESCE($1, display_name),
+           metadata = metadata || $2::jsonb,
            updated_at = NOW()
-         WHERE id = $4
+         WHERE id = $3
          RETURNING 
            id,
            email,
-           name,
-           preferences->>'avatar' as avatar,
-           preferences->>'bio' as bio,
-           preferences->>'theme' as theme,
-           preferences->>'language' as language,
-           notification_settings->>'emailNotifications' as "emailNotifications",
-           notification_settings->>'notificationEmail' as "notificationEmail", 
-           notification_settings->>'emailFrequency' as "emailFrequency",
-           notification_settings->>'instantNotifications' as "instantNotifications",
+           display_name as name,
+           metadata->>'avatar' as avatar,
+           metadata->>'bio' as bio,
+           metadata->>'theme' as theme,
+           metadata->>'language' as language,
+           metadata->>'emailNotifications' as "emailNotifications",
+           metadata->>'notificationEmail' as "notificationEmail", 
+           metadata->>'emailFrequency' as "emailFrequency",
+           metadata->>'instantNotifications' as "instantNotifications",
            updated_at as "lastLogin",
            true as "emailVerified",
            (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = users.id) as "subscriptionCount",
@@ -202,8 +205,7 @@ class UserService {
             LIMIT 1) as "lastNotification"`,
         [
           updates.name || null,
-          JSON.stringify(preferenceUpdates),
-          JSON.stringify(notificationUpdates),
+          JSON.stringify(metadataUpdates),
           userId
         ]
       );
