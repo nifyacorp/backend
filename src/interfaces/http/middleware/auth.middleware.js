@@ -57,16 +57,14 @@ async function synchronizeUser(userId, userInfo, context) {
       `INSERT INTO users (
         id,
         email,
-        name,
-        preferences,
-        notification_settings
-      ) VALUES ($1, $2, $3, $4, $5)
+        display_name,
+        metadata
+      ) VALUES ($1, $2, $3, $4)
       ON CONFLICT (id) DO NOTHING`,
       [
         userId,
         email,
         name,
-        JSON.stringify({}),
         JSON.stringify({
           emailNotifications: true,
           emailFrequency: 'immediate',

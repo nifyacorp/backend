@@ -162,41 +162,13 @@ export async function query(text, params) {
 
 ## 🔑 API Endpoints
 
+For a comprehensive list of all available API endpoints, please refer to the [ENDPOINTS.md](./ENDPOINTS.md) file.
+
 ### Authentication
 
 All authenticated routes require:
 - `Authorization: Bearer <token>` header
 - `X-User-ID: <user-id>` header
-
-### Subscription Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/subscriptions` | Get all user subscriptions |
-| GET | `/api/v1/subscriptions/:id` | Get subscription details |
-| POST | `/api/v1/subscriptions` | Create new subscription |
-| PUT | `/api/v1/subscriptions/:id` | Update subscription |
-| DELETE | `/api/v1/subscriptions/:id` | Delete subscription |
-| POST | `/api/v1/subscriptions/:id/process` | Process subscription |
-| GET | `/api/v1/subscriptions/types` | Get available subscription types |
-
-### Notification Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/notifications` | Get user notifications |
-| PUT | `/api/v1/notifications/:id/read` | Mark notification as read |
-| PUT | `/api/v1/notifications/read-all` | Mark all notifications as read |
-| DELETE | `/api/v1/notifications/:id` | Delete notification |
-
-### User Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/users/profile` | Get user profile |
-| PUT | `/api/v1/users/profile` | Update user profile |
-| GET | `/api/v1/users/email-preferences` | Get email notification preferences |
-| PUT | `/api/v1/users/email-preferences` | Update email notification preferences |
 
 ## 📦 Data Models
 
