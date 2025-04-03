@@ -2,6 +2,7 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
 import { query } from '../../../../infrastructure/database/client.js';
 import { publishEvent } from '../../../../infrastructure/pubsub/client.js';
+import { userEmailPreferencesRepository } from '../../../notification/data/user-email-preferences.repository.js';
 
 /**
  * Get email notification preferences for a user
@@ -22,26 +23,10 @@ export async function getEmailPreferences(request, reply) {
   try {
     logRequest(context, 'Getting email preferences', { userId });
     
-    const result = await query(
-      `SELECT 
-        metadata->>'emailNotifications' as email_notifications, 
-        metadata->>'notificationEmail' as notification_email, 
-        metadata->>'digestTime' as digest_time
-      FROM users
-      WHERE id = $1`,
-      [userId]
-    );
+    // Use the repository to get email preferences
+    const preferences = await userEmailPreferencesRepository.getEmailPreferences(userId);
     
-    if (result.rows.length === 0) {
-      // Return default preferences if not found
-      return {
-        email_notifications: false,
-        notification_email: null,
-        digest_time: '08:00:00'
-      };
-    }
-    
-    return result.rows[0];
+    return preferences;
   } catch (error) {
     logError(context, error);
     throw new AppError(
@@ -70,53 +55,26 @@ export async function updateEmailPreferences(request, reply) {
   };
   
   try {
-    const { email_notifications, notification_email, digest_time } = request.body;
+    const preferences = request.body;
     
     logRequest(context, 'Updating email preferences', {
-      userId,
-      email_notifications,
-      notification_email,
-      digest_time
+      userId, ...preferences
     });
     
-    // Build a JSON object for metadata update
-    const metadataUpdates = {};
-    
-    // Only include fields that were provided in the request
-    if (email_notifications !== undefined) {
-      metadataUpdates.emailNotifications = email_notifications;
-    }
-    
-    if (notification_email !== undefined) {
-      metadataUpdates.notificationEmail = notification_email;
-    }
-    
-    if (digest_time !== undefined) {
-      metadataUpdates.digestTime = digest_time;
-    }
-    
-    if (Object.keys(metadataUpdates).length === 0) {
+    if (Object.keys(preferences).length === 0) {
       return { message: 'No changes to update' };
     }
     
-    const result = await query(
-      `UPDATE users 
-       SET metadata = metadata || $2::jsonb
-       WHERE id = $1
-       RETURNING 
-         metadata->>'emailNotifications' as email_notifications, 
-         metadata->>'notificationEmail' as notification_email, 
-         metadata->>'digestTime' as digest_time`,
-      [userId, JSON.stringify(metadataUpdates)]
-    );
+    // Use the repository to update email preferences
+    const updatedPreferences = await userEmailPreferencesRepository.updateEmailPreferences(userId, preferences);
     
     // Publish event for preference change
     try {
       await publishEvent('user.email_preferences_updated', {
         user_id: userId,
-        email_notifications: result.rows[0].email_notifications,
-        has_notification_email: !!result.rows[0].notification_email,
-        digest_time: result.rows[0].digest_time,
+        email_notifications: updatedPreferences.email_notifications,
+        has_notification_email: !!updatedPreferences.notification_email,
+        digest_time: updatedPreferences.digest_time,
         timestamp: new Date().toISOString()
       });
     } catch (pubsubError) {
@@ -126,7 +84,7 @@ export async function updateEmailPreferences(request, reply) {
     
     return {
       message: 'Email preferences updated successfully',
-      preferences: result.rows[0]
+      preferences: updatedPreferences
     };
   } catch (error) {
     logError(context, error);
@@ -162,7 +120,7 @@ export async function sendTestEmail(request, reply) {
     
     // Get user details for the test email
     const userResult = await query(
-      `SELECT email, metadata->>'notificationEmail' as notification_email 
+      `SELECT email, notification_settings->>'notificationEmail' as notification_email 
        FROM users
        WHERE id = $1`,
       [userId]
@@ -185,12 +143,22 @@ export async function sendTestEmail(request, reply) {
       );
     }
     
-    // Publish event to send test email
-    await publishEvent('email.test', {
-      user_id: userId,
-      email: recipientEmail,
-      timestamp: new Date().toISOString()
-    });
+    try {
+      // Publish event to send test email with proper error handling
+      await publishEvent('email.test', {
+        user_id: userId,
+        email: recipientEmail,
+        timestamp: new Date().toISOString()
+      });
+    } catch (pubsubError) {
+      logError(context, pubsubError, 'Failed to publish test email event');
+      throw new AppError(
+        'PUBSUB_ERROR',
+        'Failed to send test email - messaging service unavailable',
+        500,
+        { originalError: pubsubError.message }
+      );
+    }
     
     return {
       message: 'Test email sent successfully',
