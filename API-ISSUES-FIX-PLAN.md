@@ -2,6 +2,7 @@
 
 ## Latest Updates
 
+- **Subscription Validation Fix**: Fixed subscription creation validation to support multiple formats for the prompts field (See [SUBSCRIPTION-VALIDATION-FIX.md](./SUBSCRIPTION-VALIDATION-FIX.md))
 - **CORS and Routing Fix**: Fixed CORS header issues and added compatibility routes for email preferences endpoints (See [CORS-AND-ROUTING-FIX.md](./CORS-AND-ROUTING-FIX.md))
 - **User Routes Fix**: Fixed `/api/v1/me` and `/api/v1/me/notification-settings` endpoints (See [USER-ROUTES-FIX.md](./USER-ROUTES-FIX.md))
 
@@ -75,7 +76,7 @@ Based on the test results, we've identified several issues across the NIFYA API 
 ## 4. Implementation Plan
 
 ### Phase 1: Critical Fixes
-1. Fix subscription creation validation issue (3.1)
+1. ✅ Fix subscription creation validation issue (3.1) - COMPLETED
 2. Fix token refresh endpoint (1.1)
 
 ### Phase 2: High Priority Fixes
