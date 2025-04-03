@@ -136,6 +136,165 @@ export async function query(text, params) {
       };
     }
     
+    // MOCK SUBSCRIPTION TYPES data for type.service.js
+    if (text.includes('FROM subscription_types')) {
+      // For getSubscriptionTypes query
+      if (text.includes('ORDER BY is_system DESC') || text.includes('ORDER BY name ASC')) {
+        return {
+          rows: [
+            {
+              id: 'boe',
+              name: 'BOE',
+              description: 'Boletín Oficial del Estado',
+              icon: 'FileText',
+              isSystem: true,
+              createdBy: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            },
+            {
+              id: 'doga',
+              name: 'DOGA',
+              description: 'Diario Oficial de Galicia',
+              icon: 'FileText',
+              isSystem: true,
+              createdBy: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            },
+            {
+              id: 'real-estate',
+              name: 'Inmobiliaria',
+              description: 'Búsquedas inmobiliarias',
+              icon: 'Home',
+              isSystem: true,
+              createdBy: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          ],
+          rowCount: 3
+        };
+      }
+      
+      // For createSubscriptionType query
+      if (text.includes('INSERT INTO subscription_types')) {
+        return {
+          rows: [{
+            id: 'custom-type-' + Date.now(),
+            name: params[0] || 'Custom Type',
+            description: params[1] || 'Custom subscription type',
+            icon: params[2] || 'Star',
+            isSystem: false,
+            createdBy: params[3] || 'mock-user-id',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }],
+          rowCount: 1
+        };
+      }
+    }
+    
+    // MOCK TEMPLATE data for template.service.js
+    if (text.includes('FROM subscription_templates')) {
+      // For getPublicTemplates query
+      if (text.includes('WHERE t.is_public = true')) {
+        return {
+          rows: [
+            {
+              id: 'boe-general',
+              type: 'boe',
+              name: 'BOE General',
+              description: 'Seguimiento general del Boletín Oficial del Estado',
+              prompts: ['disposición', 'ley', 'real decreto'],
+              frequency: 'daily',
+              icon: 'GanttChart',
+              logo: 'https://www.boe.es/favicon.ico',
+              metadata: { category: 'government', source: 'boe' },
+              isPublic: true,
+              createdBy: null,
+              createdAt: new Date().toISOString()
+            },
+            {
+              id: 'boe-subvenciones',
+              type: 'boe',
+              name: 'Subvenciones BOE',
+              description: 'Alertas de subvenciones y ayudas públicas',
+              prompts: ['subvención', 'ayuda', 'convocatoria'],
+              frequency: 'immediate',
+              icon: 'Coins',
+              logo: 'https://www.boe.es/favicon.ico',
+              metadata: { category: 'government', source: 'boe' },
+              isPublic: true,
+              createdBy: null,
+              createdAt: new Date().toISOString()
+            }
+          ],
+          rowCount: 2
+        };
+      }
+      
+      // For getTemplateById query
+      if (text.includes('WHERE t.id = $1')) {
+        return {
+          rows: [{
+            id: params[0] || 'template-id',
+            type: 'boe',
+            name: 'BOE Template',
+            description: 'Template for BOE subscriptions',
+            prompts: ['keyword1', 'keyword2'],
+            frequency: 'daily',
+            icon: 'FileText',
+            logo: 'https://www.boe.es/favicon.ico',
+            metadata: { category: 'government', source: 'boe' },
+            isPublic: true,
+            createdBy: null,
+            createdAt: new Date().toISOString()
+          }],
+          rowCount: 1
+        };
+      }
+      
+      // For countPublicTemplates query
+      if (text.includes('COUNT(*)') && text.includes('WHERE t.is_public = true')) {
+        return {
+          rows: [{ count: '2' }],
+          rowCount: 1
+        };
+      }
+      
+      // For createTemplate query
+      if (text.includes('INSERT INTO subscription_templates')) {
+        return {
+          rows: [{
+            id: 'custom-template-' + Date.now(),
+            type: params[0] || 'boe',
+            name: params[1] || 'Custom Template',
+            description: params[2] || 'Custom template description',
+            prompts: params[3] || ['keyword1', 'keyword2'],
+            frequency: params[4] || 'daily',
+            icon: params[5] || 'Star',
+            logo: params[6] || null,
+            metadata: params[7] ? JSON.parse(params[7]) : {},
+            isPublic: params[8] || false,
+            createdBy: params[9] || 'mock-user-id',
+            createdAt: new Date().toISOString()
+          }],
+          rowCount: 1
+        };
+      }
+    }
+    
+    // MOCK getSubscriptionTypeId query for template repository
+    if (text.includes('SELECT id FROM subscription_types WHERE name = $1')) {
+      return {
+        rows: [{
+          id: 'boe'
+        }],
+        rowCount: 1
+      };
+    }
+    
     return { rows: [], rowCount: 0 };
   }
 
