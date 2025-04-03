@@ -82,29 +82,24 @@ class SubscriptionService {
         console.error('Service: Repository reported error:', result.error);
       }
       
-      // If we're using mock data, log this fact but still return it
-      if (result.isMockData) {
-        console.log('Service: Using mock subscription data for user', userId);
-        logRequest(context, 'Using mock subscription data due to missing or inconsistent data', { 
-          userId, 
-          subscriptionCount: result.subscriptions?.length || 0 
-        });
-        
-        // Add a warning message to the result
-        result.warning = 'Using mock data: API returned empty subscriptions despite stats showing subscriptions exist';
-      }
-      
       return result;
     } catch (error) {
       logError(context, error);
       console.error('Service: Error in getUserSubscriptions:', error);
       
-      // Generate mock data instead of empty results
-      const mockResult = this.repository._generateMockSubscriptions(userId, options);
-      mockResult.error = error.message;
-      mockResult.warning = 'Using mock data due to API error';
+      // Return empty results instead of mock data
+      const emptyResult = {
+        subscriptions: [],
+        pagination: {
+          total: 0,
+          page: parseInt(options.page || 1),
+          limit: parseInt(options.limit || 20),
+          totalPages: 0
+        },
+        error: error.message
+      };
       
-      return mockResult;
+      return emptyResult;
     }
   }
 

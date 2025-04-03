@@ -119,13 +119,13 @@ export class UserEmailPreferencesRepository {
           updatedSettings.digestTime = preferences.digest_time;
         }
         
-        // Update the notification_settings JSONB column
+        // Update the notification_settings JSONB column - must stringify the object for JSONB
         const result = await query(
           `UPDATE users 
-           SET notification_settings = $2
+           SET notification_settings = $2::jsonb
            WHERE id = $1
            RETURNING notification_settings`,
-          [userId, updatedSettings]
+          [userId, JSON.stringify(updatedSettings)]
         );
         
         // Format the response to match the expected format

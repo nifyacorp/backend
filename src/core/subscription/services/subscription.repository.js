@@ -48,7 +48,7 @@ export class SubscriptionRepository {
       
       if (!countResult || !countResult.rows || countResult.rows.length === 0) {
         console.error('Repository: Count query returned invalid result:', countResult);
-        return this._generateMockSubscriptions(userId, options);
+        return this._getEmptySubscriptionsResult(options);
       }
       
       const total = parseInt(countResult.rows[0].total || 0);
@@ -67,9 +67,8 @@ export class SubscriptionRepository {
           
           if (statsResult && statsResult.rows && statsResult.rows.length > 0 && parseInt(statsResult.rows[0].count) > 0) {
             // User has stats but no subscriptions - likely a data inconsistency
-            // Generate mock data based on stats
-            console.log('Repository: User has stats but no subscriptions - generating mock data');
-            return this._generateMockSubscriptions(userId, options);
+            console.log('Repository: User has stats but no subscriptions - still returning empty results');
+            return this._getEmptySubscriptionsResult(options);
           }
         } catch (statsError) {
           console.error('Repository: Error checking subscription stats:', statsError);
@@ -116,7 +115,7 @@ export class SubscriptionRepository {
       
       if (!result || !result.rows || result.rows.length === 0) {
         console.error('Repository: Main query returned empty result:', result);
-        return this._generateMockSubscriptions(userId, options);
+        return this._getEmptySubscriptionsResult(options);
       }
       
       // Process the results
@@ -185,49 +184,23 @@ export class SubscriptionRepository {
         logError(context, error);
       }
       
-      // Generate mock data rather than returning empty results
-      return this._generateMockSubscriptions(userId, options);
+      // Return empty results instead of mock data
+      return this._getEmptySubscriptionsResult(options);
     }
   }
   
-  // Helper method to generate mock subscription data for cases where real data isn't available
-  _generateMockSubscriptions(userId, options = {}) {
+  // Helper method for empty subscription results (never use mock data)
+  _getEmptySubscriptionsResult(options = {}) {
     const { page = 1, limit = 20 } = options;
     
-    // Generate 6 mock subscriptions
-    const subscriptions = [];
-    const sourceTypes = ['boe', 'real-estate'];
-    
-    // Create mock subscriptions
-    for (let i = 0; i < 6; i++) {
-      const sourceType = sourceTypes[i % sourceTypes.length];
-      const sourceName = sourceType === 'boe' ? 'BOE' : 'Real Estate';
-      
-      subscriptions.push({
-        id: `mock-${sourceType}-${i}`,
-        name: `${sourceType} Subscription ${i+1}`,
-        description: `This is a mock subscription created from stats data (${sourceType})`,
-        prompts: ['keyword1', 'keyword2'],
-        source: sourceName,
-        type: sourceType,
-        typeName: sourceName,
-        typeIcon: sourceType === 'boe' ? 'FileText' : 'Home',
-        frequency: i % 2 === 0 ? 'daily' : 'immediate',
-        active: true,
-        createdAt: new Date(Date.now() - (i * 86400000)).toISOString(),
-        updatedAt: new Date(Date.now() - (i * 43200000)).toISOString()
-      });
-    }
-    
     return {
-      subscriptions,
+      subscriptions: [],
       pagination: {
-        total: subscriptions.length,
+        total: 0,
         page: parseInt(page),
         limit: parseInt(limit),
-        totalPages: Math.ceil(subscriptions.length / limit)
-      },
-      isMockData: true
+        totalPages: 0
+      }
     };
   }
 

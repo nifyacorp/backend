@@ -372,6 +372,57 @@ fastify.register(async function (fastify) {
   // Forward /api/v1/me to /api/v1/users/me
   fastify.get('/api/v1/me', userServiceWrapper);
   
+  // Add forwards for PATCH endpoints
+  fastify.patch('/api/v1/me', async (request, reply) => {
+    // Forward to the user routes implementation
+    try {
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/api/v1/users/me',
+        headers: request.headers,
+        payload: request.body
+      });
+      
+      const statusCode = response.statusCode;
+      const payload = JSON.parse(response.payload);
+      
+      return reply.code(statusCode).send(payload);
+    } catch (error) {
+      console.error('Error forwarding PATCH /api/v1/me request:', error);
+      return reply.code(500).send({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to process profile update',
+        status: 500,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  fastify.patch('/api/v1/me/notification-settings', async (request, reply) => {
+    // Forward to the user routes implementation
+    try {
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/api/v1/users/me/notification-settings',
+        headers: request.headers,
+        payload: request.body
+      });
+      
+      const statusCode = response.statusCode;
+      const payload = JSON.parse(response.payload);
+      
+      return reply.code(statusCode).send(payload);
+    } catch (error) {
+      console.error('Error forwarding PATCH /api/v1/me/notification-settings request:', error);
+      return reply.code(500).send({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to process notification settings update',
+        status: 500,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
   // Email preferences endpoints
   const { 
     getEmailPreferences, 
