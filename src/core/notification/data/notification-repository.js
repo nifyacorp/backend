@@ -23,6 +23,26 @@ const getUserNotifications = async (userId, options = {}) => {
     // Set RLS context before querying notifications
     await setRLSContext(userId);
     
+    // First check if notifications table exists to avoid errors
+    try {
+      const tableCheckQuery = `
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'notifications'
+        ) as exists`;
+      
+      const tableCheck = await query(tableCheckQuery);
+      
+      if (!tableCheck.rows[0].exists) {
+        console.log('Notifications table does not exist in database');
+        return [];
+      }
+    } catch (tableCheckError) {
+      console.error('Error checking for notifications table:', tableCheckError);
+      // If we can't check the table, we'll try the query anyway
+    }
+    
     // Explicitly select notification.id to ensure it's properly returned
     let sqlQuery = `
       SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, 
@@ -122,6 +142,26 @@ const getNotificationCount = async (userId, unreadOnly = false, subscriptionId =
   try {
     // Set RLS context before counting notifications
     await setRLSContext(userId);
+    
+    // First check if notifications table exists to avoid errors
+    try {
+      const tableCheckQuery = `
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'notifications'
+        ) as exists`;
+      
+      const tableCheck = await query(tableCheckQuery);
+      
+      if (!tableCheck.rows[0].exists) {
+        console.log('Notifications table does not exist in database');
+        return 0;
+      }
+    } catch (tableCheckError) {
+      console.error('Error checking for notifications table:', tableCheckError);
+      // If we can't check the table, we'll try the query anyway
+    }
     
     let sqlQuery = `
       SELECT COUNT(*) as count
