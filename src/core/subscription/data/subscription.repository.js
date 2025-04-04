@@ -5,7 +5,6 @@
 import { query, withTransaction } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
-import { SUBSCRIPTION_ERRORS } from '../schemas.js';
 
 class SubscriptionRepository {
   /**
@@ -83,7 +82,7 @@ class SubscriptionRepository {
     } catch (error) {
       logError(context, error, `Error finding subscription by ID: ${id}`);
       throw new AppError(
-        SUBSCRIPTION_ERRORS.DATABASE_ERROR.code,
+        'DATABASE_ERROR',
         `Database error: ${error.message}`,
         500,
         { originalError: error.message }
@@ -170,7 +169,7 @@ class SubscriptionRepository {
         } catch (checkError) {
           logError(context, checkError, 'Error checking subscription existence');
           throw new AppError(
-            SUBSCRIPTION_ERRORS.DATABASE_ERROR.code,
+            'DATABASE_ERROR',
             `Error verifying subscription: ${checkError.message}`,
             500,
             { originalError: checkError.message }
@@ -189,7 +188,7 @@ class SubscriptionRepository {
         // Handle permission error
         if (!ownershipVerified && !force) {
           throw new AppError(
-            SUBSCRIPTION_ERRORS.PERMISSION_ERROR.code,
+            'PERMISSION_ERROR',
             'You do not have permission to delete this subscription',
             403,
             { subscriptionId: id }
@@ -241,7 +240,7 @@ class SubscriptionRepository {
         } catch (deleteError) {
           logError(context, deleteError, 'Error during subscription deletion');
           throw new AppError(
-            SUBSCRIPTION_ERRORS.DATABASE_ERROR.code,
+            'DATABASE_ERROR',
             `Error deleting subscription: ${deleteError.message}`,
             500,
             { originalError: deleteError.message }
@@ -258,7 +257,7 @@ class SubscriptionRepository {
       
       // For other errors, wrap in AppError
       throw new AppError(
-        SUBSCRIPTION_ERRORS.DELETION_ERROR.code,
+        'SUBSCRIPTION_DELETION_ERROR',
         `Failed to delete subscription: ${error.message}`,
         500,
         { originalError: error.message }
