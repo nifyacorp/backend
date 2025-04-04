@@ -125,7 +125,61 @@ class SubscriptionService {
         );
       }
 
-      return result.rows[0];
+      // Get the subscription from the result
+      const subscription = result.rows[0];
+      
+      // Normalize the prompts field to ensure it's compatible with various client expectations
+      if (subscription) {
+        try {
+          // Handle prompts field based on its type
+          if (subscription.prompts) {
+            // If it's already an array, great
+            if (Array.isArray(subscription.prompts)) {
+              // Ensure all items are strings
+              subscription.prompts = subscription.prompts.map(p => String(p));
+            } 
+            // If it's a string, parse it if it looks like JSON
+            else if (typeof subscription.prompts === 'string') {
+              try {
+                // Try to parse as JSON
+                const parsed = JSON.parse(subscription.prompts);
+                
+                if (Array.isArray(parsed)) {
+                  subscription.prompts = parsed.map(p => String(p));
+                } else if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
+                  // Handle new format with value property
+                  subscription.prompts = [String(parsed.value)];
+                } else {
+                  // Fall back to using the original string
+                  subscription.prompts = [subscription.prompts];
+                }
+              } catch (e) {
+                // Not valid JSON, use as a string
+                subscription.prompts = [subscription.prompts];
+              }
+            }
+            // Otherwise convert to array
+            else {
+              subscription.prompts = [String(subscription.prompts)];
+            }
+          } else {
+            // Ensure prompts is never null/undefined
+            subscription.prompts = [];
+          }
+        } catch (promptsError) {
+          console.error('Error normalizing prompts field:', promptsError);
+          subscription.prompts = [];
+        }
+        
+        // Log the normalized subscription for debugging
+        console.log('Normalized subscription:', {
+          id: subscription.id,
+          name: subscription.name,
+          prompts: subscription.prompts
+        });
+      }
+
+      return subscription;
     } catch (error) {
       logError(context, error, { 
         method: 'getSubscriptionById',
@@ -152,13 +206,33 @@ class SubscriptionService {
     console.log('Service: getUserSubscriptions called with:', { userId, options });
     
     try {
-      const result = await this.repository.getUserSubscriptions(userId, options, context);
+      // Normalize options to ensure consistent filter handling
+      const normalizedOptions = { ...options };
+      
+      // Handle both status and active parameters
+      if (normalizedOptions.status && normalizedOptions.status !== 'all') {
+        normalizedOptions.active = normalizedOptions.status === 'active';
+      }
+      
+      // Convert string 'true'/'false' to boolean
+      if (typeof normalizedOptions.active === 'string') {
+        normalizedOptions.active = normalizedOptions.active === 'true';
+      }
+      
+      console.log('Service: Normalized options:', normalizedOptions);
+      
+      const result = await this.repository.getUserSubscriptions(userId, normalizedOptions, context);
       
       // If result contains an error property, log it but still return the data
       if (result.error) {
         logError(context, new Error(result.error));
         console.error('Service: Repository reported error:', result.error);
       }
+      
+      console.log('Service: Repository returned subscriptions:', { 
+        count: result.subscriptions?.length || 0,
+        pagination: result.pagination
+      });
       
       return result;
     } catch (error) {
@@ -675,9 +749,39 @@ class SubscriptionService {
         );
       }
       
+      // Log the update data for debugging
+      console.log('Service: Update data received:', updateData);
+      
+      // Normalize data before updating
+      const normalizedData = { ...updateData };
+      
+      // Handle prompts field specifically - convert to expected format
+      if (normalizedData.prompts !== undefined) {
+        // If it's the new object format with value property
+        if (typeof normalizedData.prompts === 'object' && 
+            normalizedData.prompts !== null && 
+            'value' in normalizedData.prompts) {
+          
+          console.log('Service: Converting prompts from object format to array format');
+          normalizedData.prompts = [normalizedData.prompts.value];
+        }
+        
+        // If it's a string, convert to array
+        if (typeof normalizedData.prompts === 'string') {
+          console.log('Service: Converting prompts from string to array format');
+          normalizedData.prompts = [normalizedData.prompts];
+        }
+        
+        // Ensure prompts is JSON string for database storage
+        if (Array.isArray(normalizedData.prompts)) {
+          console.log('Service: Converting prompts array to JSON string');
+          normalizedData.prompts = JSON.stringify(normalizedData.prompts);
+        }
+      }
+      
       // Add updated_at field
       const dataToUpdate = {
-        ...updateData,
+        ...normalizedData,
         updated_at: new Date()
       };
       
@@ -690,13 +794,46 @@ class SubscriptionService {
       const setClause = fields.map((field, i) => `${field} = $${i + 3}`).join(', ');
       const values = Object.values(dataToUpdate);
       
+      console.log('Service: Executing update query:', {
+        fields,
+        values,
+        subscriptionId,
+        userId
+      });
+      
       const result = await query(
         `UPDATE subscriptions 
          SET ${setClause} 
          WHERE id = $1 AND user_id = $2 
-         RETURNING id, name, description, type_id, frequency, active, updated_at`,
+         RETURNING id, name, description, type_id, frequency, active, updated_at, prompts`,
         [subscriptionId, userId, ...values]
       );
+      
+      // Process the result for client response
+      const updatedSubscription = result.rows[0];
+      
+      // Normalize the prompts field for the response
+      if (updatedSubscription && updatedSubscription.prompts) {
+        try {
+          if (typeof updatedSubscription.prompts === 'string') {
+            try {
+              // Try to parse prompts if it's a JSON string
+              const parsedPrompts = JSON.parse(updatedSubscription.prompts);
+              updatedSubscription.prompts = Array.isArray(parsedPrompts) ? 
+                parsedPrompts : [String(updatedSubscription.prompts)];
+            } catch (e) {
+              // If parsing fails, return as a single-item array
+              updatedSubscription.prompts = [updatedSubscription.prompts];
+            }
+          } else if (!Array.isArray(updatedSubscription.prompts)) {
+            // If it's not an array or a string, convert to array
+            updatedSubscription.prompts = [String(updatedSubscription.prompts)];
+          }
+        } catch (promptsError) {
+          console.error('Error normalizing prompts in response:', promptsError);
+          updatedSubscription.prompts = [];
+        }
+      }
       
       // Publish an event for the subscription update
       try {
@@ -715,9 +852,10 @@ class SubscriptionService {
         logError(context, pubsubError, 'Failed to publish subscription.updated event');
       }
       
-      return result.rows[0];
+      return updatedSubscription;
     } catch (error) {
       logError(context, error);
+      console.error('Service: Error updating subscription:', error);
       
       if (error instanceof AppError) {
         throw error;
@@ -726,7 +864,8 @@ class SubscriptionService {
       throw new AppError(
         SUBSCRIPTION_ERRORS.UPDATE_ERROR.code,
         SUBSCRIPTION_ERRORS.UPDATE_ERROR.message,
-        500
+        500,
+        { error: error.message }
       );
     }
   }
@@ -736,10 +875,12 @@ class SubscriptionService {
     
     try {
       // First, check if the subscription exists and belongs to the user
+      // Use a more resilient query that handles missing type_id or subscription_types
       const result = await query(
-        `SELECT s.id, s.name, s.type_id, t.name as type_name
+        `SELECT s.id, s.name, s.type_id, s.prompts,
+                COALESCE(t.name, 'unknown') as type_name
          FROM subscriptions s
-         JOIN subscription_types t ON s.type_id = t.id
+         LEFT JOIN subscription_types t ON s.type_id = t.id
          WHERE s.id = $1 AND s.user_id = $2`,
         [subscriptionId, userId]
       );
@@ -754,12 +895,51 @@ class SubscriptionService {
       }
       
       const subscription = result.rows[0];
+      console.log('Processing subscription:', subscription);
       
       // Log that we're about to initiate processing
       logProcessing(context, 'Initiating subscription processing', {
         subscriptionId,
-        type: subscription.type_name
+        type: subscription.type_name,
+        prompts: subscription.prompts
       });
+      
+      // Parse prompts if needed
+      let processedPrompts = [];
+      try {
+        if (typeof subscription.prompts === 'string') {
+          try {
+            // Try to parse as JSON
+            const parsed = JSON.parse(subscription.prompts);
+            if (Array.isArray(parsed)) {
+              processedPrompts = parsed;
+            } else if (typeof parsed === 'object' && parsed.value) {
+              processedPrompts = [parsed.value];
+            } else {
+              processedPrompts = [subscription.prompts];
+            }
+          } catch (e) {
+            // Not valid JSON, use as string
+            processedPrompts = [subscription.prompts];
+          }
+        } else if (Array.isArray(subscription.prompts)) {
+          processedPrompts = subscription.prompts;
+        } else if (subscription.prompts && typeof subscription.prompts === 'object') {
+          // Handle object with value property
+          if (subscription.prompts.value) {
+            processedPrompts = [subscription.prompts.value];
+          } else {
+            // Extract any string values
+            processedPrompts = Object.values(subscription.prompts)
+              .filter(v => typeof v === 'string')
+              .filter(Boolean);
+          }
+        }
+      } catch (promptsError) {
+        console.error('Error processing prompts:', promptsError);
+        // Default to empty prompts
+        processedPrompts = [];
+      }
       
       // Record processing request in the database
       const processingResult = await query(
@@ -776,7 +956,8 @@ class SubscriptionService {
       try {
         logPubSub(context, 'Publishing subscription.process event', { 
           subscriptionId,
-          processingId 
+          processingId,
+          prompts: processedPrompts
         });
         
         await publishEvent('subscription.process', {
@@ -785,13 +966,16 @@ class SubscriptionService {
           user_id: userId,
           type: subscription.type_id,
           type_name: subscription.type_name,
+          prompts: processedPrompts,
           timestamp: new Date().toISOString()
         });
         
         return {
           message: 'Subscription processing initiated',
           processingId,
-          subscriptionId
+          subscriptionId,
+          jobId: processingId, // Include jobId for compatibility with frontend
+          status: 'pending'
         };
       } catch (pubsubError) {
         logError(context, pubsubError, 'Failed to publish subscription.process event');
@@ -814,6 +998,7 @@ class SubscriptionService {
       }
     } catch (error) {
       logError(context, error);
+      console.error('Service: Error in processSubscription:', error);
       
       if (error instanceof AppError) {
         throw error;
@@ -822,7 +1007,8 @@ class SubscriptionService {
       throw new AppError(
         SUBSCRIPTION_ERRORS.PROCESSING_ERROR.code,
         SUBSCRIPTION_ERRORS.PROCESSING_ERROR.message,
-        500
+        500,
+        { error: error.message }
       );
     }
   }

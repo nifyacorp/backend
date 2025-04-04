@@ -14,7 +14,8 @@ export class SubscriptionRepository {
         frequency = null,
         search = null,
         from = null,
-        to = null
+        to = null,
+        status = null // Add support for status parameter
       } = options;
       
       // Log the request parameters for debugging
@@ -31,6 +32,13 @@ export class SubscriptionRepository {
       let queryParams = [userId];
       let whereConditions = ['user_id = $1'];
       let paramCounter = 2;
+      
+      // Add status filter if specified (translating 'active'/'inactive' to boolean)
+      if (status && status !== 'all') {
+        whereConditions.push(`active = $${paramCounter}`);
+        queryParams.push(status === 'active');
+        paramCounter++;
+      }
       
       // Add type filter if specified
       if (type) {
@@ -190,6 +198,14 @@ export class SubscriptionRepository {
         return this._getEmptySubscriptionsResult(options);
       }
       
+      // Debug log for the query results
+      console.log('Repository: Query returned', { 
+        rowCount: result.rows.length, 
+        filterOptions: options,
+        whereClause,
+        queryParams: queryParams.map(p => typeof p === 'object' && p instanceof Date ? p.toISOString() : p)
+      });
+      
       // Process the results
       const subscriptions = result.rows.map(row => {
         // Add default source if we don't have subscription_types join
@@ -280,6 +296,26 @@ export class SubscriptionRepository {
     try {
       console.log('Repository: getSubscriptionById called with:', { userId, subscriptionId });
       
+      // First check if subscription exists
+      try {
+        const existCheck = await query(
+          `SELECT EXISTS(
+            SELECT 1 FROM subscriptions 
+            WHERE id = $1 AND user_id = $2
+          ) as exists`,
+          [subscriptionId, userId]
+        );
+        
+        // If subscription doesn't exist, return empty result immediately
+        if (!existCheck.rows[0].exists) {
+          console.log(`Repository: Subscription ${subscriptionId} not found for user ${userId}`);
+          return { rows: [] };
+        }
+      } catch (existError) {
+        console.error('Repository: Error checking subscription existence:', existError);
+        // Continue with main query anyway
+      }
+      
       const result = await query(
         `SELECT 
           s.id,
@@ -301,13 +337,45 @@ export class SubscriptionRepository {
         [subscriptionId, userId]
       );
       
-      return result.rows[0];
+      // If we have a result, log it for debugging
+      if (result.rows && result.rows.length > 0) {
+        console.log('Repository: Found subscription:', {
+          id: result.rows[0].id,
+          name: result.rows[0].name,
+          prompts: result.rows[0].prompts,
+          promptsType: typeof result.rows[0].prompts
+        });
+        
+        // Process prompts field to handle different formats
+        result.rows.forEach(subscription => {
+          try {
+            // If prompts is a string that looks like JSON, parse it
+            if (typeof subscription.prompts === 'string' && 
+                (subscription.prompts.startsWith('[') || subscription.prompts.startsWith('{'))) {
+              try {
+                subscription.prompts = JSON.parse(subscription.prompts);
+              } catch (parseError) {
+                console.log('Repository: Could not parse prompts JSON:', parseError);
+                // Keep as string if parsing fails
+              }
+            }
+          } catch (promptsError) {
+            console.error('Error processing prompts field:', promptsError);
+          }
+        });
+      } else {
+        console.log(`Repository: No subscription found with id=${subscriptionId} for user=${userId}`);
+      }
+      
+      return result;
     } catch (error) {
       console.error('Repository: Error in getSubscriptionById:', error);
       if (context) {
         logError(context, error);
       }
-      throw error;
+      
+      // Return empty result instead of throwing to allow service to handle this gracefully
+      return { rows: [] };
     }
   }
   

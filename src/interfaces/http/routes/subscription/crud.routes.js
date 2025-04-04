@@ -132,6 +132,7 @@ export async function registerCrudRoutes(fastify, options) {
         order, 
         type, 
         status,
+        active, // Support both status and active parameters for compatibility
         search,
         frequency,
         from,
@@ -150,6 +151,14 @@ export async function registerCrudRoutes(fastify, options) {
       // Add status filter if specified
       if (status && status !== 'all') {
         filterOptions.active = status === 'active';
+        filterOptions.status = status; // Add status parameter as well
+      }
+      
+      // Support direct active parameter (true/false) for compatibility
+      if (active !== undefined && active !== null) {
+        const isActive = active === 'true' || active === true;
+        filterOptions.active = isActive;
+        filterOptions.status = isActive ? 'active' : 'inactive';
       }
       
       // Add frequency filter if specified
@@ -564,10 +573,25 @@ export async function registerCrudRoutes(fastify, options) {
           name: { type: 'string', minLength: 1, maxLength: 100 },
           description: { type: 'string', maxLength: 500 },
           prompts: { 
-            type: 'array',
-            items: { type: 'string', minLength: 1 },
-            minItems: 1,
-            maxItems: 3
+            anyOf: [
+              {
+                type: 'array',
+                items: { type: 'string', minLength: 1 },
+                minItems: 1,
+                maxItems: 3
+              },
+              {
+                type: 'object',
+                properties: {
+                  value: { type: 'string', minLength: 1 }
+                },
+                required: ['value']
+              },
+              {
+                type: 'string',
+                minLength: 1
+              }
+            ]
           },
           frequency: { type: 'string', enum: ['immediate', 'daily'] },
           active: { type: 'boolean' },

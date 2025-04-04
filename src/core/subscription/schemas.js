@@ -43,7 +43,7 @@ const baseSubscriptionSchema = {
   // Optional typeId (for template-based subscriptions)
   typeId: z.string().optional().or(z.null()),
   
-  // Prompts can be an array of strings, a single string, or null/undefined
+  // Prompts can be an array of strings, a single string, an object with 'value' property, or null/undefined
   prompts: z
     .any()
     .transform(val => {
@@ -60,9 +60,14 @@ const baseSubscriptionSchema = {
         return [val];
       }
       
-      // Try to handle JSON string
-      if (typeof val === 'object') {
-        // Extract any string values we can find
+      // Handle new format - object with value property
+      if (typeof val === 'object' && val !== null) {
+        // First check if it has a value property
+        if ('value' in val && typeof val.value === 'string') {
+          return [val.value];
+        }
+        
+        // Otherwise, extract any string values we can find
         return Object.values(val)
           .filter(v => typeof v === 'string')
           .filter(Boolean);
