@@ -18,6 +18,42 @@ import { logRequest, logError } from '../../../../shared/logging/logger.js';
  * @param {Object} options - Options
  */
 export async function subscriptionRoutes(fastify, options) {
+  // Add diagnostic endpoint to debug filter parsing
+  fastify.get('/debug-filter', async (request, reply) => {
+    // Directly expose the query parameters for debugging purposes
+    const userId = request.user?.id;
+    if (!userId) {
+      return reply.code(401).send({
+        status: 'error',
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      });
+    }
+    
+    // Parse and log all query parameters with their types
+    const queryParams = {};
+    for (const [key, value] of Object.entries(request.query)) {
+      queryParams[key] = {
+        value,
+        type: typeof value,
+        asBoolean: value === 'true' || value === true || value === 1 || value === '1'
+      };
+    }
+    
+    // Return diagnostic info
+    return {
+      status: 'success',
+      message: 'Diagnostic filter information',
+      data: {
+        originalQuery: request.query,
+        parsedQuery: queryParams,
+        headerInfo: {
+          contentType: request.headers['content-type'],
+          accept: request.headers.accept
+        }
+      }
+    };
+  });
   // Add stats endpoint - must be defined before the ID routes to avoid conflict
   fastify.get('/stats', {
     schema: {

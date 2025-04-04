@@ -255,13 +255,35 @@ class SubscriptionService {
       // Normalize options to ensure consistent filter handling
       const normalizedOptions = { ...options };
       
+      // Log incoming options for debugging
+      console.log('Service: Raw filter options:', { 
+        status: normalizedOptions.status, 
+        active: normalizedOptions.active,
+        isActive: normalizedOptions.isActive // Frontend might use isActive
+      });
+      
+      // Handle 'isActive' from frontend if present
+      if (normalizedOptions.isActive !== undefined) {
+        console.log('Service: Converting isActive to active:', normalizedOptions.isActive);
+        if (typeof normalizedOptions.isActive === 'boolean') {
+          normalizedOptions.active = normalizedOptions.isActive;
+        } else if (typeof normalizedOptions.isActive === 'string') {
+          normalizedOptions.active = normalizedOptions.isActive === 'true';
+        } else {
+          normalizedOptions.active = !!normalizedOptions.isActive;
+        }
+        delete normalizedOptions.isActive;
+      }
+      
       // Handle both status and active parameters
       if (normalizedOptions.status && normalizedOptions.status !== 'all') {
+        console.log('Service: Converting status to active:', normalizedOptions.status);
         normalizedOptions.active = normalizedOptions.status === 'active';
       }
       
       // Convert string 'true'/'false' to boolean
       if (typeof normalizedOptions.active === 'string') {
+        console.log('Service: Converting string active to boolean:', normalizedOptions.active);
         normalizedOptions.active = normalizedOptions.active === 'true';
       }
       

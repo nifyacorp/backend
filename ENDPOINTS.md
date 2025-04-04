@@ -86,6 +86,192 @@ DELETE /subscriptions/:id → Delete
 POST /subscriptions/:id/process → Process
 ```
 
+### Subscription Request and Response Formats
+
+#### GET /subscriptions
+
+Response format:
+```json
+{
+  "status": "success",
+  "data": {
+    "subscriptions": [
+      {
+        "id": "uuid-string",
+        "name": "Subscription Name",
+        "description": "Description text",
+        "prompts": ["search term 1", "search term 2"],
+        "frequency": "daily",
+        "active": true,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-02T00:00:00Z",
+        "type": "boe",
+        "typeName": "BOE",
+        "source": "BOE"
+      }
+    ],
+    "pagination": {
+      "total": 10,
+      "page": 1,
+      "limit": 20,
+      "totalPages": 1
+    },
+    "filters": {
+      "type": null,
+      "status": "all",
+      "search": null,
+      "frequency": "all",
+      "dateRange": {
+        "from": null,
+        "to": null
+      }
+    }
+  }
+}
+```
+
+#### POST /subscriptions
+
+Request format:
+```json
+{
+  "name": "My BOE Subscription",
+  "description": "Get updates on BOE publications",
+  "type": "boe",
+  "prompts": ["search term 1", "search term 2"],
+  "frequency": "daily"
+}
+```
+
+Alternative request format (compatible with frontend):
+```json
+{
+  "name": "My BOE Subscription",
+  "description": "Get updates on BOE publications",
+  "source": "boe",           // source is an alias for type
+  "keywords": ["search term 1", "search term 2"],  // keywords is an alias for prompts
+  "frequency": "daily"
+}
+```
+
+Another compatible format:
+```json
+{
+  "name": "My BOE Subscription",
+  "description": "Get updates on BOE publications",
+  "type": "boe",
+  "prompts": {
+    "value": "search term 1"  // Object format with value property
+  },
+  "frequency": "daily"
+}
+```
+
+Response format:
+```json
+{
+  "status": "success",
+  "data": {
+    "subscription": {
+      "id": "uuid-string",
+      "name": "My BOE Subscription",
+      "description": "Get updates on BOE publications",
+      "prompts": ["search term 1", "search term 2"],
+      "frequency": "daily",
+      "active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "type": "boe",
+      "typeName": "BOE"
+    }
+  }
+}
+```
+
+#### GET /subscriptions/:id
+
+Response format:
+```json
+{
+  "status": "success",
+  "data": {
+    "subscription": {
+      "id": "uuid-string",
+      "name": "My BOE Subscription",
+      "description": "Get updates on BOE publications",
+      "prompts": ["search term 1", "search term 2"],
+      "frequency": "daily",
+      "active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "type": "boe",
+      "typeName": "BOE",
+      "userId": "user-id"
+    }
+  }
+}
+```
+
+#### PATCH or PUT /subscriptions/:id
+
+Request format:
+```json
+{
+  "name": "Updated Subscription Name",
+  "description": "Updated description",
+  "prompts": ["new search term"],
+  "frequency": "immediate",
+  "active": false
+}
+```
+
+Response format:
+```json
+{
+  "status": "success",
+  "data": {
+    "subscription": {
+      "id": "uuid-string",
+      "name": "Updated Subscription Name",
+      "description": "Updated description",
+      "prompts": ["new search term"],
+      "frequency": "immediate",
+      "active": false,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-02T00:00:00Z",
+      "type": "boe",
+      "typeName": "BOE"
+    }
+  }
+}
+```
+
+#### DELETE /subscriptions/:id
+
+Response format:
+```json
+{
+  "status": "success",
+  "message": "Subscription deleted successfully",
+  "details": {
+    "id": "uuid-string",
+    "alreadyRemoved": false
+  }
+}
+```
+
+#### POST /subscriptions/:id/process
+
+Response format:
+```json
+{
+  "message": "Subscription processing initiated",
+  "processingId": "uuid-string",
+  "jobId": "uuid-string",
+  "status": "pending"
+}
+```
+
 ### Subscription CRUD Operations
 
 | Method | Path | Description | Auth Required |
@@ -94,8 +280,46 @@ POST /subscriptions/:id/process → Process
 | POST | `/subscriptions` | Create a new subscription | Yes |
 | GET | `/subscriptions/:id` | Get subscription details | Yes |
 | PATCH | `/subscriptions/:id` | Update subscription | Yes |
+| PUT | `/subscriptions/:id` | Update subscription (alternative to PATCH) | Yes |
 | PATCH | `/subscriptions/:id/toggle` | Toggle subscription active status | Yes |
 | DELETE | `/subscriptions/:id` | Delete subscription | Yes |
+
+### Query Parameters for GET /subscriptions
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `limit` | number | Number of items per page | 20 |
+| `page` | number | Page number | 1 |
+| `sort` | string | Field to sort by | 'created_at' |
+| `order` | string | Sort order ('asc' or 'desc') | 'desc' |
+| `type` | string | Filter by subscription type | null |
+| `status` | string | Filter by status ('active', 'inactive', 'all') | 'all' |
+| `isActive` | boolean | Alternative to status - true = active, false = inactive | null |
+| `active` | boolean | Alternative to status and isActive - backwards compatibility | null |
+| `frequency` | string | Filter by frequency ('immediate', 'daily', 'all') | 'all' |
+| `search` | string | Search term for name/description/prompts | null |
+| `from` | date | Filter by created date from | null |
+| `to` | date | Filter by created date to | null |
+
+### Status Filter Parameter Compatibility
+
+The subscription API supports multiple parameters for filtering by status/active state. These parameters are processed in the following priority:
+
+1. If `isActive` is provided, it takes precedence.
+2. If `status` is provided and not set to 'all', it converts to active/inactive.
+3. If `active` is provided, it's used directly.
+
+| Parameter | Valid Values | Description |
+|-----------|--------------|-------------|
+| `status` | 'active', 'inactive', 'all' | Filter by status string |
+| `isActive` | true, false, 'true', 'false' | Filter by active state (frontend compatibility) |
+| `active` | true, false, 'true', 'false' | Direct active flag filter (backend compatibility) |
+
+Examples:
+- `?status=active` - Returns active subscriptions
+- `?isActive=true` - Returns active subscriptions
+- `?isActive=false` - Returns inactive subscriptions
+- `?active=true` - Returns active subscriptions
 
 ### Subscription Processing
 
@@ -111,6 +335,54 @@ POST /subscriptions/:id/process → Process
 | GET | `/subscriptions/:id/status` | Gets processing status of a subscription | Yes |
 | POST | `/subscriptions/:id/share` | Shares a subscription with another user | Yes |
 | DELETE | `/subscriptions/:id/share` | Removes subscription sharing | Yes |
+
+### Subscription Debugging and Compatibility 
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|--------------|
+| GET | `/subscriptions/debug-filter` | Diagnostic endpoint for query parameter parsing | Yes |
+| PUT | `/subscriptions/:id` | Update subscription (PUT alternative to PATCH) | Yes |
+
+#### Debug Filter Endpoint
+
+The debug filter endpoint provides detailed information about how the API interprets query parameters, especially useful for troubleshooting subscription filtering issues.
+
+Example request:
+```http
+GET /api/v1/subscriptions/debug-filter?status=active&isActive=true
+Authorization: Bearer {token}
+X-User-ID: {user_id}
+```
+
+Example response:
+```json
+{
+  "status": "success",
+  "message": "Diagnostic filter information",
+  "data": {
+    "originalQuery": {
+      "status": "active",
+      "isActive": "true"
+    },
+    "parsedQuery": {
+      "status": {
+        "value": "active",
+        "type": "string",
+        "asBoolean": false
+      },
+      "isActive": {
+        "value": "true",
+        "type": "string",
+        "asBoolean": true
+      }
+    },
+    "headerInfo": {
+      "contentType": "application/json",
+      "accept": "*/*"
+    }
+  }
+}
+```
 
 ### Subscription Types
 
