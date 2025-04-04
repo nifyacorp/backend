@@ -173,13 +173,29 @@ export class SubscriptionRepository {
       
       // Get paginated subscriptions with all filters
       console.log('Repository: Executing subscriptions query with filters');
+      // First check if logo column exists to avoid the error
+      let hasLogoColumn = false;
+      try {
+        const columnCheck = await query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'subscriptions' AND column_name = 'logo'
+        `);
+        hasLogoColumn = columnCheck.rows.length > 0;
+        console.log('Repository: Logo column exists:', hasLogoColumn);
+      } catch (columnError) {
+        console.error('Repository: Error checking for logo column:', columnError);
+        // Assume logo column doesn't exist
+        hasLogoColumn = false;
+      }
+      
       const mainQuery = `SELECT 
           s.id,
           s.type_id,
           s.name,
           s.description,
           s.prompts,
-          s.logo,
+          ${hasLogoColumn ? 's.logo,' : "'' as logo,"}
           s.frequency,
           s.active,
           s.created_at as "createdAt",

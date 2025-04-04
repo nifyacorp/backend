@@ -187,6 +187,245 @@ export default async function diagnosticsRoutes(fastify) {
   });
 
   // Add additional fastify endpoints for diagnostics
+  // Diagnostics endpoint for subscriptions
+  fastify.get('/subscription-debug/:userId', async (request, reply) => {
+    try {
+      const userId = request.params.userId;
+      
+      // Import required services
+      const { subscriptionService } = await import('../../../core/subscription/services/subscription.service.js');
+      const { subscriptionRepository } = await import('../../../core/subscription/services/subscription.repository.js');
+      const { subscriptionRepository: dataRepository } = await import('../../../core/subscription/data/subscription.repository.js');
+      
+      // Log the diagnostics request
+      logger.logProcessing({ service: 'diagnostics', method: 'subscriptionDebug' }, 'Testing subscription retrieval', {
+        userId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // First check if the user exists
+      const userResult = await query('SELECT id FROM users WHERE id = $1', [userId]);
+      const userExists = userResult.rowCount > 0;
+      
+      // If user doesn't exist, create it
+      if (!userExists) {
+        try {
+          await query(
+            `INSERT INTO users (
+              id,
+              email,
+              name,
+              preferences,
+              notification_settings
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [
+              userId,
+              `test-${userId.substring(0,8)}@example.com`,
+              `Test User ${userId.substring(0,8)}`,
+              JSON.stringify({}),
+              JSON.stringify({
+                emailNotifications: true,
+                emailFrequency: 'immediate',
+                instantNotifications: true
+              })
+            ]
+          );
+          console.log(`Created test user for userId: ${userId}`);
+        } catch (createUserError) {
+          console.error('Error creating test user:', createUserError);
+        }
+      }
+      
+      // Set database context for diagnostic queries
+      const context = {
+        requestId: 'subscription-debug',
+        path: '/diagnostics/subscription-debug',
+        method: 'GET',
+        token: {
+          sub: userId,
+          userId
+        }
+      };
+      
+      // Try to get subscription columns
+      let subscriptionColumns = [];
+      try {
+        const columnsResult = await query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'subscriptions'
+          ORDER BY ordinal_position
+        `);
+        subscriptionColumns = columnsResult.rows.map(row => row.column_name);
+      } catch (columnError) {
+        console.error('Error getting subscription columns:', columnError);
+      }
+      
+      // Check direct count of subscriptions
+      let directCount = 0;
+      try {
+        const countResult = await query(
+          'SELECT COUNT(*) FROM subscriptions WHERE user_id = $1',
+          [userId]
+        );
+        directCount = parseInt(countResult.rows[0].count, 10);
+      } catch (countError) {
+        console.error('Error getting direct subscription count:', countError);
+      }
+      
+      // Try the service repository
+      let serviceRepoResult = { error: 'Not attempted' };
+      try {
+        console.log('Trying service repository...');
+        const result = await subscriptionRepository.getUserSubscriptions(userId, {}, context);
+        serviceRepoResult = {
+          success: true,
+          subscriptions: result.subscriptions,
+          count: result.subscriptions?.length || 0,
+          pagination: result.pagination
+        };
+      } catch (serviceRepoError) {
+        console.error('Error using service repository:', serviceRepoError);
+        serviceRepoResult = {
+          error: serviceRepoError.message,
+          stack: serviceRepoError.stack
+        };
+      }
+      
+      // Try the data repository
+      let dataRepoResult = { error: 'Not attempted' };
+      try {
+        console.log('Trying data repository...');
+        const result = await dataRepository.findAllByUserId(userId);
+        dataRepoResult = {
+          success: true,
+          subscriptions: result,
+          count: result?.length || 0
+        };
+      } catch (dataRepoError) {
+        console.error('Error using data repository:', dataRepoError);
+        dataRepoResult = {
+          error: dataRepoError.message,
+          stack: dataRepoError.stack
+        };
+      }
+      
+      // Try the service directly
+      let serviceResult = { error: 'Not attempted' };
+      try {
+        console.log('Trying subscription service...');
+        const result = await subscriptionService.getUserSubscriptions(userId, context);
+        serviceResult = {
+          success: true,
+          subscriptions: result.subscriptions,
+          count: result.subscriptions?.length || 0,
+          pagination: result.pagination,
+          error: result.error
+        };
+      } catch (serviceError) {
+        console.error('Error using subscription service:', serviceError);
+        serviceResult = {
+          error: serviceError.message,
+          stack: serviceError.stack
+        };
+      }
+      
+      // Try creating a test subscription if none exist
+      let createResult = { performed: false };
+      if (directCount === 0) {
+        try {
+          console.log('No subscriptions found, creating test subscription...');
+          // Check if BOE subscription type exists
+          const typeResult = await query(
+            `SELECT id FROM subscription_types WHERE LOWER(name) = 'boe' LIMIT 1`
+          );
+          
+          let typeId;
+          if (typeResult.rows.length > 0) {
+            typeId = typeResult.rows[0].id;
+          } else {
+            // Create subscription type if it doesn't exist
+            const createTypeResult = await query(
+              `INSERT INTO subscription_types (name, description, is_system) 
+               VALUES ('BOE', 'Spanish Official Gazette', true)
+               RETURNING id`
+            );
+            typeId = createTypeResult.rows[0].id;
+          }
+          
+          // Create a test subscription directly
+          const createSubscriptionResult = await query(
+            `INSERT INTO subscriptions (
+              name,
+              description,
+              type_id,
+              prompts,
+              frequency,
+              active,
+              user_id,
+              created_at,
+              updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, name`,
+            [
+              'Test BOE Subscription',
+              'Created by diagnostics endpoint',
+              typeId,
+              JSON.stringify(["test", "legal", "notification"]),
+              'daily',
+              true,
+              userId,
+              new Date(),
+              new Date()
+            ]
+          );
+          
+          console.log('Created test subscription:', createSubscriptionResult.rows[0]);
+          createResult = {
+            performed: true,
+            success: true,
+            subscription: createSubscriptionResult.rows[0]
+          };
+        } catch (createError) {
+          console.error('Error creating test subscription:', createError);
+          createResult = {
+            performed: true,
+            success: false,
+            error: createError.message
+          };
+        }
+      }
+      
+      return {
+        timestamp: new Date().toISOString(),
+        user: {
+          id: userId,
+          exists: userExists || createResult.performed
+        },
+        database: {
+          subscription_columns: subscriptionColumns,
+          direct_count: directCount
+        },
+        repositories: {
+          service_repository: serviceRepoResult,
+          data_repository: dataRepoResult
+        },
+        service: serviceResult,
+        test_subscription: createResult
+      };
+    } catch (error) {
+      console.error('Error in subscription debug endpoint:', error);
+      logger.logError({ service: 'diagnostics', method: 'subscriptionDebug' }, error);
+      
+      reply.code(500);
+      return {
+        error: 'Subscription diagnostic test failed',
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      };
+    }
+  });
+  
   fastify.get('/health', async () => {
     try {
       const startTime = Date.now();
@@ -835,6 +1074,260 @@ expressRouter.get('/db-tables', async (req, res) => {
 });
 
 // Add simple diagnostics endpoint for non-authenticated health check
+/**
+ * @swagger
+ * /api/diagnostics/subscription-debug/{userId}:
+ *   get:
+ *     summary: Debug subscription retrieval issues
+ *     description: Tests subscription access for a specific user through different layers
+ *     tags: [Diagnostics]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to test subscriptions for
+ *     responses:
+ *       200:
+ *         description: Subscription diagnostics completed
+ */
+expressRouter.get('/subscription-debug/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    // Import required services
+    const { subscriptionService } = await import('../../../core/subscription/services/subscription.service.js');
+    const { subscriptionRepository } = await import('../../../core/subscription/services/subscription.repository.js');
+    const { subscriptionRepository: dataRepository } = await import('../../../core/subscription/data/subscription.repository.js');
+    
+    // Log the diagnostics request
+    logger.logProcessing({ service: 'diagnostics', method: 'subscriptionDebug' }, 'Testing subscription retrieval', {
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // First check if the user exists
+    const userResult = await query('SELECT id FROM users WHERE id = $1', [userId]);
+    const userExists = userResult.rowCount > 0;
+    
+    // If user doesn't exist, create it
+    if (!userExists) {
+      try {
+        await query(
+          `INSERT INTO users (
+            id,
+            email,
+            name,
+            preferences,
+            notification_settings
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            userId,
+            `test-${userId.substring(0,8)}@example.com`,
+            `Test User ${userId.substring(0,8)}`,
+            JSON.stringify({}),
+            JSON.stringify({
+              emailNotifications: true,
+              emailFrequency: 'immediate',
+              instantNotifications: true
+            })
+          ]
+        );
+        console.log(`Created test user for userId: ${userId}`);
+      } catch (createUserError) {
+        console.error('Error creating test user:', createUserError);
+      }
+    }
+    
+    // Set database context for diagnostic queries
+    const context = {
+      requestId: 'subscription-debug',
+      path: '/diagnostics/subscription-debug',
+      method: 'GET',
+      token: {
+        sub: userId,
+        userId
+      }
+    };
+    
+    // Try to get subscription columns
+    let subscriptionColumns = [];
+    try {
+      const columnsResult = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'subscriptions'
+        ORDER BY ordinal_position
+      `);
+      subscriptionColumns = columnsResult.rows.map(row => row.column_name);
+    } catch (columnError) {
+      console.error('Error getting subscription columns:', columnError);
+    }
+    
+    // Check direct count of subscriptions
+    let directCount = 0;
+    try {
+      const countResult = await query(
+        'SELECT COUNT(*) FROM subscriptions WHERE user_id = $1',
+        [userId]
+      );
+      directCount = parseInt(countResult.rows[0].count, 10);
+    } catch (countError) {
+      console.error('Error getting direct subscription count:', countError);
+    }
+    
+    // Try the service repository
+    let serviceRepoResult = { error: 'Not attempted' };
+    try {
+      console.log('Trying service repository...');
+      const result = await subscriptionRepository.getUserSubscriptions(userId, {}, context);
+      serviceRepoResult = {
+        success: true,
+        subscriptions: result.subscriptions,
+        count: result.subscriptions?.length || 0,
+        pagination: result.pagination
+      };
+    } catch (serviceRepoError) {
+      console.error('Error using service repository:', serviceRepoError);
+      serviceRepoResult = {
+        error: serviceRepoError.message,
+        stack: serviceRepoError.stack
+      };
+    }
+    
+    // Try the data repository
+    let dataRepoResult = { error: 'Not attempted' };
+    try {
+      console.log('Trying data repository...');
+      const result = await dataRepository.findAllByUserId(userId);
+      dataRepoResult = {
+        success: true,
+        subscriptions: result,
+        count: result?.length || 0
+      };
+    } catch (dataRepoError) {
+      console.error('Error using data repository:', dataRepoError);
+      dataRepoResult = {
+        error: dataRepoError.message,
+        stack: dataRepoError.stack
+      };
+    }
+    
+    // Try the service directly
+    let serviceResult = { error: 'Not attempted' };
+    try {
+      console.log('Trying subscription service...');
+      const result = await subscriptionService.getUserSubscriptions(userId, context);
+      serviceResult = {
+        success: true,
+        subscriptions: result.subscriptions,
+        count: result.subscriptions?.length || 0,
+        pagination: result.pagination,
+        error: result.error
+      };
+    } catch (serviceError) {
+      console.error('Error using subscription service:', serviceError);
+      serviceResult = {
+        error: serviceError.message,
+        stack: serviceError.stack
+      };
+    }
+    
+    // Try creating a test subscription if none exist
+    let createResult = { performed: false };
+    if (directCount === 0) {
+      try {
+        console.log('No subscriptions found, creating test subscription...');
+        // Check if BOE subscription type exists
+        const typeResult = await query(
+          `SELECT id FROM subscription_types WHERE LOWER(name) = 'boe' LIMIT 1`
+        );
+        
+        let typeId;
+        if (typeResult.rows.length > 0) {
+          typeId = typeResult.rows[0].id;
+        } else {
+          // Create subscription type if it doesn't exist
+          const createTypeResult = await query(
+            `INSERT INTO subscription_types (name, description, is_system) 
+             VALUES ('BOE', 'Spanish Official Gazette', true)
+             RETURNING id`
+          );
+          typeId = createTypeResult.rows[0].id;
+        }
+        
+        // Create a test subscription directly
+        const createSubscriptionResult = await query(
+          `INSERT INTO subscriptions (
+            name,
+            description,
+            type_id,
+            prompts,
+            frequency,
+            active,
+            user_id,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id, name`,
+          [
+            'Test BOE Subscription',
+            'Created by diagnostics endpoint',
+            typeId,
+            JSON.stringify(["test", "legal", "notification"]),
+            'daily',
+            true,
+            userId,
+            new Date(),
+            new Date()
+          ]
+        );
+        
+        console.log('Created test subscription:', createSubscriptionResult.rows[0]);
+        createResult = {
+          performed: true,
+          success: true,
+          subscription: createSubscriptionResult.rows[0]
+        };
+      } catch (createError) {
+        console.error('Error creating test subscription:', createError);
+        createResult = {
+          performed: true,
+          success: false,
+          error: createError.message
+        };
+      }
+    }
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      user: {
+        id: userId,
+        exists: userExists || createResult.performed
+      },
+      database: {
+        subscription_columns: subscriptionColumns,
+        direct_count: directCount
+      },
+      repositories: {
+        service_repository: serviceRepoResult,
+        data_repository: dataRepoResult
+      },
+      service: serviceResult,
+      test_subscription: createResult
+    });
+  } catch (error) {
+    console.error('Error in subscription debug endpoint:', error);
+    
+    res.status(500).json({
+      error: 'Subscription diagnostic test failed',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 expressRouter.get('/', async (req, res) => {
   // Get package information for version display
   const packageVersion = process.env.npm_package_version || '1.0.0';
@@ -861,6 +1354,9 @@ expressRouter.get('/', async (req, res) => {
         '/user',
         '/create-user',
         '/user-exists/:userId'
+      ],
+      subscriptions: [
+        '/subscription-debug/:userId'
       ],
       notifications: [
         '/notifications/:userId',

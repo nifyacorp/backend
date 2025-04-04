@@ -321,48 +321,49 @@ class SubscriptionService {
         // We're manually creating similar output format to match the service repository
         console.log('Attempting to query data repository for subscriptions');
         
-        // Build a query to match what the data repository would expect
-        let query = 'SELECT * FROM subscriptions WHERE user_id = $1';
+        // Build a query string to match what the data repository would expect
+        // Use 'sqlQuery' instead of 'query' to avoid conflict with the imported function
+        let sqlQuery = 'SELECT * FROM subscriptions WHERE user_id = $1';
         const queryParams = [userId];
         let paramIndex = 2;
         
         // Add active filter if specified
         if (normalizedOptions.active !== undefined) {
-          query += ` AND active = $${paramIndex}`;
+          sqlQuery += ` AND active = $${paramIndex}`;
           queryParams.push(normalizedOptions.active);
           paramIndex++;
         }
         
         // Add type filter if specified
         if (normalizedOptions.type) {
-          query += ` AND type_id IN (SELECT id FROM subscription_types WHERE LOWER(name) = LOWER($${paramIndex}))`;
+          sqlQuery += ` AND type_id IN (SELECT id FROM subscription_types WHERE LOWER(name) = LOWER($${paramIndex}))`;
           queryParams.push(normalizedOptions.type);
           paramIndex++;
         }
         
         // Add frequency filter if specified
         if (normalizedOptions.frequency) {
-          query += ` AND frequency = $${paramIndex}`;
+          sqlQuery += ` AND frequency = $${paramIndex}`;
           queryParams.push(normalizedOptions.frequency);
           paramIndex++;
         }
         
         // Add search filter if specified
         if (normalizedOptions.search) {
-          query += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`;
+          sqlQuery += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`;
           queryParams.push(`%${normalizedOptions.search}%`);
           paramIndex++;
         }
         
         // Add date filters if specified
         if (normalizedOptions.from) {
-          query += ` AND created_at >= $${paramIndex}`;
+          sqlQuery += ` AND created_at >= $${paramIndex}`;
           queryParams.push(normalizedOptions.from);
           paramIndex++;
         }
         
         if (normalizedOptions.to) {
-          query += ` AND created_at <= $${paramIndex}`;
+          sqlQuery += ` AND created_at <= $${paramIndex}`;
           queryParams.push(normalizedOptions.to);
           paramIndex++;
         }
@@ -370,18 +371,22 @@ class SubscriptionService {
         // Add ordering
         const sortField = normalizedOptions.sort || 'created_at';
         const sortOrder = normalizedOptions.order || 'desc';
-        query += ` ORDER BY ${sortField} ${sortOrder}`;
+        sqlQuery += ` ORDER BY ${sortField} ${sortOrder}`;
         
         // Add pagination
         const limit = parseInt(normalizedOptions.limit || 20);
         const page = parseInt(normalizedOptions.page || 1);
         const offset = (page - 1) * limit;
         
-        query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        sqlQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         queryParams.push(limit, offset);
         
-        // Execute the query
-        const result = await query(query, queryParams);
+        // Execute the query - using the imported query function with the sqlQuery string
+        // This fixes the "query is not a function" error
+        console.log('Executing SQL query:', { sqlQuery, paramCount: queryParams.length });
+        
+        // Execute the query directly with the sqlQuery string
+        const result = await query(sqlQuery, queryParams);
         
         // Count total for pagination
         const countQuery = 'SELECT COUNT(*) as total FROM subscriptions WHERE user_id = $1';
