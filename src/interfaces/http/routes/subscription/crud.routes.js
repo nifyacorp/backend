@@ -152,14 +152,31 @@ export async function registerCrudRoutes(fastify, options) {
       if (status && status !== 'all') {
         filterOptions.active = status === 'active';
         filterOptions.status = status; // Add status parameter as well
+        console.log('Controller: Setting active filter from status:', { 
+          status, 
+          active: filterOptions.active 
+        });
       }
       
       // Support direct active parameter (true/false) for compatibility
       if (active !== undefined && active !== null) {
-        const isActive = active === 'true' || active === true;
+        // Properly handle various formats of the active parameter
+        const isActive = active === 'true' || active === true || active === 1 || active === '1';
         filterOptions.active = isActive;
         filterOptions.status = isActive ? 'active' : 'inactive';
+        console.log('Controller: Setting active filter from active parameter:', { 
+          rawActive: active, 
+          parsedActive: isActive,
+          status: filterOptions.status
+        });
       }
+      
+      // Ensure we're logging the final filter state
+      console.log('Controller: Final filter state:', { 
+        hasActiveFilter: 'active' in filterOptions,
+        activeValue: filterOptions.active,
+        status: filterOptions.status
+      });
       
       // Add frequency filter if specified
       if (frequency && frequency !== 'all') {
@@ -713,6 +730,142 @@ export async function registerCrudRoutes(fastify, options) {
     // Implementation moved to crud-delete.js
   });
   */
+
+  // PUT /:id - Update subscription (alias for PATCH for frontend compatibility)
+  fastify.put('/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 100 },
+          description: { type: 'string', maxLength: 500 },
+          prompts: { 
+            anyOf: [
+              {
+                type: 'array',
+                items: { type: 'string', minLength: 1 },
+                minItems: 1,
+                maxItems: 3
+              },
+              {
+                type: 'object',
+                properties: {
+                  value: { type: 'string', minLength: 1 }
+                },
+                required: ['value']
+              },
+              {
+                type: 'string',
+                minLength: 1
+              }
+            ]
+          },
+          frequency: { type: 'string', enum: ['immediate', 'daily'] },
+          active: { type: 'boolean' },
+          metadata: { type: 'object' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            data: {
+              type: 'object',
+              properties: {
+                subscription: subscriptionSchema
+              }
+            }
+          }
+        }
+      }
+    },
+    preHandler: [
+      validateZod(idParamSchema, 'params'),
+      validateZod(updateSubscriptionSchema)
+    ]
+  }, async (request, reply) => {
+    // Create context with token info from request if available
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.userContext?.token || request.user?.token || {
+        sub: request.user?.id,
+        email: request.user?.email,
+        name: request.user?.name
+      }
+    };
+
+    try {
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
+      }
+      
+      const subscriptionId = request.params.id;
+      const updateData = request.body;
+      
+      // Log that this is the PUT endpoint being used
+      console.log('PUT endpoint used for update:', { 
+        subscriptionId, 
+        updateFields: Object.keys(updateData)
+      });
+      
+      // Verify that the subscription exists and belongs to the user
+      const existingSubscription = await subscriptionService.getSubscriptionById(
+        request.user.id,
+        subscriptionId,
+        context
+      );
+      
+      if (!existingSubscription) {
+        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
+      }
+      
+      logRequest(context, 'Updating subscription via PUT endpoint', {
+        userId: request.user.id,
+        subscriptionId,
+        updateFields: Object.keys(updateData)
+      });
+      
+      const updatedSubscription = await subscriptionService.updateSubscription(
+        request.user.id,
+        subscriptionId,
+        updateData,
+        context
+      );
+      
+      return {
+        status: 'success',
+        data: {
+          subscription: updatedSubscription
+        }
+      };
+    } catch (error) {
+      logError(context, error);
+      
+      if (error instanceof AppError) {
+        return reply.code(error.status).send({
+          status: 'error',
+          code: error.code,
+          message: error.message
+        });
+      }
+      
+      return reply.code(500).send({
+        status: 'error',
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An unexpected error occurred'
+      });
+    }
+  });
 
   // PATCH /:id/toggle - Toggle subscription active status
   fastify.patch('/:id/toggle', {

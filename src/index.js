@@ -301,7 +301,14 @@ fastify.register(async function (fastify) {
   
   // Protected routes
   fastify.register(userRoutes, { prefix: '/api/v1/users' });
-  fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
+  
+  // Register subscription routes with enhanced compatibility options
+  fastify.register(subscriptionRoutes, { 
+    prefix: '/api/v1/subscriptions',
+    // Explicitly allow PUT method to be treated like PATCH for frontend compatibility
+    allowUnsafeMethod: true
+  });
+  
   fastify.register(notificationRoutes, { prefix: '/api/v1/notifications' });
 });
 

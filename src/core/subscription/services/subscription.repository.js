@@ -59,9 +59,16 @@ export class SubscriptionRepository {
       }
       
       // Add active status filter if specified
-      if (active !== null) {
+      if (active !== null && active !== undefined) {
+        // Log the active parameter to ensure it's being correctly processed
+        console.log('Repository: Applying active filter:', { active, typeof: typeof active });
         whereConditions.push(`active = $${paramCounter}`);
-        queryParams.push(active);
+        // Ensure active is boolean regardless of input format
+        if (typeof active === 'string') {
+          queryParams.push(active.toLowerCase() === 'true');
+        } else {
+          queryParams.push(!!active);
+        }
         paramCounter++;
       }
       

@@ -3,11 +3,15 @@ import { AppError } from '../../../shared/errors/AppError.js';
 import { SUBSCRIPTION_ERRORS } from '../types/subscription.types.js';
 import { logRequest, logError, logPubSub, logProcessing } from '../../../shared/logging/logger.js';
 import { publishEvent } from '../../../infrastructure/pubsub/client.js';
-import { subscriptionRepository } from './subscription.repository.js';
+// Import the data repository instead of the service repository
+import { subscriptionRepository as dataRepository } from '../data/subscription.repository.js';
+import { subscriptionRepository as serviceRepository } from './subscription.repository.js';
 
 class SubscriptionService {
-  constructor(repository) {
-    this.repository = repository;
+  constructor() {
+    // Use both repositories
+    this.repository = serviceRepository;
+    this.dataRepository = dataRepository;
   }
   
   async getSubscriptionStats(userId, context) {
@@ -114,72 +118,114 @@ class SubscriptionService {
     logRequest(context, 'Fetching subscription by ID', { userId, subscriptionId });
 
     try {
-      const result = await this.repository.getSubscriptionById(userId, subscriptionId, context);
+      // First try using the regular repository
+      try {
+        const result = await this.repository.getSubscriptionById(userId, subscriptionId, context);
 
-      if (!result || !result.rows || result.rows.length === 0) {
-        throw new AppError(
-          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
-          SUBSCRIPTION_ERRORS.NOT_FOUND.message,
-          404,
-          { subscriptionId }
-        );
+        if (result && result.rows && result.rows.length > 0) {
+          // Get the subscription from the result
+          const subscription = result.rows[0];
+          
+          // Normalize the prompts field to ensure it's compatible with various client expectations
+          if (subscription) {
+            try {
+              // Handle prompts field based on its type
+              if (subscription.prompts) {
+                // If it's already an array, great
+                if (Array.isArray(subscription.prompts)) {
+                  // Ensure all items are strings
+                  subscription.prompts = subscription.prompts.map(p => String(p));
+                } 
+                // If it's a string, parse it if it looks like JSON
+                else if (typeof subscription.prompts === 'string') {
+                  try {
+                    // Try to parse as JSON
+                    const parsed = JSON.parse(subscription.prompts);
+                    
+                    if (Array.isArray(parsed)) {
+                      subscription.prompts = parsed.map(p => String(p));
+                    } else if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
+                      // Handle new format with value property
+                      subscription.prompts = [String(parsed.value)];
+                    } else {
+                      // Fall back to using the original string
+                      subscription.prompts = [subscription.prompts];
+                    }
+                  } catch (e) {
+                    // Not valid JSON, use as a string
+                    subscription.prompts = [subscription.prompts];
+                  }
+                }
+                // Otherwise convert to array
+                else {
+                  subscription.prompts = [String(subscription.prompts)];
+                }
+              } else {
+                // Ensure prompts is never null/undefined
+                subscription.prompts = [];
+              }
+            } catch (promptsError) {
+              console.error('Error normalizing prompts field:', promptsError);
+              subscription.prompts = [];
+            }
+            
+            // Log the normalized subscription for debugging
+            console.log('Normalized subscription from service repository:', {
+              id: subscription.id,
+              name: subscription.name,
+              prompts: subscription.prompts
+            });
+          }
+
+          return subscription;
+        }
+      } catch (serviceRepoError) {
+        // Log the error but don't fail yet - try data repository
+        console.warn('Service repository failed, falling back to data repository:', serviceRepoError);
       }
 
-      // Get the subscription from the result
-      const subscription = result.rows[0];
-      
-      // Normalize the prompts field to ensure it's compatible with various client expectations
-      if (subscription) {
-        try {
-          // Handle prompts field based on its type
-          if (subscription.prompts) {
-            // If it's already an array, great
-            if (Array.isArray(subscription.prompts)) {
-              // Ensure all items are strings
-              subscription.prompts = subscription.prompts.map(p => String(p));
-            } 
-            // If it's a string, parse it if it looks like JSON
-            else if (typeof subscription.prompts === 'string') {
+      // If service repository failed or returned no results, try the data repository
+      console.log('Trying data repository as fallback for subscription:', subscriptionId);
+      const dataSubscription = await this.dataRepository.findById(subscriptionId, {
+        withUserCheck: true,
+        userId,
+        context
+      });
+
+      if (dataSubscription) {
+        console.log('Found subscription in data repository:', {
+          id: dataSubscription.id,
+          name: dataSubscription.name
+        });
+        
+        // Normalize prompts if needed
+        if (!Array.isArray(dataSubscription.prompts)) {
+          try {
+            if (typeof dataSubscription.prompts === 'string') {
               try {
-                // Try to parse as JSON
-                const parsed = JSON.parse(subscription.prompts);
-                
-                if (Array.isArray(parsed)) {
-                  subscription.prompts = parsed.map(p => String(p));
-                } else if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
-                  // Handle new format with value property
-                  subscription.prompts = [String(parsed.value)];
-                } else {
-                  // Fall back to using the original string
-                  subscription.prompts = [subscription.prompts];
-                }
+                const parsed = JSON.parse(dataSubscription.prompts);
+                dataSubscription.prompts = Array.isArray(parsed) ? parsed : [dataSubscription.prompts];
               } catch (e) {
-                // Not valid JSON, use as a string
-                subscription.prompts = [subscription.prompts];
+                dataSubscription.prompts = [dataSubscription.prompts];
               }
+            } else {
+              dataSubscription.prompts = dataSubscription.prompts ? [String(dataSubscription.prompts)] : [];
             }
-            // Otherwise convert to array
-            else {
-              subscription.prompts = [String(subscription.prompts)];
-            }
-          } else {
-            // Ensure prompts is never null/undefined
-            subscription.prompts = [];
+          } catch (e) {
+            dataSubscription.prompts = [];
           }
-        } catch (promptsError) {
-          console.error('Error normalizing prompts field:', promptsError);
-          subscription.prompts = [];
         }
         
-        // Log the normalized subscription for debugging
-        console.log('Normalized subscription:', {
-          id: subscription.id,
-          name: subscription.name,
-          prompts: subscription.prompts
-        });
+        return dataSubscription;
       }
 
-      return subscription;
+      // If we get here, the subscription was not found in either repository
+      throw new AppError(
+        SUBSCRIPTION_ERRORS.NOT_FOUND.code,
+        SUBSCRIPTION_ERRORS.NOT_FOUND.message,
+        404,
+        { subscriptionId }
+      );
     } catch (error) {
       logError(context, error, { 
         method: 'getSubscriptionById',
@@ -221,20 +267,167 @@ class SubscriptionService {
       
       console.log('Service: Normalized options:', normalizedOptions);
       
-      const result = await this.repository.getUserSubscriptions(userId, normalizedOptions, context);
-      
-      // If result contains an error property, log it but still return the data
-      if (result.error) {
-        logError(context, new Error(result.error));
-        console.error('Service: Repository reported error:', result.error);
+      // First try the regular repository
+      try {
+        const result = await this.repository.getUserSubscriptions(userId, normalizedOptions, context);
+        
+        // If result contains an error property, log it but still return the data
+        if (result.error) {
+          logError(context, new Error(result.error));
+          console.error('Service: Repository reported error:', result.error);
+        }
+        
+        // Check if we have actual results
+        if (result.subscriptions && result.subscriptions.length > 0) {
+          console.log('Service: Repository returned subscriptions:', { 
+            count: result.subscriptions.length,
+            pagination: result.pagination
+          });
+          
+          return result;
+        } else {
+          console.log('Service: No subscriptions found in primary repository, checking data repository');
+        }
+      } catch (repoError) {
+        console.warn('Service: Error in primary getUserSubscriptions repository:', repoError);
+        // Continue to try the data repository
       }
       
-      console.log('Service: Repository returned subscriptions:', { 
-        count: result.subscriptions?.length || 0,
-        pagination: result.pagination
-      });
+      // If primary repository failed or returned empty, try the data repository
+      try {
+        // This is a simpler call using the data repository which may have more subscriptions
+        // We're manually creating similar output format to match the service repository
+        console.log('Attempting to query data repository for subscriptions');
+        
+        // Build a query to match what the data repository would expect
+        let query = 'SELECT * FROM subscriptions WHERE user_id = $1';
+        const queryParams = [userId];
+        let paramIndex = 2;
+        
+        // Add active filter if specified
+        if (normalizedOptions.active !== undefined) {
+          query += ` AND active = $${paramIndex}`;
+          queryParams.push(normalizedOptions.active);
+          paramIndex++;
+        }
+        
+        // Add type filter if specified
+        if (normalizedOptions.type) {
+          query += ` AND type_id IN (SELECT id FROM subscription_types WHERE LOWER(name) = LOWER($${paramIndex}))`;
+          queryParams.push(normalizedOptions.type);
+          paramIndex++;
+        }
+        
+        // Add frequency filter if specified
+        if (normalizedOptions.frequency) {
+          query += ` AND frequency = $${paramIndex}`;
+          queryParams.push(normalizedOptions.frequency);
+          paramIndex++;
+        }
+        
+        // Add search filter if specified
+        if (normalizedOptions.search) {
+          query += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`;
+          queryParams.push(`%${normalizedOptions.search}%`);
+          paramIndex++;
+        }
+        
+        // Add date filters if specified
+        if (normalizedOptions.from) {
+          query += ` AND created_at >= $${paramIndex}`;
+          queryParams.push(normalizedOptions.from);
+          paramIndex++;
+        }
+        
+        if (normalizedOptions.to) {
+          query += ` AND created_at <= $${paramIndex}`;
+          queryParams.push(normalizedOptions.to);
+          paramIndex++;
+        }
+        
+        // Add ordering
+        const sortField = normalizedOptions.sort || 'created_at';
+        const sortOrder = normalizedOptions.order || 'desc';
+        query += ` ORDER BY ${sortField} ${sortOrder}`;
+        
+        // Add pagination
+        const limit = parseInt(normalizedOptions.limit || 20);
+        const page = parseInt(normalizedOptions.page || 1);
+        const offset = (page - 1) * limit;
+        
+        query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        queryParams.push(limit, offset);
+        
+        // Execute the query
+        const result = await query(query, queryParams);
+        
+        // Count total for pagination
+        const countQuery = 'SELECT COUNT(*) as total FROM subscriptions WHERE user_id = $1';
+        const countResult = await query(countQuery, [userId]);
+        const total = parseInt(countResult.rows[0]?.total || 0);
+        
+        // Format the results to match expected format
+        const subscriptions = result.rows.map(row => {
+          // Handle prompts processing
+          let prompts = [];
+          try {
+            if (typeof row.prompts === 'string') {
+              prompts = JSON.parse(row.prompts);
+            } else if (Array.isArray(row.prompts)) {
+              prompts = row.prompts;
+            }
+          } catch (e) {
+            console.warn('Error parsing prompts:', e);
+            prompts = row.prompts ? [String(row.prompts)] : [];
+          }
+          
+          return {
+            id: row.id,
+            name: row.name,
+            description: row.description || '',
+            type: row.type_id, // No join for type name, just use ID
+            prompts: prompts,
+            frequency: row.frequency || 'daily',
+            active: row.active,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            user_id: row.user_id
+          };
+        });
+        
+        console.log('Data repository returned subscriptions:', { 
+          count: subscriptions.length,
+          total
+        });
+        
+        return {
+          subscriptions,
+          pagination: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+          }
+        };
+      } catch (dataRepoError) {
+        console.error('Service: Data repository also failed:', dataRepoError);
+        // Continue to return empty results
+      }
       
-      return result;
+      // Return empty results if both repositories failed
+      console.log('Service: Both repositories failed, returning empty results');
+      const emptyResult = {
+        subscriptions: [],
+        pagination: {
+          total: 0,
+          page: parseInt(options.page || 1),
+          limit: parseInt(options.limit || 20),
+          totalPages: 0
+        },
+        error: 'Multiple repository failures'
+      };
+      
+      return emptyResult;
     } catch (error) {
       logError(context, error);
       console.error('Service: Error in getUserSubscriptions:', error);
@@ -257,6 +450,33 @@ class SubscriptionService {
 
   async createSubscription(subscriptionData, context) {
     logRequest(context, 'Creating new subscription', subscriptionData);
+    
+    // Log the raw subscription data first for debugging
+    console.log('Raw subscription data:', {
+      name: subscriptionData.name,
+      type: subscriptionData.type,
+      source: subscriptionData.source, // Some frontends use source instead of type
+      userId: subscriptionData.userId,
+      prompts: Array.isArray(subscriptionData.prompts) ? 
+        `array(${subscriptionData.prompts.length})` : 
+        typeof subscriptionData.prompts
+    });
+    
+    // Normalize data format from frontend
+    // Some frontends use 'source' instead of 'type', handle both
+    if (!subscriptionData.type && subscriptionData.source) {
+      subscriptionData.type = subscriptionData.source;
+      console.log('Using source field as type:', subscriptionData.type);
+    }
+    
+    // Some frontends use 'keywords' instead of 'prompts'
+    if (!subscriptionData.prompts && subscriptionData.keywords) {
+      subscriptionData.prompts = subscriptionData.keywords;
+      console.log('Using keywords field as prompts:', 
+        Array.isArray(subscriptionData.prompts) ? 
+        subscriptionData.prompts.length + ' items' : 
+        typeof subscriptionData.prompts);
+    }
     
     // Validate data
     if (!subscriptionData.name) {
@@ -1420,4 +1640,4 @@ class SubscriptionService {
   }
 }
 
-export const subscriptionService = new SubscriptionService(subscriptionRepository);
+export const subscriptionService = new SubscriptionService();
