@@ -22,7 +22,9 @@ export async function notificationRoutes(fastify, options) {
           page: { type: 'integer', default: 1 },
           limit: { type: 'integer', default: 10 },
           unread: { type: 'boolean', default: false },
-          subscriptionId: { type: 'string' }
+          subscriptionId: { type: 'string' },
+          entityType: { type: 'string' },
+          entity_type: { type: 'string' } // For backward compatibility
         }
       },
       response: {
@@ -38,6 +40,22 @@ export async function notificationRoutes(fastify, options) {
           }
         }
       }
+    },
+    onRequest: (request, reply, done) => {
+      // Request logging for debugging notification polling issues
+      console.log('Notification request received:', {
+        path: request.url,
+        query: request.query,
+        userId: request.user?.id,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Normalize parameters for consistency
+      if (request.query.entity_type && !request.query.entityType) {
+        request.query.entityType = request.query.entity_type;
+      }
+      
+      done();
     },
     preHandler: validateZod(notificationQuerySchema, 'query')
   }, notificationController.getUserNotifications);
@@ -120,6 +138,86 @@ export async function notificationRoutes(fastify, options) {
     },
     preHandler: validateZod(activityQuerySchema, 'query')
   }, notificationController.getActivityStats);
+
+  /**
+   * Get notifications by entity type
+   */
+  fastify.get('/by-entity', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          entityType: { type: 'string' },
+          entity_type: { type: 'string' }, // For backward compatibility
+          page: { type: 'integer', default: 1 },
+          limit: { type: 'integer', default: 10 }
+        },
+        required: ['entityType'] 
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            notifications: { type: 'array', items: { type: 'object' } },
+            total: { type: 'integer' },
+            unread: { type: 'integer' },
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            hasMore: { type: 'boolean' }
+          }
+        }
+      }
+    },
+    onRequest: (request, reply, done) => {
+      // Normalize parameters for compatibility
+      if (request.query.entity_type && !request.query.entityType) {
+        request.query.entityType = request.query.entity_type;
+      }
+      
+      // Log for debugging
+      console.log('Notification by entity request:', {
+        entityType: request.query.entityType,
+        path: request.url,
+        query: request.query,
+        userId: request.user?.id
+      });
+      
+      done();
+    }
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const entityType = request.query.entityType;
+      const page = Math.max(parseInt(request.query.page) || 1, 1);
+      const limit = Math.min(parseInt(request.query.limit) || 10, 100);
+      const offset = (page - 1) * limit;
+      
+      console.log('Processing by-entity request for:', {
+        entityType,
+        userId,
+        page,
+        limit
+      });
+
+      // Call service with entity type filter
+      const result = await notificationController.getUserNotifications({
+        user: { id: userId },
+        query: {
+          page,
+          limit,
+          entityType
+        }
+      }, reply);
+      
+      return result;
+    } catch (error) {
+      console.error('Error fetching notifications by entity:', error);
+      return reply.status(error.status || 500).send({
+        error: 'Failed to fetch notifications by entity',
+        message: error.message
+      });
+    }
+  });
 
   /**
    * Mark all notifications as read

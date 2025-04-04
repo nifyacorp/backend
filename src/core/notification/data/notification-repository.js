@@ -16,8 +16,14 @@ const getUserNotifications = async (userId, options = {}) => {
     limit = 10,
     offset = 0,
     unreadOnly = false,
-    subscriptionId = null
+    subscriptionId = null,
+    entityType = null,
+    entityTypeFilter = null,
+    entity_type = null
   } = options;
+  
+  // Normalize parameters for consistency
+  const normalizedEntityType = entityTypeFilter || entityType || entity_type;
 
   try {
     // Set RLS context before querying notifications
@@ -62,8 +68,25 @@ const getUserNotifications = async (userId, options = {}) => {
     }
     
     if (subscriptionId) {
-      sqlQuery += ` AND n.subscription_id = $${paramIndex}`;
+      console.log(`Adding subscription filter for ID: ${subscriptionId}`);
+      // Handle different subscription_id formats - the field might be stored as UUID or string
+      sqlQuery += ` AND (n.subscription_id = $${paramIndex} OR 
+                         (n.metadata->>'subscription_id')::text = $${paramIndex} OR
+                         n.metadata->>'entity_id' = $${paramIndex})`;
       queryParams.push(subscriptionId);
+      paramIndex++;
+    }
+    
+    // Add entity type filter if specified
+    if (normalizedEntityType) {
+      console.log(`Adding entity type filter for: ${normalizedEntityType}`);
+      sqlQuery += ` AND (
+        n.entity_type = $${paramIndex} OR 
+        n.metadata->>'entity_type' = $${paramIndex} OR
+        n.metadata->>'type' = $${paramIndex} OR
+        n.metadata->>'source' = $${paramIndex}
+      )`;
+      queryParams.push(normalizedEntityType);
       paramIndex++;
     }
     

@@ -73,12 +73,22 @@ const mockNotifications = [
  */
 const getUserNotifications = async (userId, options = {}) => {
   try {
+    // Add additional parameters specifically for entity type filtering
+    const entityType = options.entityType || options.entity_type;
+    
     // Log request parameters for better debugging
     logger.logProcessing({ service: 'notification-service', method: 'getUserNotifications' }, 'Fetching user notifications', {
       userId,
       options,
+      entityType,
       timestamp: new Date().toISOString()
     });
+    
+    // If entity type is provided, add it to the SQL filter
+    if (entityType) {
+      console.log(`Entity type filter provided: ${entityType}`);
+      options.entityTypeFilter = entityType;
+    }
 
     // In development mode, use mock data
     if (process.env.NODE_ENV === 'development') {
@@ -115,8 +125,29 @@ const getUserNotifications = async (userId, options = {}) => {
     
     // In production mode, use the database repository
     try {
-      // Get notifications based on options
-      const notifications = await notificationRepository.getUserNotifications(userId, options);
+      // Enhanced error handling for database queries with timeout
+      let notifications = [];
+      try {
+        // Set a timeout for the database query to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Notification query timeout')), 5000)
+        );
+        
+        // Race between the actual query and the timeout
+        notifications = await Promise.race([
+          notificationRepository.getUserNotifications(userId, options),
+          timeoutPromise
+        ]);
+      } catch (timeoutError) {
+        // If we get a timeout, log it and return an empty array
+        console.warn('Notification query timed out:', timeoutError.message);
+        logger.logError(
+          { service: 'notification-service', method: 'getUserNotifications' }, 
+          timeoutError, 
+          { userId, options, type: 'timeout' }
+        );
+        notifications = [];
+      }
       
       // Enhanced debugging to check notifications before returning them
       console.log('----NOTIFICATION SERVICE DEBUGGING START----');

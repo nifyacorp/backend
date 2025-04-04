@@ -45,8 +45,37 @@ const getUserNotifications = async (request, reply) => {
     });
     
     // Format result to match frontend expectations
+    // Ensure notifications have consistent format
+    const formattedNotifications = (result.notifications || []).map(notification => {
+      return {
+        id: notification.id,
+        title: notification.title || '',
+        content: notification.content || '',
+        read: !!notification.read,
+        createdAt: notification.createdAt || notification.created_at || new Date().toISOString(),
+        readAt: notification.readAt || notification.read_at || null,
+        sourceUrl: notification.sourceUrl || notification.source_url || '',
+        subscriptionId: notification.subscriptionId || notification.subscription_id || null,
+        subscriptionName: notification.subscriptionName || notification.subscription_name || '',
+        metadata: notification.metadata || {},
+        // Add any missing fields
+        entityType: notification.entityType || notification.entity_type || 
+                   (notification.metadata ? (notification.metadata.type || notification.metadata.source || '') : '')
+      };
+    });
+    
+    // Log the formatted notifications for debugging
+    logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Formatted notifications', {
+      originalCount: (result.notifications || []).length,
+      formattedCount: formattedNotifications.length,
+      sample: formattedNotifications.length > 0 ? {
+        id: formattedNotifications[0].id,
+        fields: Object.keys(formattedNotifications[0])
+      } : 'No notifications'
+    });
+    
     const response = {
-      notifications: result.notifications || [],
+      notifications: formattedNotifications,
       total: result.total || 0,
       unread: result.unread || 0,
       page: page,
