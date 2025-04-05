@@ -2,6 +2,106 @@ import { query } from '../../../infrastructure/database/client.js';
 import { logError } from '../../../shared/logging/logger.js';
 
 export class SubscriptionRepository {
+  /**
+   * Delete a subscription by ID with proper permission checks
+   * @param {string} subscriptionId - ID of subscription to delete
+   * @param {object} options - Options for the delete operation
+   * @param {string} options.userId - User ID performing the deletion
+   * @param {boolean} options.force - If true, bypass user ownership check (admin only)
+   * @param {object} context - Request context for logging
+   * @returns {Promise<object>} - Result of the deletion operation
+   */
+  async delete(subscriptionId, options = {}, context = {}) {
+    const { userId, force = false } = options;
+    
+    if (!subscriptionId) {
+      throw new Error('Subscription ID is required');
+    }
+    
+    if (!userId && !force) {
+      throw new Error('User ID is required unless using force option');
+    }
+    
+    try {
+      console.log('Repository: Deleting subscription', { subscriptionId, userId, force });
+      
+      // First, check if the subscription exists and belongs to the user
+      const checkQuery = `
+        SELECT EXISTS(
+          SELECT 1 FROM subscriptions 
+          WHERE id = $1 ${userId ? 'AND user_id = $2' : ''}
+        ) as exists
+      `;
+      
+      const checkParams = userId ? [subscriptionId, userId] : [subscriptionId];
+      const checkResult = await query(checkQuery, checkParams);
+      
+      if (!checkResult.rows[0].exists) {
+        // If force option is enabled, check if it exists at all
+        if (force) {
+          const globalCheck = await query(
+            'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1) as exists',
+            [subscriptionId]
+          );
+          
+          if (!globalCheck.rows[0].exists) {
+            console.log(`Repository: Subscription ${subscriptionId} not found (even with force)`);
+            return { alreadyRemoved: true };
+          }
+        } else {
+          console.log(`Repository: Subscription ${subscriptionId} not found for user ${userId}`);
+          return { alreadyRemoved: true };
+        }
+      }
+      
+      // Use a transaction for the deletion to ensure atomicity
+      const client = await query('BEGIN');
+      
+      try {
+        // First delete any dependent records
+        await client.query(
+          'DELETE FROM subscription_items WHERE subscription_id = $1',
+          [subscriptionId]
+        );
+        
+        // Then delete the subscription
+        const deleteResult = await client.query(
+          `DELETE FROM subscriptions 
+           WHERE id = $1 ${userId && !force ? 'AND user_id = $2' : ''}
+           RETURNING id, name`,
+          userId && !force ? [subscriptionId, userId] : [subscriptionId]
+        );
+        
+        await client.query('COMMIT');
+        
+        if (deleteResult.rowCount === 0) {
+          console.log(`Repository: No rows deleted for subscription ${subscriptionId}`);
+          return { 
+            alreadyRemoved: true,
+            message: 'Subscription already removed or permission denied'
+          };
+        }
+        
+        console.log(`Repository: Successfully deleted subscription ${subscriptionId}`);
+        return {
+          alreadyRemoved: false,
+          deleted: true,
+          subscription: deleteResult.rows[0]
+        };
+      } catch (txError) {
+        await client.query('ROLLBACK');
+        console.error('Repository: Transaction error during subscription deletion:', txError);
+        throw txError;
+      }
+    } catch (error) {
+      console.error('Repository: Error in delete method:', error);
+      if (context) {
+        logError(context, error);
+      }
+      throw error;
+    }
+  }
+  
   async getUserSubscriptions(userId, options = {}, context = {}) {
     try {
       const {

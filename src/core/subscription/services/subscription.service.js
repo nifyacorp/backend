@@ -1275,12 +1275,67 @@ class SubscriptionService {
     logRequest(context, 'Deleting subscription', { userId, subscriptionId });
     
     try {
-      // Use the repository to handle the deletion with proper transaction management
-      const result = await this.repository.delete(subscriptionId, {
-        userId,
-        force: false, // Don't force - perform proper user ownership checks
-        context
-      });
+      // First check if we should use dataRepository or serviceRepository (if one fails, try the other)
+      let result;
+      
+      try {
+        // Try the dataRepository first if it has a delete method
+        if (typeof this.dataRepository.delete === 'function') {
+          logRequest(context, 'Using dataRepository for deletion', { subscriptionId });
+          result = await this.dataRepository.delete(subscriptionId, {
+            userId,
+            force: false, // Don't force - perform proper user ownership checks
+            context
+          });
+        } else {
+          throw new Error('dataRepository.delete is not a function');
+        }
+      } catch (repoError) {
+        // If dataRepository fails, try direct SQL deletion
+        logRequest(context, 'dataRepository failed, using direct SQL deletion', { 
+          error: repoError.message 
+        });
+        
+        // Check if subscription exists and belongs to user
+        const checkResult = await query(
+          'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1 AND user_id = $2) as exists',
+          [subscriptionId, userId]
+        );
+        
+        if (!checkResult.rows[0].exists) {
+          return {
+            message: 'Subscription already removed or not found',
+            alreadyRemoved: true
+          };
+        }
+        
+        // Use a transaction for the deletion
+        const client = await query('BEGIN');
+        
+        try {
+          // Delete related records first
+          await client.query(
+            'DELETE FROM subscription_items WHERE subscription_id = $1',
+            [subscriptionId]
+          );
+          
+          // Then delete the subscription
+          const deleteResult = await client.query(
+            'DELETE FROM subscriptions WHERE id = $1 AND user_id = $2 RETURNING id',
+            [subscriptionId, userId]
+          );
+          
+          await client.query('COMMIT');
+          
+          result = {
+            alreadyRemoved: deleteResult.rowCount === 0,
+            deleted: deleteResult.rowCount > 0
+          };
+        } catch (txError) {
+          await client.query('ROLLBACK');
+          throw txError;
+        }
+      }
       
       // If deletion was successful, publish an event
       if (!result.alreadyRemoved) {
