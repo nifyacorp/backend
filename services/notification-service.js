@@ -1,12 +1,23 @@
-const db = require('../utils/db');
-const logger = require('../utils/logger');
-const metrics = require('../utils/metrics');
-const { v4: uuidv4 } = require('uuid');
-const eventEmitter = require('../utils/event-emitter');
-const socketManager = require('../utils/socket-manager');
-const messageQueue = require('../utils/message-queue');
-const pubsubClient = require('../utils/pubsub-client');
-const { normalizeNotification, extractNotificationTitle, isDuplicateNotification } = require('../utils/notification-helper');
+import db from '../utils/db';
+import logger from '../utils/logger.js';
+import metrics from '../utils/metrics.js';
+import { v4: uuidv4 } from 'uuid';
+import eventEmitter from '../utils/event-emitter.js';
+import socketManager from '../utils/socket-manager.js';
+import messageQueue from '../utils/message-queue.js';
+import pubsubClient from '../utils/pubsub-client.js';
+import { normalizeNotification, extractNotificationTitle, isDuplicateNotification } from '../utils/notification-helper.js';
+
+// Import the new repository functions
+import {
+  createNotificationRecord,
+  findUserNotifications,
+  markNotificationRead,
+  deleteNotificationById,
+  deleteAllUserNotifications,
+  countUnreadUserNotifications,
+  findUserEmailPreferences
+} from '../infrastructure/database/notification.repository.js';
 
 /**
  * Create a notification
@@ -36,16 +47,8 @@ async function createNotification({ userId, type, content, transactionId }) {
     });
 
     // Store notification in database
-    const result = await db.query(
-      'INSERT INTO notifications (user_id, type, content, read, created_at) VALUES (?, ?, ?, ?, ?)',
-      [notificationData.userId, notificationData.type, notificationData.content, notificationData.read, notificationData.createdAt]
-    );
-
-    const notificationId = result.insertId;
-    logger.debug('Notification created', {
-      notificationId,
-      correlationId: transactionId
-    });
+    const notificationId = await createNotificationRecord(notificationData);
+    logger.debug('Notification persisted via repository', { notificationId, correlationId: transactionId });
 
     // If we're using a message queue, publish to it
     if (process.env.USE_MESSAGE_QUEUE === 'true') {
@@ -97,17 +100,11 @@ async function createNotification({ userId, type, content, transactionId }) {
     // Phase 7: Email Notification Delivery
     // Check if user has email notifications enabled
     try {
-      const userResult = await db.query(
-        'SELECT email_notifications, notification_email, email FROM users WHERE id = ?',
-        [userId]
-      );
+      const userPrefs = await findUserEmailPreferences(userId);
 
-      if (userResult.length > 0 && userResult[0].email_notifications) {
-        // Extract notification title for email
+      if (userPrefs && userPrefs.email_notifications) {
         const title = extractNotificationTitle(content, type, userId);
-        
-        // Use notification_email if available, otherwise use account email
-        const email = userResult[0].notification_email || userResult[0].email;
+        const email = userPrefs.notification_email || userPrefs.email;
         
         if (email) {
           // Publish to email notification topic
@@ -120,7 +117,7 @@ async function createNotification({ userId, type, content, transactionId }) {
               type,
               title,
               content,
-              timestamp: new Date().toISOString()
+              timestamp: notificationData.createdAt
             },
             transactionId
           });
@@ -132,10 +129,12 @@ async function createNotification({ userId, type, content, transactionId }) {
             correlationId: transactionId
           });
         }
+      } else if (!userPrefs) {
+        logger.warn('Could not trigger email notification because user preferences not found', { userId });
       }
     } catch (emailError) {
       // Log but don't fail the entire notification process
-      logger.error('Error publishing email notification', {
+      logger.error('Error triggering email notification', {
         error: emailError.message,
         stack: emailError.stack,
         notificationId,
@@ -355,7 +354,7 @@ async function getUserNotifications(userId, options = { limit: 20, offset: 0, in
     queryParams.push(options.limit, options.offset);
 
     // Execute the query
-    const notifications = await db.query(query, queryParams);
+    const notifications = await findUserNotifications(userId, options);
 
     logger.debug('Retrieved user notifications', {
       userId,
@@ -406,18 +405,9 @@ async function getUserNotifications(userId, options = { limit: 20, offset: 0, in
  */
 async function markNotificationAsRead(notificationId, userId) {
   try {
-    const result = await db.query(
-      'UPDATE notifications SET read = TRUE WHERE id = ? AND user_id = ?',
-      [notificationId, userId]
-    );
-
-    logger.debug('Notification marked as read', {
-      notificationId,
-      userId,
-      updated: result.affectedRows > 0
-    });
-
-    return result.affectedRows > 0;
+    const success = await markNotificationRead(notificationId, userId);
+    logger.debug('Mark notification read result', { notificationId, userId, success });
+    return success;
   } catch (error) {
     logger.error('Error marking notification as read', {
       error: error.message,
@@ -439,53 +429,14 @@ async function deleteNotification(notificationId, userId) {
       userId
     });
 
-    const resultWithOwnership = await db.query(
-      'DELETE FROM notifications WHERE id = ? AND user_id = ?',
-      [notificationId, userId]
-    );
-
-    if (resultWithOwnership.affectedRows > 0) {
-      logger.debug('Notification deleted successfully with ownership check', {
-        notificationId,
-        userId,
-        deleted: true
-      });
-      
-      metrics.increment('notification.deleted', { 
-        reason: 'explicit_request',
-        userId
-      });
-      
-      return true;
+    const success = await deleteNotificationById(notificationId, userId);
+    logger.debug('Delete notification result', { notificationId, userId, success });
+    if (success) {
+      metrics.increment('notification.deleted', { reason: 'explicit_request', userId });
+    } else {
+      metrics.increment('notification.delete_failed', { reason: 'ownership_mismatch_or_not_found', userId });
     }
-
-    // If no rows affected, try to check if notification exists first
-    const exists = await db.query(
-      'SELECT 1 FROM notifications WHERE id = ?',
-      [notificationId]
-    );
-
-    if (exists.length === 0) {
-      // Notification doesn't exist, consider it "deleted" for UI consistency
-      logger.debug('Notification doesn\'t exist, considering it deleted', {
-        notificationId,
-        userId
-      });
-      
-      metrics.increment('notification.already_deleted', { 
-        userId
-      });
-      
-      return true;
-    }
-
-    logger.warn('Failed to delete notification - ownership mismatch', {
-      notificationId,
-      userId,
-      exists: exists.length > 0
-    });
-    
-    return false;
+    return success;
   } catch (error) {
     logger.error('Error deleting notification', {
       error: error.message,
@@ -516,20 +467,20 @@ async function deleteAllNotifications(userId, { subscriptionId } = {}) {
       params.push(subscriptionId);
     }
     
-    const result = await db.query(query, params);
+    const deletedCount = await deleteAllUserNotifications(userId, { subscriptionId });
     
     logger.debug('Deleted all notifications', {
       userId,
       subscriptionId: subscriptionId || 'all',
-      affectedRows: result.affectedRows
+      deletedCount
     });
     
     metrics.increment('notification.bulk_deleted', { 
-      count: result.affectedRows,
+      count: deletedCount,
       userId
     });
     
-    return result.affectedRows;
+    return deletedCount;
   } catch (error) {
     logger.error('Error deleting all notifications', {
       error: error.message,
@@ -607,12 +558,7 @@ async function publishToEmailNotificationTopic({ notificationId, userId, email, 
  */
 async function countUnreadNotifications(userId) {
   try {
-    const result = await db.query(
-      'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = FALSE',
-      [userId]
-    );
-    
-    const count = result[0].count || 0;
+    const count = await countUnreadUserNotifications(userId);
     
     logger.debug('Counted unread notifications', {
       userId,
@@ -632,7 +578,7 @@ async function countUnreadNotifications(userId) {
   }
 }
 
-module.exports = {
+export {
   createNotification,
   deliverNotificationRealtime,
   processQueuedNotification,
