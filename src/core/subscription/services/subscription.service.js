@@ -1309,19 +1309,27 @@ class SubscriptionService {
         throw error;
       }
       
-      // For all other errors, return a success response with error details
-      // This ensures frontend can remove the subscription from the UI
-      logRequest(context, 'Error during deletion but returning success response', {
-        error: error.message,
+      // Properly propagate the error to the caller
+      logError(context, error, 'Error during subscription deletion in service layer', {
         subscriptionId
       });
       
-      return { 
-        message: 'Subscription deletion processed',
-        id: subscriptionId,
-        alreadyRemoved: true,
-        error: error.message
-      };
+      // Rethrow the error with appropriate context
+      if (error instanceof AppError) {
+        throw error; // Preserve original AppError
+      } else {
+        // Wrap generic errors in AppError
+        throw new AppError(
+          'SUBSCRIPTION_DELETION_ERROR',
+          error.message || 'Failed to delete subscription',
+          500,
+          { 
+            subscriptionId,
+            originalError: error.message,
+            originalErrorCode: error.code
+          }
+        );
+      }
     }
   }
 

@@ -156,26 +156,28 @@ export function registerDeleteEndpoint(fastify) {
           });
         }
         
-        // For non-permission errors, return success for UI consistency
-        // but include detailed error information for debugging
-        logError(context, serviceError, 'Error during deletion but returning success for UI consistency');
+        // Return proper error status and message
+        logError(context, serviceError, 'Error during subscription deletion');
+        
+        // Determine appropriate error status code
+        const errorStatusCode = serviceError.status || 
+                               (serviceError.code === 'NOT_FOUND' ? 404 : 
+                               (serviceError.code === 'DATABASE_ERROR' ? 500 : 400));
         
         // Get stack trace for debugging in development
         const stack = process.env.NODE_ENV !== 'production' ? serviceError.stack : undefined;
         
-        return reply.code(200).send({
-          status: 'success',
-          message: 'Subscription removal processed',
+        return reply.code(errorStatusCode).send({
+          status: 'error',
+          message: serviceError.message || 'Error during subscription deletion',
           details: {
             id: subscriptionId,
-            alreadyRemoved: true,
             error: serviceError.message,
             errorCode: serviceError.code || 'UNKNOWN_ERROR',
             errorDetails: serviceError.details || {},
             debugInfo: {
               stack,
-              timestamp: new Date().toISOString(),
-              note: 'This is a UI-friendly success response, but the operation encountered an error'
+              timestamp: new Date().toISOString()
             }
           }
         });
@@ -199,27 +201,29 @@ export function registerDeleteEndpoint(fastify) {
         });
       }
       
-      // For unexpected errors, still return success for UI consistency
-      // but include detailed error information for debugging
+      // Return proper error for unexpected errors
       logError(context, error, 'Unexpected error during subscription deletion');
       
       // Get stack trace for debugging in development
       const stack = process.env.NODE_ENV !== 'production' ? error.stack : undefined;
       
-      return reply.code(200).send({
-        status: 'success',
-        message: 'Subscription removal processed',
+      // Determine appropriate status code
+      const errorStatusCode = error.status || 
+                             (error.code === 'NOT_FOUND' ? 404 : 
+                             (error.code === 'DATABASE_ERROR' ? 500 : 500));
+      
+      return reply.code(errorStatusCode).send({
+        status: 'error',
+        message: error.message || 'Unexpected error during subscription deletion',
         details: {
           id: request.params.id,
-          alreadyRemoved: true,
           error: error.message,
-          errorCode: error.code || 'UNKNOWN_ERROR',
+          errorCode: error.code || 'UNEXPECTED_ERROR',
           errorDetails: error.details || {},
           debugInfo: {
             stack,
             timestamp: new Date().toISOString(),
-            errorType: 'Unexpected error during subscription deletion',
-            note: 'This is a UI-friendly success response, but check browser console for error details'
+            errorType: 'Unexpected error during subscription deletion'
           }
         }
       });
