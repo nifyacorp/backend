@@ -197,7 +197,34 @@ class SubscriptionRepository {
         
         // Step 2: Delete the subscription and related records
         try {
-          // Delete related processing records first
+          // First, delete subscription sharing records if the table exists
+          try {
+            // Check if subscription_shares table exists
+            const tableCheckResult = await client.query(`
+              SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'subscription_shares'
+              ) as exists
+            `);
+            
+            const sharingTableExists = tableCheckResult.rows[0].exists;
+            
+            if (sharingTableExists) {
+              // Delete sharing records
+              await client.query(
+                'DELETE FROM subscription_shares WHERE subscription_id = $1',
+                [id]
+              );
+              
+              logRequest(context, 'Deleted related sharing records', { subscriptionId: id });
+            }
+          } catch (sharingError) {
+            // Log but continue - don't fail the whole operation
+            logError(context, sharingError, 'Error deleting sharing records');
+          }
+          
+          // Delete related processing records 
           await client.query(
             'DELETE FROM subscription_processing WHERE subscription_id = $1',
             [id]
@@ -207,9 +234,16 @@ class SubscriptionRepository {
           
           // Delete related notifications
           try {
+            // First try with JSONB operator
             await client.query(
               'DELETE FROM notifications WHERE data->\'subscription_id\' = $1::jsonb',
               [JSON.stringify(id)]
+            );
+            
+            // Also try with text comparison in case data format is different
+            await client.query(
+              "DELETE FROM notifications WHERE data->>'subscription_id' = $1",
+              [id]
             );
             
             logRequest(context, 'Deleted related notifications', { subscriptionId: id });
@@ -224,13 +258,49 @@ class SubscriptionRepository {
             [id]
           );
           
-          if (deleteResult.rows.length === 0) {
-            logRequest(context, 'No rows affected by deletion, subscription may have been deleted concurrently', {
-              subscriptionId: id
-            });
+          // Verify deletion was successful by checking if any rows were returned
+          if (deleteResult.rowCount === 0) {
+            // Double-check if the subscription still exists
+            const verifyResult = await client.query(
+              'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1) as exists',
+              [id]
+            );
+            
+            if (verifyResult.rows[0].exists) {
+              // Subscription still exists, something went wrong with deletion
+              logError(context, new Error('Deletion query did not affect any rows but subscription still exists'), {
+                subscriptionId: id
+              });
+              
+              // Try one more time with a direct DELETE
+              const forcedDeleteResult = await client.query(
+                'DELETE FROM subscriptions WHERE id = $1',
+                [id]
+              );
+              
+              if (forcedDeleteResult.rowCount === 0) {
+                throw new Error('Failed to delete subscription after multiple attempts');
+              } else {
+                logRequest(context, 'Subscription deleted on second attempt', { 
+                  subscriptionId: id,
+                  rowsAffected: forcedDeleteResult.rowCount
+                });
+              }
+            } else {
+              // Subscription doesn't exist, it may have been deleted concurrently
+              logRequest(context, 'No rows affected by deletion, subscription already gone', {
+                subscriptionId: id
+              });
+            }
           } else {
-            logRequest(context, 'Subscription deleted successfully', { subscriptionId: id });
+            logRequest(context, 'Subscription deleted successfully', { 
+              subscriptionId: id,
+              rowsAffected: deleteResult.rowCount
+            });
           }
+          
+          // Explicitly commit the transaction to ensure changes are persisted
+          await client.query('COMMIT');
           
           return { 
             message: 'Subscription deleted successfully',
@@ -246,7 +316,11 @@ class SubscriptionRepository {
             { originalError: deleteError.message }
           );
         }
-      }, { logger: { error: logError, info: logRequest }, context });
+      }, { 
+        logger: { error: logError, info: logRequest }, 
+        context,
+        isolationLevel: 'SERIALIZABLE' // Use highest isolation level to prevent conflicts
+      });
     } catch (error) {
       logError(context, error, 'Transaction error during subscription deletion');
       

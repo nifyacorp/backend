@@ -542,10 +542,11 @@ export async function withRLSContext(userId, callback) {
  * @param {Object} [options] - Options for the transaction
  * @param {Object} [options.logger] - Logger to use for logging transaction details 
  * @param {string} [options.context] - Context information for logging
+ * @param {string} [options.isolationLevel] - Transaction isolation level (READ COMMITTED, REPEATABLE READ, SERIALIZABLE)
  * @returns {Promise<any>} - The result of the callback function
  */
 export async function withTransaction(userId, callback, options = {}) {
-  const { logger, context } = options;
+  const { logger, context, isolationLevel = 'READ COMMITTED' } = options;
   const log = (level, message, details = {}) => {
     if (logger && logger[level]) {
       logger[level](context, message, details);
@@ -573,11 +574,21 @@ export async function withTransaction(userId, callback, options = {}) {
     throw new Error('Invalid UUID format for user ID');
   }
   
+  // Validate isolation level
+  const validIsolationLevels = ['READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE'];
+  if (!validIsolationLevels.includes(isolationLevel)) {
+    log('info', `Invalid isolation level "${isolationLevel}", using default "READ COMMITTED"`);
+    options.isolationLevel = 'READ COMMITTED';
+  }
+  
   const client = await pool.connect();
   
   try {
-    log('info', 'Starting transaction');
+    log('info', `Starting transaction with isolation level ${isolationLevel}`);
     await client.query('BEGIN');
+    
+    // Set transaction isolation level
+    await client.query(`SET TRANSACTION ISOLATION LEVEL ${isolationLevel}`);
     
     // Set RLS context if userId is provided
     if (userId) {
@@ -588,22 +599,35 @@ export async function withTransaction(userId, callback, options = {}) {
     // Create a transaction client with an isInTransaction flag
     const txClient = {
       ...client,
-      isInTransaction: true
+      isInTransaction: true,
+      isolationLevel
     };
     
     // Execute the callback within the transaction
     const result = await callback(txClient);
-    await client.query('COMMIT');
-    log('info', 'Transaction committed successfully');
+    
+    // Only commit if the client hasn't already committed - this allows for explicit commits
+    if (!client.connection._ending) {
+      await client.query('COMMIT');
+      log('info', 'Transaction committed successfully');
+    } else {
+      log('info', 'Transaction already committed by client');
+    }
+    
     return result;
   } catch (error) {
     try {
-      await client.query('ROLLBACK');
-      log('error', 'Transaction rolled back due to error', {
-        error: error.message,
-        code: error.code,
-        detail: error.detail
-      });
+      // Only rollback if the client hasn't already committed/rolled back
+      if (!client.connection._ending) {
+        await client.query('ROLLBACK');
+        log('error', 'Transaction rolled back due to error', {
+          error: error.message,
+          code: error.code,
+          detail: error.detail
+        });
+      } else {
+        log('info', 'Transaction already ended - skipping rollback');
+      }
     } catch (rollbackError) {
       log('error', 'Failed to rollback transaction', {
         error: rollbackError.message,
@@ -614,7 +638,12 @@ export async function withTransaction(userId, callback, options = {}) {
     // Rethrow the original error
     throw error;
   } finally {
-    client.release();
-    log('info', 'Transaction client released');
+    // Only release if the client is still available
+    if (client.connection && !client.connection._ending) {
+      client.release();
+      log('info', 'Transaction client released');
+    } else {
+      log('info', 'Client already released/closed');
+    }
   }
 }

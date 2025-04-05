@@ -187,6 +187,10 @@ export default async function diagnosticsRoutes(fastify) {
   });
 
   // Add additional fastify endpoints for diagnostics
+  
+  // Register the new subscription test routes
+  const subscriptionTestRoutes = await import('./diagnostics/subscription-test.js');
+  fastify.register(subscriptionTestRoutes.default, { prefix: '/subscription-test' });
   // Diagnostics endpoint for subscriptions
   fastify.get('/subscription-debug/:userId', async (request, reply) => {
     try {

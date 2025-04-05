@@ -157,7 +157,11 @@ export function registerDeleteEndpoint(fastify) {
         }
         
         // For non-permission errors, return success for UI consistency
+        // but include detailed error information for debugging
         logError(context, serviceError, 'Error during deletion but returning success for UI consistency');
+        
+        // Get stack trace for debugging in development
+        const stack = process.env.NODE_ENV !== 'production' ? serviceError.stack : undefined;
         
         return reply.code(200).send({
           status: 'success',
@@ -165,7 +169,14 @@ export function registerDeleteEndpoint(fastify) {
           details: {
             id: subscriptionId,
             alreadyRemoved: true,
-            error: serviceError.message
+            error: serviceError.message,
+            errorCode: serviceError.code || 'UNKNOWN_ERROR',
+            errorDetails: serviceError.details || {},
+            debugInfo: {
+              stack,
+              timestamp: new Date().toISOString(),
+              note: 'This is a UI-friendly success response, but the operation encountered an error'
+            }
           }
         });
       }
@@ -189,13 +200,27 @@ export function registerDeleteEndpoint(fastify) {
       }
       
       // For unexpected errors, still return success for UI consistency
+      // but include detailed error information for debugging
+      logError(context, error, 'Unexpected error during subscription deletion');
+      
+      // Get stack trace for debugging in development
+      const stack = process.env.NODE_ENV !== 'production' ? error.stack : undefined;
+      
       return reply.code(200).send({
         status: 'success',
         message: 'Subscription removal processed',
         details: {
           id: request.params.id,
           alreadyRemoved: true,
-          error: error.message
+          error: error.message,
+          errorCode: error.code || 'UNKNOWN_ERROR',
+          errorDetails: error.details || {},
+          debugInfo: {
+            stack,
+            timestamp: new Date().toISOString(),
+            errorType: 'Unexpected error during subscription deletion',
+            note: 'This is a UI-friendly success response, but check browser console for error details'
+          }
         }
       });
     }
