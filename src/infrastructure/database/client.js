@@ -596,11 +596,12 @@ export async function withTransaction(userId, callback, options = {}) {
       log('info', 'Set RLS context for transaction');
     }
     
-    // Create a transaction client with an isInTransaction flag
+    // Create a transaction client object containing the bound query method
     const txClient = {
-      ...client,
+      query: client.query.bind(client), // Explicitly pass the bound query method
       isInTransaction: true,
       isolationLevel
+      // Add other client properties if needed by callbacks, e.g., client.escapeIdentifier
     };
     
     // Execute the callback within the transaction
