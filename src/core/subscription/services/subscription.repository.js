@@ -1,104 +1,108 @@
-import { query } from '../../../infrastructure/database/client.js';
-import { logError } from '../../../shared/logging/logger.js';
+import { query, withTransaction } from '../../../infrastructure/database/client.js';
+import { logError, logRequest } from '../../../shared/logging/logger.js';
+import { AppError } from '../../../shared/errors/AppError.js';
+import { SUBSCRIPTION_ERRORS } from '../../../core/subscription/types/subscription.types.js';
 
 export class SubscriptionRepository {
   /**
-   * Delete a subscription by ID with proper permission checks
+   * Delete a subscription by ID using a transaction.
    * @param {string} subscriptionId - ID of subscription to delete
    * @param {object} options - Options for the delete operation
    * @param {string} options.userId - User ID performing the deletion
    * @param {boolean} options.force - If true, bypass user ownership check (admin only)
+   * @param {object} options.client - Optional: Existing transaction client (if called within a larger transaction)
    * @param {object} context - Request context for logging
    * @returns {Promise<object>} - Result of the deletion operation
    */
   async delete(subscriptionId, options = {}, context = {}) {
-    const { userId, force = false } = options;
+    const { userId, force = false, client: existingClient } = options;
+    const logger = context?.logger || console; // Use context logger if available
     
     if (!subscriptionId) {
-      throw new Error('Subscription ID is required');
+      throw new AppError('VALIDATION_ERROR', 'Subscription ID is required');
     }
     
     if (!userId && !force) {
-      throw new Error('User ID is required unless using force option');
+      throw new AppError('VALIDATION_ERROR', 'User ID is required unless using force option');
     }
     
-    try {
-      console.log('Repository: Deleting subscription', { subscriptionId, userId, force });
-      
-      // First, check if the subscription exists and belongs to the user
+    logger.info('Repository: Attempting to delete subscription', { subscriptionId, userId, force });
+
+    // Define the core deletion logic to be run within a transaction
+    const deleteLogic = async (txClient) => {
+      // 1. Check if the subscription exists and belongs to the user (unless force=true)
       const checkQuery = `
-        SELECT EXISTS(
-          SELECT 1 FROM subscriptions 
-          WHERE id = $1 ${userId ? 'AND user_id = $2' : ''}
-        ) as exists
+        SELECT user_id FROM subscriptions 
+        WHERE id = $1
       `;
-      
-      const checkParams = userId ? [subscriptionId, userId] : [subscriptionId];
-      const checkResult = await query(checkQuery, checkParams);
-      
-      if (!checkResult.rows[0].exists) {
-        // If force option is enabled, check if it exists at all
-        if (force) {
-          const globalCheck = await query(
-            'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1) as exists',
-            [subscriptionId]
-          );
-          
-          if (!globalCheck.rows[0].exists) {
-            console.log(`Repository: Subscription ${subscriptionId} not found (even with force)`);
-            return { alreadyRemoved: true };
-          }
-        } else {
-          console.log(`Repository: Subscription ${subscriptionId} not found for user ${userId}`);
-          return { alreadyRemoved: true };
-        }
+      const checkResult = await txClient.query(checkQuery, [subscriptionId]);
+
+      if (checkResult.rowCount === 0) {
+        logger.warn(`Repository: Subscription ${subscriptionId} not found during delete attempt.`);
+        return { alreadyRemoved: true, message: 'Subscription not found' };
       }
-      
-      // Use a transaction for the deletion to ensure atomicity
-      const client = await query('BEGIN');
-      
-      try {
-        // First delete any dependent records
-        await client.query(
-          'DELETE FROM subscription_items WHERE subscription_id = $1',
-          [subscriptionId]
-        );
-        
-        // Then delete the subscription
-        const deleteResult = await client.query(
-          `DELETE FROM subscriptions 
-           WHERE id = $1 ${userId && !force ? 'AND user_id = $2' : ''}
-           RETURNING id, name`,
-          userId && !force ? [subscriptionId, userId] : [subscriptionId]
-        );
-        
-        await client.query('COMMIT');
-        
-        if (deleteResult.rowCount === 0) {
-          console.log(`Repository: No rows deleted for subscription ${subscriptionId}`);
-          return { 
-            alreadyRemoved: true,
-            message: 'Subscription already removed or permission denied'
-          };
-        }
-        
-        console.log(`Repository: Successfully deleted subscription ${subscriptionId}`);
-        return {
-          alreadyRemoved: false,
-          deleted: true,
-          subscription: deleteResult.rows[0]
-        };
-      } catch (txError) {
-        await client.query('ROLLBACK');
-        console.error('Repository: Transaction error during subscription deletion:', txError);
-        throw txError;
+
+      const ownerId = checkResult.rows[0].user_id;
+      if (!force && ownerId !== userId) {
+        logger.warn(`Repository: User ${userId} attempted to delete subscription ${subscriptionId} owned by ${ownerId}`);
+        throw new AppError('FORBIDDEN', 'Permission denied to delete this subscription', 403);
       }
+
+      // 2. Delete dependent records (adjust table names if needed)
+      // Example: Delete notifications associated with the subscription
+      // Consider adding other dependent deletes here (e.g., subscription_processing)
+      logger.info('Repository: Deleting dependent notifications', { subscriptionId });
+      await txClient.query('DELETE FROM notifications WHERE subscription_id = $1', [subscriptionId]);
+      logger.info('Repository: Deleting dependent processing records', { subscriptionId });
+      await txClient.query('DELETE FROM subscription_processing WHERE subscription_id = $1', [subscriptionId]);
+      // Add other dependencies as needed
+
+      // 3. Delete the main subscription record
+      logger.info('Repository: Deleting main subscription record', { subscriptionId });
+      const deleteResult = await txClient.query(
+        `DELETE FROM subscriptions WHERE id = $1 RETURNING id, name`,
+        [subscriptionId]
+      );
+
+      if (deleteResult.rowCount === 0) {
+        // This shouldn't happen if the initial check passed, but handle defensively
+        logger.warn(`Repository: Subscription ${subscriptionId} disappeared during transaction?`);
+        return { alreadyRemoved: true, message: 'Subscription was removed during operation' };
+      }
+
+      logger.info(`Repository: Successfully deleted subscription ${subscriptionId}`);
+      return {
+        alreadyRemoved: false,
+        deleted: true,
+        subscription: deleteResult.rows[0]
+      };
+    };
+
+    try {
+      // Execute the logic within a transaction
+      // Pass userId for RLS context within the transaction
+      // Pass logger and context for better logging within withTransaction
+      const result = await withTransaction(userId, deleteLogic, { logger, context });
+      return result;
     } catch (error) {
-      console.error('Repository: Error in delete method:', error);
-      if (context) {
-        logError(context, error);
+      logger.error('Repository: Error during delete transaction execution', { 
+        subscriptionId, 
+        userId, 
+        force, 
+        error: error.message, 
+        code: error.code, 
+        stack: error.stack?.substring(0, 500) 
+      });
+      // Re-throw the original error or a more specific AppError
+      if (error instanceof AppError) {
+        throw error;
       }
-      throw error;
+      throw new AppError(
+        SUBSCRIPTION_ERRORS.DELETE_ERROR.code,
+        error.message || SUBSCRIPTION_ERRORS.DELETE_ERROR.message,
+        error.status || 500,
+        { subscriptionId, originalError: error.message }
+      );
     }
   }
   
