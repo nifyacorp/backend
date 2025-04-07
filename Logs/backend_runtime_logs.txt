@@ -1,5 +1,505 @@
 ------------------------------------------------------
-Backend Runtime Logs - Version ID: c3cc89d5-e348-451b-88be-1fd182fddf24
-Collected on: 08/04/2025  0:44:03,05
+Backend Runtime Logs - Version ID: 6ce7101f-2d01-4188-b7b8-d230edf1875d
+Collected on: 08/04/2025  1:13:01,19
 ------------------------------------------------------
 
+
+}
+  pagination: { total: 44, page: 1, limit: 9, totalPages: 5 }
+  count: 9,
+Service: Repository returned subscriptions: {
+Database connection released { timestamp: '2025-04-07T23:12:45.254Z' }
+}
+  timestamp: '2025-04-07T23:12:45.254Z'
+  rowCount: 2,
+  duration: '3ms',
+    '                               FROM subscription_...',
+  text: 'SELECT id, name as "typeName", icon as "typeIcon" \n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.251Z'
+  paramCount: 1,
+    '                               FROM subscription_...',
+  text: 'SELECT id, name as "typeName", icon as "typeIcon" \n' +
+Database connection obtained for query: {
+}
+  queryParams: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9', 9, 0 ]
+  whereClause: 'user_id = $1',
+  },
+    type: undefined
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  filterOptions: {
+  rowCount: 9,
+Repository: Query returned {
+Database connection released { timestamp: '2025-04-07T23:12:45.251Z' }
+}
+  timestamp: '2025-04-07T23:12:45.251Z'
+  rowCount: 9,
+  duration: '4ms',
+    '          s....',
+    '          s.description,\n' +
+    '          s.name,\n' +
+    '          s.type_id,\n' +
+    '          s.id,\n' +
+  text: 'SELECT \n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.247Z'
+  paramCount: 3,
+    '          s....',
+    '          s.description,\n' +
+    '          s.name,\n' +
+    '          s.type_id,\n' +
+    '          s.id,\n' +
+  text: 'SELECT \n' +
+Database connection obtained for query: {
+Main Params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9', 9, 0 ]
+        LIMIT $2 OFFSET $3
+        ORDER BY s.created_at DESC
+        WHERE user_id = $1
+        FROM subscriptions s 
+          s.updated_at as "updatedAt"
+          s.created_at as "createdAt",
+          s.active,
+          s.frequency,
+          '' as logo,
+          s.prompts,
+          s.description,
+          s.name,
+          s.type_id,
+          s.id,
+Main Query: SELECT 
+Repository: Logo column exists: false
+Database connection released { timestamp: '2025-04-07T23:12:45.247Z' }
+}
+  timestamp: '2025-04-07T23:12:45.247Z'
+  rowCount: 0,
+  duration: '19ms',
+    '          WHERE table_name...',
+    '          FROM information_schema.columns \n' +
+    '          SELECT column_name \n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.228Z'
+  paramCount: 0,
+    '          WHERE table_name...',
+    '          FROM information_schema.columns \n' +
+    '          SELECT column_name \n' +
+  text: '\n' +
+Database connection obtained for query: {
+Repository: Executing subscriptions query with filters
+Database connection released { timestamp: '2025-04-07T23:12:45.228Z' }
+}
+  timestamp: '2025-04-07T23:12:45.228Z'
+  rowCount: 1,
+  duration: '3ms',
+    '         WHERE user_id = $1',
+    '         FROM subscriptions \n' +
+  text: 'SELECT COUNT(*) as total\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.225Z'
+  paramCount: 1,
+    '         WHERE user_id = $1',
+    '         FROM subscriptions \n' +
+  text: 'SELECT COUNT(*) as total\n' +
+Database connection obtained for query: {
+Count Params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ]
+         WHERE user_id = $1
+         FROM subscriptions 
+Count Query: SELECT COUNT(*) as total
+Repository: Executing count query with filters
+}
+  context: 'req-1d'
+  },
+    type: undefined
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  options: {
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Repository: getUserSubscriptions called with: {
+}
+  type: undefined
+  order: 'desc',
+  sort: 'created_at',
+  limit: 9,
+  page: 1,
+Service: Normalized options: {
+Service: Raw filter options: { status: undefined, active: undefined, isActive: undefined }
+}
+  }
+    type: undefined
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  options: {
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Service: getUserSubscriptions called with: {
+}
+  timestamp: '2025-04-07T23:12:45.225Z'
+  path: '/api/v1/subscriptions?page=1&limit=9',
+  requestId: 'req-1d',
+  },
+    type: undefined
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  options: {
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+? Fetching all subscriptions for user: {
+}
+  requestId: 'req-1d'
+  },
+    type: undefined
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  filterOptions: {
+  },
+    frequency: 'all'
+    status: 'all',
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  query: Empty <[Object: null prototype] {}> {
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Route: getUserSubscriptions called with: {
+}
+  timestamp: '2025-04-07T23:12:45.225Z'
+  path: '/api/v1/subscriptions?page=1&limit=9',
+  requestId: 'req-1d',
+  },
+    type: undefined
+    order: 'desc',
+    sort: 'created_at',
+    limit: 9,
+    page: 1,
+  filterOptions: {
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+? Fetching user subscriptions with filters: {
+Controller: Final filter state: { hasActiveFilter: false, activeValue: undefined, status: undefined }
+Database connection released { timestamp: '2025-04-07T23:12:45.225Z' }
+}
+  timestamp: '2025-04-07T23:12:45.224Z'
+  rowCount: 1,
+  duration: '2ms',
+  text: 'SELECT id FROM users WHERE id = $1',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.222Z'
+  paramCount: 1,
+  text: 'SELECT id FROM users WHERE id = $1',
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T23:12:45.221Z'
+  signatureLength: 43,
+  payloadLength: 214,
+  headerLength: 36,
+? Token parts: {
+}
+  timestamp: '2025-04-07T23:12:45.220Z'
+  issuer: undefined,
+  payloadClaims: [ 'sub', 'email', 'name', 'email_verified', 'type', 'iat', 'exp' ],
+  tokenType: 'access',
+  algorithm: 'HS256',
+  headerComplete: '{"alg":"HS256","typ":"JWT"}',
+  hasHeader: true,
+? Token structure: {
+}
+  timestamp: '2025-04-07T23:12:45.220Z'
+  isRefreshToken: false,
+  secretLastChar: 'd',
+  secretFirstChar: 'x',
+  secretLength: 32,
+  hasSecret: true,
+  tokenFormat: 'eyJhbGciOiJIUzI1NiIs...',
+  hasToken: true,
+? Verifying JWT access token... {
+
+
+
+Database connection released { timestamp: '2025-04-07T23:12:45.132Z' }
+}
+  timestamp: '2025-04-07T23:12:45.132Z'
+  rowCount: 1,
+  duration: '3ms',
+    '         WHER...',
+    '         FROM subscriptions\n' +
+    '           COUNT(*) as count\n' +
+    '           frequency,\n' +
+  text: 'SELECT \n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.129Z'
+  paramCount: 1,
+    '         WHER...',
+    '         FROM subscriptions\n' +
+    '           COUNT(*) as count\n' +
+    '           frequency,\n' +
+  text: 'SELECT \n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T23:12:45.129Z' }
+}
+  timestamp: '2025-04-07T23:12:45.129Z'
+  rowCount: 2,
+  duration: '6ms',
+    '         FROM...',
+    '           COUNT(*) as count\n' +
+    "           COALESCE(t.name, 'Unknown') as source,\n" +
+  text: 'SELECT \n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.123Z'
+  paramCount: 1,
+    '         FROM...',
+    '           COUNT(*) as count\n' +
+    "           COALESCE(t.name, 'Unknown') as source,\n" +
+  text: 'SELECT \n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T23:12:45.123Z' }
+}
+  timestamp: '2025-04-07T23:12:45.123Z'
+  rowCount: 1,
+  duration: '3ms',
+    '         WHERE user_id = $1 AND active = false',
+    '         FROM subscriptions\n' +
+  text: 'SELECT COUNT(*) as count\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.120Z'
+  paramCount: 1,
+    '         WHERE user_id = $1 AND active = false',
+    '         FROM subscriptions\n' +
+  text: 'SELECT COUNT(*) as count\n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T23:12:45.120Z' }
+}
+  timestamp: '2025-04-07T23:12:45.119Z'
+  rowCount: 1,
+  duration: '3ms',
+    '         WHERE user_id = $1 AND active = true',
+    '         FROM subscriptions\n' +
+  text: 'SELECT COUNT(*) as count\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.116Z'
+  paramCount: 1,
+    '         WHERE user_id = $1 AND active = true',
+    '         FROM subscriptions\n' +
+  text: 'SELECT COUNT(*) as count\n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T23:12:45.116Z' }
+}
+  timestamp: '2025-04-07T23:12:45.116Z'
+  rowCount: 1,
+  duration: '5ms',
+    '         WHERE user_id = $1',
+    '         FROM subscriptions\n' +
+  text: 'SELECT COUNT(*) as count\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.111Z'
+  path: '/api/v1/subscriptions/stats',
+  requestId: 'req-1c',
+    '    at async Object.<anonymous> (file:///usr/src/app/src/interfaces/http/routes/subscription/index.js:100:21)',
+    '    at async SubscriptionService.getSubscriptionStats (file:///usr/src/app/src/core/subscription/services/subscription.service.js:23:29)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at query (file:///usr/src/app/src/infrastructure/database/client.js:341:11)\n' +
+  stack: 'Error: Database operation failed: relation "subscription_stats" does not exist\n' +
+  message: 'Database operation failed: relation "subscription_stats" does not exist',
+  code: 'DATABASE_ERROR',
+}
+  '30': 's',
+  timestamp: '2025-04-07T23:12:45.112Z'
+  '29': 'c',
+  paramCount: 1,
+  '28': 'i',
+  '27': 't',
+    '         WHERE user_id = $1',
+  '26': 's',
+    '         FROM subscriptions\n' +
+  text: 'SELECT COUNT(*) as count\n' +
+Database connection obtained for query: {
+  '25': 'i',
+  '24': 't',
+  '23': 'a',
+  '22': 't',
+  '21': 's',
+  '20': ' ',
+  '19': 'd',
+  '18': 'e',
+  '17': 'h',
+  '16': 'c',
+  '15': 'a',
+  '14': 'c',
+  '13': ' ',
+  '12': 'g',
+  '11': 'n',
+  '10': 'i',
+  '9': 't',
+  '8': 't',
+  '7': 'e',
+  '6': 'g',
+  '5': ' ',
+  '4': 'r',
+  '3': 'o',
+  '2': 'r',
+  '1': 'r',
+  '0': 'E',
+? Error: {
+}
+  timestamp: '2025-04-07T23:12:45.111Z'
+  duration: '2ms',
+  params: '1 parameters',
+    '         ...',
+Database connection released { timestamp: '2025-04-07T23:12:45.111Z' }
+    '            updated_at as "updatedAt"\n' +
+    '            by_frequency as "byFrequency",\n' +
+    '            by_source as "bySource", \n' +
+    '            inactive, \n' +
+    '            active, \n' +
+    '            total, \n' +
+  query: 'SELECT \n' +
+  position: '207',
+  hint: undefined,
+  detail: undefined,
+  code: '42P01',
+  error: 'relation "subscription_stats" does not exist',
+Database query error: {
+}
+  timestamp: '2025-04-07T23:12:45.109Z'
+  paramCount: 1,
+    '            by_source as "by...',
+    '            inactive, \n' +
+    '            active, \n' +
+    '            total, \n' +
+  text: 'SELECT \n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T23:12:45.108Z'
+  path: '/api/v1/subscriptions/stats',
+  requestId: 'req-1c',
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+? Fetching subscription statistics: {
+}
+  timestamp: '2025-04-07T23:12:45.108Z'
+  path: '/api/v1/subscriptions/stats',
+  requestId: 'req-1c',
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+? Fetching subscription statistics: {
+Database connection released { timestamp: '2025-04-07T23:12:45.108Z' }
+}
+  timestamp: '2025-04-07T23:12:45.108Z'
+  rowCount: 1,
+  duration: '41ms',
+  text: 'SELECT id FROM users WHERE id = $1',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.103Z'
+  paramCount: 1,
+  text: 'SELECT id FROM users WHERE id = $1',
+Database connection obtained for query: {
+
+}
+  timestamp: '2025-04-07T23:12:45.090Z'
+  path: '/api/v1/users/me',
+  requestId: 'req-1b',
+  hasNotificationSettings: false,
+  hasPreferences: false,
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+? User profile retrieved: {
+Database connection released { timestamp: '2025-04-07T23:12:45.090Z' }
+}
+  timestamp: '2025-04-07T23:12:45.088Z'
+  rowCount: 1,
+  duration: '7ms',
+    '          u.metadata->>...',
+    '          u.display_name as name,\n' +
+    '          u.email,\n' +
+    '          u.id,\n' +
+  text: 'SELECT \n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.082Z'
+  paramCount: 1,
+    '          u.metadata->>...',
+    '          u.display_name as name,\n' +
+    '          u.email,\n' +
+    '          u.id,\n' +
+  text: 'SELECT \n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T23:12:45.081Z'
+  path: '/api/v1/users/me',
+  requestId: 'req-1b',
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+? Fetching user profile: {
+}
+  timestamp: '2025-04-07T23:12:45.081Z'
+  path: '/api/v1/users/me',
+  requestId: 'req-1b',
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  hasUser: true,
+? Processing user profile request: {
+Database connection released { timestamp: '2025-04-07T23:12:45.081Z' }
+}
+  timestamp: '2025-04-07T23:12:45.081Z'
+  rowCount: 1,
+  duration: '17ms',
+  text: 'SELECT id FROM users WHERE id = $1',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T23:12:45.066Z'
+  signatureLength: 43,
+  payloadLength: 214,
+  headerLength: 36,
+? Token parts: {
+}
+  timestamp: '2025-04-07T23:12:45.066Z'
+  issuer: undefined,
+  payloadClaims: [ 'sub', 'email', 'name', 'email_verified', 'type', 'iat', 'exp' ],
+  tokenType: 'access',
+  algorithm: 'HS256',
+  headerComplete: '{"alg":"HS256","typ":"JWT"}',
+  hasHeader: true,
+? Token structure: {
+}
+  timestamp: '2025-04-07T23:12:45.065Z'
+  isRefreshToken: false,
+  secretLastChar: 'd',
+  secretFirstChar: 'x',
+  secretLength: 32,
+  hasSecret: true,
+  tokenFormat: 'eyJhbGciOiJIUzI1NiIs...',
+  hasToken: true,
+? Verifying JWT access token... {
+
+}
+  timestamp: '2025-04-07T23:12:45.064Z'
+  paramCount: 1,
+  text: 'SELECT id FROM users WHERE id = $1',
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T23:12:45.063Z'
+  signatureLength: 43,
+  payloadLength: 214,
+  headerLength: 36,
+? Token parts: {
+}
+  timestamp: '2025-04-07T23:12:45.063Z'
+  issuer: undefined,
+  payloadClaims: [ 'sub', 'email', 'name', 'email_verified', 'type', 'iat', 'exp' ],
+  tokenType: 'access',
+  algorithm: 'HS256',
+  headerComplete: '{"alg":"HS256","typ":"JWT"}',
+  hasHeader: true,
