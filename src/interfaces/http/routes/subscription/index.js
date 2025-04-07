@@ -5,7 +5,6 @@
 
 import { registerTypeRoutes } from './types.routes.js';
 import { registerCrudRoutes } from './crud.routes.js';
-import { registerDeleteEndpoint } from './crud-delete.js';
 import { registerProcessRoutes } from './process.routes.js';
 import { registerSharingRoutes } from './sharing.routes.js';
 import { registerStatusRoutes } from './status.routes.js';
@@ -120,9 +119,6 @@ export async function subscriptionRoutes(fastify, options) {
   // Register all route groups after the special routes
   await registerTypeRoutes(fastify, options);
   await registerCrudRoutes(fastify, options);
-  
-  // Register the improved delete endpoint to override the default one
-  registerDeleteEndpoint(fastify);
   
   await registerProcessRoutes(fastify, options);
   await registerSharingRoutes(fastify, options);
