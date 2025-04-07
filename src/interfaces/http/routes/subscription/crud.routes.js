@@ -14,9 +14,7 @@ import {
   idParamSchema,
   subscriptionQuerySchema
 } from '../../../../core/subscription/schemas.js';
-import { authMiddleware } from '../../../../shared/middlewares/auth.middleware.js';
 import { apiDocumenter } from '../../../../shared/utils/api-documenter.js';
-import { deleteUserSubscriptionsController } from '../../../../controllers/subscription/delete-user-subscriptions.controller.js';
 
 // Schema definitions
 const subscriptionSchema = {
@@ -685,7 +683,6 @@ export async function registerCrudRoutes(fastify, options) {
   // DELETE / - Delete all subscriptions for the authenticated user
   fastify.delete(
     '/',
-    authMiddleware, // Ensure user is authenticated
     apiDocumenter({ // Add API documentation
       summary: 'Delete All Subscriptions',
       description: 'Deletes all subscriptions associated with the authenticated user.',
@@ -711,12 +708,36 @@ export async function registerCrudRoutes(fastify, options) {
       },
       security: [{ bearerAuth: [] }],
     }),
-    deleteUserSubscriptionsController // Point to the new controller method
-  );
+    async (request, reply) => {
+      const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+      const userId = request.user?.id;
 
-  // --- Bulk Delete Route (Already Refactored) --- 
-  fastify.delete('/', { /* ... */ }, async (request, reply) => { /* ... handler ... */ });
-  // --- End of Bulk Delete Route --- 
+      logRequest(context, 'Fastify Route: DELETE /subscriptions called', { userId });
+
+      if (!userId) {
+        return reply.code(401).send({ error: 'Authentication required' });
+      }
+
+      try {
+        // Call service directly
+        const subscriptionService = fastify.services?.subscriptionService;
+        if (!subscriptionService) throw new Error('Subscription service not available');
+        const result = await subscriptionService.deleteAllSubscriptions(userId, context);
+
+        return reply.code(200).send({
+          status: 'success',
+          message: 'All subscriptions deleted successfully.',
+          deletedCount: result.deletedCount
+        });
+      } catch (error) {
+        logError(context, error, 'Fastify Route: Error in DELETE /subscriptions', { userId });
+        if (error instanceof AppError) {
+          return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+        }
+        return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_DELETE_ALL_ERROR', message: 'Failed to delete all subscriptions' });
+      }
+    }
+  );
 }
 
 export default registerCrudRoutes; 
