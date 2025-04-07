@@ -4,7 +4,6 @@
  */
 
 import { subscriptionService } from '../../../../core/subscription/index.js';
-import { subscriptionSchemas, subscriptionQuerySchema } from '../../../../core/subscription/schemas.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
 import { validateZod } from '../../../../shared/utils/validation.js';
@@ -13,7 +12,11 @@ import {
   updateSubscriptionSchema,
   toggleSubscriptionSchema,
   idParamSchema,
+  subscriptionQuerySchema
 } from '../../../../core/subscription/schemas.js';
+// Removed incorrect/unused imports
+// import { apiDocumenter } from '../../../../shared/utils/api-docs.js'; 
+// import { authMiddleware } from '../../../../shared/middlewares/auth.middleware.js'; 
 
 // Schema definitions
 const subscriptionSchema = {
