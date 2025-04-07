@@ -11,15 +11,14 @@ process.env.SKIP_DB_VALIDATION = 'true';
 process.env.CONTINUE_ON_DB_ERROR = 'true';
 
 import { pool, query } from './infrastructure/database/client.js';
-import { logError } from './shared/logging/logger.js';
+import { logInfo, logError } from './shared/logging/logger.js';
 
 async function fixSubscriptionProcessingTable() {
   console.log('Starting subscription_processing table fix script...');
   
   try {
-    // Check if subscription_processing table exists
-    console.log('Checking for subscription_processing table...');
-    const tableCheckResult = await query(`
+    // Check if the subscription_processing table exists
+    const tableExistsResult = await query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public'
@@ -27,22 +26,10 @@ async function fixSubscriptionProcessingTable() {
       ) as exists;
     `);
     
-    if (!tableCheckResult.rows[0].exists) {
-      console.log('subscription_processing table does not exist, creating it now...');
-      
-      // Check if subscriptions table exists (needed for foreign key)
-      const subscriptionsTableExists = await query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public'
-          AND table_name = 'subscriptions'
-        ) as exists;
-      `);
-      
-      if (!subscriptionsTableExists.rows[0].exists) {
-        console.error('ERROR: Cannot create subscription_processing table because subscriptions table does not exist!');
-        return;
-      }
+    const tableExists = tableExistsResult.rows[0].exists;
+    
+    if (!tableExists) {
+      console.log('Subscription_processing table does not exist. Creating it now...');
       
       // Create the subscription_processing table
       await query(`
@@ -66,39 +53,54 @@ async function fixSubscriptionProcessingTable() {
           ON subscription_processing(status);
       `);
       
-      console.log('Successfully created subscription_processing table and indexes!');
+      console.log('Subscription_processing table created successfully');
+    } else {
+      console.log('Subscription_processing table already exists. Checking for missing columns...');
       
-      // Verify the table was created
-      const verifyResult = await query(`
+      // Check if user_id column exists
+      const userIdColumnExistsResult = await query(`
         SELECT EXISTS (
-          SELECT FROM information_schema.tables 
+          SELECT FROM information_schema.columns 
           WHERE table_schema = 'public'
           AND table_name = 'subscription_processing'
+          AND column_name = 'user_id'
         ) as exists;
       `);
       
-      if (verifyResult.rows[0].exists) {
-        console.log('✅ Verification successful: subscription_processing table exists.');
-      } else {
-        console.error('❌ Verification failed: subscription_processing table was not created!');
-      }
+      const userIdColumnExists = userIdColumnExistsResult.rows[0].exists;
       
-    } else {
-      console.log('subscription_processing table already exists, no action needed.');
+      if (!userIdColumnExists) {
+        console.log('Adding user_id column to subscription_processing table...');
+        
+        // Add user_id column if it doesn't exist
+        await query(`
+          ALTER TABLE subscription_processing 
+          ADD COLUMN user_id UUID;
+        `);
+        
+        console.log('user_id column added successfully');
+      } else {
+        console.log('user_id column already exists');
+      }
     }
+
+    // Additional verification
+    const countResult = await query('SELECT COUNT(*) FROM subscription_processing');
+    console.log(`Current subscription_processing table has ${countResult.rows[0].count} records`);
     
+    console.log('Fix script completed successfully');
   } catch (error) {
     console.error('Error fixing subscription_processing table:', error);
   } finally {
     // Close database connection
     try {
       await pool.end();
-      console.log('Database connection closed.');
+      console.log('Database connection closed');
     } catch (err) {
       console.error('Error closing database connection:', err);
     }
   }
 }
 
-// Run the fix function
+// Run the fix script
 fixSubscriptionProcessingTable(); 

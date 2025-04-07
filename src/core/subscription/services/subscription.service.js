@@ -1086,13 +1086,14 @@ class SubscriptionService {
         type: subscription.type_id,
         prompts: subscription.prompts
       });
+
+      // Normalize prompts format - handling different input formats
+      let processedPrompts = Array.isArray(subscription.prompts) ? subscription.prompts : [];
       
-      // Parse prompts if needed
-      let processedPrompts = [];
       try {
         if (typeof subscription.prompts === 'string') {
+          // Try to parse as JSON if it's a string
           try {
-            // Try to parse as JSON
             const parsed = JSON.parse(subscription.prompts);
             if (Array.isArray(parsed)) {
               processedPrompts = parsed;
@@ -1165,23 +1166,44 @@ class SubscriptionService {
             // Continue with processing even if table creation fails - we'll handle the error later
           }
         }
-      } catch (tableCheckError) {
-        logError(context, tableCheckError, 'Error checking for subscription_processing table');
-        // Continue, we'll handle any errors when trying to insert
-      }
-      
-      // Record processing request in the database
-      try {
-        const processingResult = await query(
-          `INSERT INTO subscription_processing
-           (subscription_id, status, created_at, user_id)
-           VALUES ($1, 'pending', NOW(), $2)
-           RETURNING id`,
-          [subscriptionId, userId]
-        );
         
-        processingId = processingResult.rows[0].id;
-        logRequest(context, 'Created processing record', { processingId, subscriptionId });
+        // Check if user_id column exists in subscription_processing table
+        const columnCheckResult = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_schema = 'public'
+            AND table_name = 'subscription_processing'
+            AND column_name = 'user_id'
+          ) as exists;
+        `);
+        
+        if (!columnCheckResult.rows[0].exists) {
+          logRequest(context, 'user_id column does not exist in subscription_processing table, using fallback query', { subscriptionId });
+          
+          // Use a fallback query without user_id if the column doesn't exist
+          const processingResult = await query(
+            `INSERT INTO subscription_processing
+             (subscription_id, status, created_at)
+             VALUES ($1, 'pending', NOW())
+             RETURNING id`,
+            [subscriptionId]
+          );
+          
+          processingId = processingResult.rows[0].id;
+          logRequest(context, 'Created processing record (without user_id)', { processingId, subscriptionId });
+        } else {
+          // Use the full query with user_id if the column exists
+          const processingResult = await query(
+            `INSERT INTO subscription_processing
+             (subscription_id, status, created_at, user_id)
+             VALUES ($1, 'pending', NOW(), $2)
+             RETURNING id`,
+            [subscriptionId, userId]
+          );
+          
+          processingId = processingResult.rows[0].id;
+          logRequest(context, 'Created processing record', { processingId, subscriptionId });
+        }
       } catch (insertError) {
         logError(context, insertError, 'Error creating processing record');
         
@@ -1189,6 +1211,24 @@ class SubscriptionService {
         if (insertError.message && insertError.message.includes('relation "subscription_processing" does not exist')) {
           logRequest(context, 'Continuing without processing record due to missing table', { subscriptionId });
           processingId = `temp-${Date.now()}`; // Generate a temporary ID
+        } else if (insertError.message && insertError.message.includes('column "user_id" of relation "subscription_processing" does not exist')) {
+          // If the error is specifically about missing user_id column, try again without it
+          try {
+            const fallbackResult = await query(
+              `INSERT INTO subscription_processing
+               (subscription_id, status, created_at)
+               VALUES ($1, 'pending', NOW())
+               RETURNING id`,
+              [subscriptionId]
+            );
+            
+            processingId = fallbackResult.rows[0].id;
+            logRequest(context, 'Created processing record (without user_id after column error)', { processingId, subscriptionId });
+          } catch (fallbackError) {
+            // For this error as well, continue with a temporary ID
+            logError(context, fallbackError, 'Failed to create processing record even without user_id');
+            processingId = `temp-${Date.now()}`; // Generate a temporary ID
+          }
         } else {
           // For other errors, we'll try to continue but log the error
           logError(context, insertError, 'Will continue with event publishing despite database error');
