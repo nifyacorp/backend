@@ -8,7 +8,9 @@ import dbClientPlugin from './interfaces/fastify/plugins/db-client';
 import authPlugin from './interfaces/fastify/plugins/auth';
 import errorHandlerPlugin from './interfaces/fastify/plugins/error-handler';
 import subscriptionPlugin from './interfaces/fastify/plugins/subscription';
+import notificationPlugin from './interfaces/fastify/plugins/notification';
 import subscriptionRoutes from './interfaces/rest/subscription/routes';
+import notificationRoutes from './interfaces/rest/notification/routes';
 
 /**
  * Create and configure the Fastify server
@@ -79,9 +81,11 @@ export async function createServer(): Promise<FastifyInstance> {
   await fastify.register(dbClientPlugin);
   await fastify.register(authPlugin);
   await fastify.register(subscriptionPlugin);
+  await fastify.register(notificationPlugin);
   
   // Register routes
   await fastify.register(subscriptionRoutes, { prefix: '/api/v1' });
+  await fastify.register(notificationRoutes, { prefix: '/api/v1' });
   
   // Add health check route
   fastify.get('/health', async () => {
