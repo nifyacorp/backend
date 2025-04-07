@@ -70,10 +70,11 @@ const getUserNotifications = async (userId, options = {}) => {
     if (subscriptionId) {
       console.log(`Adding subscription filter for ID: ${subscriptionId}`);
       // Handle different subscription_id formats - the field might be stored as UUID or string
-      sqlQuery += ` AND (n.subscription_id = $${paramIndex} OR 
-                         (n.metadata->>'subscription_id')::text = $${paramIndex} OR
-                         n.metadata->>'entity_id' = $${paramIndex})`;
-      queryParams.push(subscriptionId);
+      // Cast parameter appropriately for each comparison type
+      sqlQuery += ` AND (n.subscription_id = $${paramIndex}::uuid OR 
+                         (n.metadata->>'subscription_id')::text = $${paramIndex}::text OR
+                         n.metadata->>'entity_id' = $${paramIndex}::text)`;
+      queryParams.push(subscriptionId); // Pass the raw subscriptionId
       paramIndex++;
     }
     

@@ -299,9 +299,6 @@ class SubscriptionRepository {
             });
           }
           
-          // Explicitly commit the transaction to ensure changes are persisted
-          await client.query('COMMIT');
-          
           return { 
             message: 'Subscription deleted successfully',
             id,

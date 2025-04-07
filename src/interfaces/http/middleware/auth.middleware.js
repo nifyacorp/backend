@@ -20,7 +20,7 @@ const PUBLIC_PATHS = [
  */
 async function synchronizeUser(userId, userInfo, context) {
   try {
-    logger.logAuth(context, 'Checking if user exists in database', { userId });
+    // logger.logAuth(context, 'Checking if user exists in database', { userId }); // Simplified logging
     
     // Check if user exists in database
     const userResult = await query(
@@ -30,7 +30,7 @@ async function synchronizeUser(userId, userInfo, context) {
     
     // If user exists, no need to synchronize
     if (userResult.rows.length > 0) {
-      logger.logAuth(context, 'User exists in database, no sync needed', { userId });
+      // logger.logAuth(context, 'User exists in database, no sync needed', { userId }); // Simplified logging
       return;
     }
     
@@ -101,10 +101,7 @@ export async function authenticate(request, reply) {
 
   // Check if path is public
   if (PUBLIC_PATHS.some(path => request.url === path || request.url.startsWith(path))) {
-    logger.logAuth({ requestId: request.id, path: request.url }, 'Skipping auth for public path', { 
-      path: request.url,
-      requestId: request.id
-    });
+    // logger.logAuth({ requestId: request.id, path: request.url }, 'Skipping auth for public path', { path: request.url, requestId: request.id }); // Simplified logging
     return;
   }
 
@@ -119,15 +116,15 @@ export async function authenticate(request, reply) {
     const authHeader = authHeaderExact || authHeaderLower;
     const userId = userIdExact || userIdLower;
     
-    logger.logAuth({ requestId: request.id, path: request.url }, 'Processing authentication', {
-      hasAuthLower: !!authHeaderLower,
-      hasAuthExact: !!authHeaderExact,
-      hasUserIdLower: !!userIdLower,
-      hasUserIdExact: !!userIdExact,
-      authHeader: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
-      path: request.url,
-      requestId: request.id
-    });
+    // logger.logAuth({ requestId: request.id, path: request.url }, 'Processing authentication', { // Simplified logging
+    //   hasAuthLower: !!authHeaderLower,
+    //   hasAuthExact: !!authHeaderExact,
+    //   hasUserIdLower: !!userIdLower,
+    //   hasUserIdExact: !!userIdExact,
+    //   authHeader: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
+    //   path: request.url,
+    //   requestId: request.id
+    // });
 
     // Check for missing header
     if (!authHeader) {
@@ -162,12 +159,11 @@ export async function authenticate(request, reply) {
       );
     }
 
-    // Log token details for debugging (excluding sensitive parts)
-    logger.logAuth({ requestId: request.id, path: request.url }, 'Token verification attempt', {
-      tokenLength: token?.length,
-      hasUserId: !!userId,
-      requestId: request.id
-    });
+    // logger.logAuth({ requestId: request.id, path: request.url }, 'Token verification attempt', { // Simplified logging
+    //   tokenLength: token?.length,
+    //   hasUserId: !!userId,
+    //   requestId: request.id
+    // });
 
     const decoded = authService.verifyToken(token);
     
@@ -212,10 +208,7 @@ export async function authenticate(request, reply) {
         `User sync error: ${syncError.message}`, { userId });
     }
 
-    logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { 
-      userId,
-      requestId: request.id
-    });
+    // logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { userId, requestId: request.id }); // Simplified logging
   } catch (error) {
     logger.logError({ requestId: request.id, path: request.url }, error, {
       code: error.code
@@ -248,12 +241,12 @@ export const authMiddleware = async (request, response, next) => {
     const userId = userIdExact || userIdLower;
     
     // Log authentication details for debugging
-    console.log('Express auth middleware:', {
-      url: request.url,
-      hasAuthHeader: !!authHeader,
-      authHeaderPreview: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
-      hasUserId: !!userId
-    });
+    // console.log('Express auth middleware:', { // Simplified logging
+    //   url: request.url,
+    //   hasAuthHeader: !!authHeader,
+    //   authHeaderPreview: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
+    //   hasUserId: !!userId
+    // });
     
     // Skip authentication for public paths
     if (PUBLIC_PATHS.some(path => request.url.startsWith(path))) {

@@ -1340,18 +1340,16 @@ class SubscriptionService {
       // If deletion was successful, publish an event
       if (!result.alreadyRemoved) {
         try {
-          logPubSub(context, 'Publishing subscription.deleted event', { 
-            subscriptionId 
-          });
-          
-          await publishEvent('subscription.deleted', {
-            subscription_id: subscriptionId,
-            user_id: userId,
-            timestamp: new Date().toISOString()
-          });
-        } catch (pubsubError) {
-          // Log the error but don't fail the deletion operation
-          logError(context, pubsubError, 'Failed to publish subscription.deleted event');
+          // logPubSub(context, 'Publishing subscription.deleted event', { subscriptionId }); // Simplified logging
+          // // Commented out Pub/Sub publishing as requested
+          // await publishEvent('subscription.deleted', { 
+          //   subscriptionId,
+          //   userId,
+          //   timestamp: new Date().toISOString()
+          // }, context);
+        } catch (publishError) {
+          // Log the error but don't let it fail the whole operation
+          logError(context, publishError, 'Failed to publish event');
         }
       }
       
