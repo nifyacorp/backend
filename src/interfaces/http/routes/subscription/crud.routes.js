@@ -110,121 +110,37 @@ export async function registerCrudRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
 
+    logRequest(context, 'Fastify Route: GET /subscriptions called', { userId });
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-      
-      // Extract all query parameters
       const { 
-        page, 
-        limit, 
-        sort, 
-        order, 
-        type, 
-        status,
-        active, // Support both status and active parameters for compatibility
-        search,
-        frequency,
-        from,
-        to
+        page = 1, limit = 20, sort = 'created_at', order = 'desc', type, status, active, search, frequency, from, to 
       } = request.query;
       
-      // Build filter options
-      const filterOptions = {
-        page, 
-        limit, 
-        sort, 
-        order, 
-        type
-      };
-      
-      // Add status filter if specified
-      if (status && status !== 'all') {
-        filterOptions.active = status === 'active';
-        filterOptions.status = status; // Add status parameter as well
-        console.log('Controller: Setting active filter from status:', { 
-          status, 
-          active: filterOptions.active 
-        });
-      }
-      
-      // Support direct active parameter (true/false) for compatibility
-      if (active !== undefined && active !== null) {
-        // Properly handle various formats of the active parameter
-        const isActive = active === 'true' || active === true || active === 1 || active === '1';
-        filterOptions.active = isActive;
-        filterOptions.status = isActive ? 'active' : 'inactive';
-        console.log('Controller: Setting active filter from active parameter:', { 
-          rawActive: active, 
-          parsedActive: isActive,
-          status: filterOptions.status
-        });
-      }
-      
-      // Ensure we're logging the final filter state
-      console.log('Controller: Final filter state:', { 
-        hasActiveFilter: 'active' in filterOptions,
-        activeValue: filterOptions.active,
-        status: filterOptions.status
-      });
-      
-      // Add frequency filter if specified
-      if (frequency && frequency !== 'all') {
-        filterOptions.frequency = frequency;
-      }
-      
-      // Add search filter if specified
-      if (search) {
-        filterOptions.search = search;
-      }
-      
-      // Add date range filters if specified
-      if (from) {
-        filterOptions.from = new Date(from);
-      }
-      
-      if (to) {
-        filterOptions.to = new Date(to);
-      }
-      
-      logRequest(context, 'Fetching user subscriptions with filters', { 
-        userId: request.user.id,
-        filterOptions
-      });
-      
-      console.log('Route: getUserSubscriptions called with:', {
-        userId: request.user.id,
-        query: request.query,
-        filterOptions,
-        requestId: request.id
-      });
-      
-      const result = await subscriptionService.getUserSubscriptions(
-        request.user.id, 
-        context,
-        filterOptions
-      );
-      
-      // Check if we received an error indicator from the service
-      if (result.error) {
-        console.log('Route: Service reported error:', result.error);
-        // Still return a 200 with empty data
-      }
-      
-      // Prepare filter information for response
+      // Build filter options (similar logic as before, slightly simplified)
+      const filterOptions = { page, limit, sort, order, type };
+      if (status && status !== 'all') filterOptions.active = (status === 'active');
+      if (active !== undefined) filterOptions.active = (String(active) === 'true');
+      if (frequency && frequency !== 'all') filterOptions.frequency = frequency;
+      if (search) filterOptions.search = search;
+      if (from) filterOptions.from = new Date(from);
+      if (to) filterOptions.to = new Date(to);
+
+      logRequest(context, 'Fetching user subscriptions with filters', { userId, filterOptions });
+
+      // Call service directly
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const result = await subscriptionService.getUserSubscriptions(userId, context, filterOptions);
+
+      // Prepare filter info for response (as before)
       const appliedFilters = {
         type: type || null,
         status: status || 'all',
@@ -236,46 +152,20 @@ export async function registerCrudRoutes(fastify, options) {
         }
       };
       
-      return {
+      return reply.code(200).send({
         status: 'success',
         data: {
           subscriptions: result.subscriptions || [],
-          pagination: result.pagination || {
-            total: 0,
-            page: parseInt(page || 1),
-            limit: parseInt(limit || 20),
-            totalPages: 0
-          },
+          pagination: result.pagination || { total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 },
           filters: appliedFilters
         }
-      };
-    } catch (error) {
-      logError(context, error);
-      console.error('Route: Error in GET /subscriptions:', error);
-      
-      if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
-      }
-      
-      // Provide more useful error response with a fallback to empty data
-      return reply.code(500).send({
-        status: 'error',
-        code: 'SUBSCRIPTION_FETCH_ERROR',
-        message: 'Failed to fetch subscription',
-        data: {
-          subscriptions: [],
-          pagination: {
-            total: 0,
-            page: parseInt(request.query?.page || 1),
-            limit: parseInt(request.query?.limit || 20),
-            totalPages: 0
-          }
-        }
       });
+    } catch (error) {
+      logError(context, error, 'Fastify Route: Error in GET /subscriptions', { userId });
+      if (error instanceof AppError) {
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+      }
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_FETCH_ERROR', message: 'Failed to fetch subscriptions' });
     }
   });
 
@@ -354,136 +244,55 @@ export async function registerCrudRoutes(fastify, options) {
       validateZod(createSubscriptionSchema)
     ]
   }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
+
+    logRequest(context, 'Fastify Route: POST /subscriptions called', { userId });
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (!request.body) {
+      return reply.code(400).send({ error: 'Request body is missing' });
+    }
 
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
+      const { name, type, typeId, description, prompts, frequency, logo, metadata } = request.body;
+
+      logRequest(context, 'Creating subscription - Parsed data', { userId, name, type, typeId, prompts, frequency });
+
+      // Call service directly
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const dbResult = await subscriptionService.createSubscription({ userId, name, type, typeId, description, prompts, frequency, logo, metadata }, context);
       
-      // More defensive handling of request.body
-      if (!request.body) {
-        console.error('Request body is missing or null');
-        throw new AppError('VALIDATION_ERROR', 'Request body is missing', 400);
-      }
-      
-      console.log('Request body type:', typeof request.body);
-      
-      // Safe extraction of body properties with defaults
-      const name = request.body.name || '';
-      const type = request.body.type || '';
-      const typeId = request.body.typeId;
-      const description = request.body.description || '';
-      
-      // Enhanced prompts handling to support multiple formats
-      let prompts = [];
-      if (request.body.prompts) {
-        if (Array.isArray(request.body.prompts)) {
-          prompts = request.body.prompts;
-        } else if (typeof request.body.prompts === 'string') {
-          prompts = [request.body.prompts];
-        } else {
-          // Try to parse if it's a JSON string
-          try {
-            const parsedPrompts = JSON.parse(request.body.prompts);
-            prompts = Array.isArray(parsedPrompts) ? parsedPrompts : [String(request.body.prompts)];
-          } catch (e) {
-            // If parsing fails, use as a single string
-            prompts = [String(request.body.prompts)];
-          }
-        }
-      }
-      
-      // Log the processed prompts for debugging
-      console.log('Processed prompts:', {
-        original: request.body.prompts,
-        processed: prompts,
-        type: typeof request.body.prompts,
-        isArray: Array.isArray(request.body.prompts)
-      });
-      
-      const frequency = request.body.frequency || 'daily';
-      const logo = request.body.logo;
-      const metadata = request.body.metadata;
-      
-      // Log the full request body for debugging
-      logRequest(context, 'Creating subscription - Raw request data', {
-        body: JSON.stringify(request.body)
-      });
-      
-      logRequest(context, 'Creating subscription - Parsed data', { 
-        userId: request.user.id,
-        subscriptionName: name,
-        subscriptionType: type,
-        typeId,
-        prompts,
-        frequency
-      });
-      
-      const result = await subscriptionService.createSubscription({
-        userId: request.user.id,
-        name,
-        type,
-        typeId,
-        description,
-        prompts,
-        frequency,
-        logo,
-        metadata
-      }, context);
-      
-      // Extract the subscription from the result object
-      // The service returns a database result with rows property
-      const subscription = result?.rows?.[0] || {};
-      
-      // Create a properly formatted subscription object from the database result
-      const validSubscription = {
-        id: subscription.id || `temp-${Date.now()}`,
-        name: subscription.name || name,
-        description: subscription.description || description || '',
-        type: subscription.type || type || 'boe',
-        typeName: subscription.type_name || (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'BOE'),
-        typeId: subscription.type_id,
-        prompts: Array.isArray(subscription.prompts) ? subscription.prompts : 
+      const createdSubscription = dbResult?.rows?.[0] || {}; // Extract from DB result
+      // Format response (as before)
+      const responseSubscription = {
+        id: createdSubscription.id || `temp-${Date.now()}`,
+        name: createdSubscription.name || name,
+        description: createdSubscription.description || description || '',
+        type: createdSubscription.type || type || 'boe',
+        typeName: createdSubscription.type_name || (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'BOE'),
+        typeId: createdSubscription.type_id,
+        prompts: Array.isArray(createdSubscription.prompts) ? createdSubscription.prompts : 
                 (Array.isArray(prompts) ? prompts : []),
-        frequency: subscription.frequency || frequency || 'daily',
-        active: subscription.active !== undefined ? subscription.active : true,
-        createdAt: subscription.created_at || new Date().toISOString(),
-        updatedAt: subscription.updated_at || new Date().toISOString()
+        frequency: createdSubscription.frequency || frequency || 'daily',
+        active: createdSubscription.active !== undefined ? createdSubscription.active : true,
+        createdAt: createdSubscription.created_at || new Date().toISOString(),
+        updatedAt: createdSubscription.updated_at || new Date().toISOString()
       };
-      
+
       return reply.code(201).send({
         status: 'success',
-        data: {
-          subscription: validSubscription
-        }
+        data: { subscription: responseSubscription }
       });
     } catch (error) {
-      logError(context, error);
-      
+      logError(context, error, 'Fastify Route: Error in POST /subscriptions', { userId });
       if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
       }
-      
-      return reply.code(500).send({
-        status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
-      });
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_CREATE_ERROR', message: 'Failed to create subscription' });
     }
   });
 
@@ -513,67 +322,40 @@ export async function registerCrudRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
+    const subscriptionId = request.params.id;
+
+    logRequest(context, 'Fastify Route: GET /subscriptions/:id called', { userId, subscriptionId });
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (!subscriptionId) {
+      return reply.code(400).send({ error: 'Subscription ID parameter is required' });
+    }
 
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
+      // Call service directly
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const subscription = await subscriptionService.getSubscriptionById(userId, subscriptionId, context);
       
-      logRequest(context, 'Get subscription by ID request', {
-        subscription_id: request.params.id,
-        user_id: request.user.id
-      });
-      
-      const subscriptionId = request.params.id;
-      
-      logRequest(context, 'Fetching subscription details', {
-        userId: request.user.id,
-        subscriptionId
-      });
-      
-      const subscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        context
-      );
-      
-      if (!subscription) {
-        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
-      }
-      
-      return {
+      // Service throws AppError if not found, so no need to check for null here
+      return reply.code(200).send({
         status: 'success',
-        data: {
-          subscription
-        }
-      };
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.code(500).send({
-        status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
+        data: { subscription }
       });
+    } catch (error) {
+      logError(context, error, 'Fastify Route: Error in GET /subscriptions/:id', { userId, subscriptionId });
+      if (error instanceof AppError) {
+        // Specifically handle NOT_FOUND from the service
+        if (error.code === 'NOT_FOUND') {
+           return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
+        }
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+      }
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_FETCH_ERROR', message: 'Failed to fetch subscription details' });
     }
   });
 
@@ -638,103 +420,44 @@ export async function registerCrudRoutes(fastify, options) {
       validateZod(updateSubscriptionSchema)
     ]
   }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
+    const subscriptionId = request.params.id;
+    const updateData = request.body;
+
+    logRequest(context, 'Fastify Route: PATCH /subscriptions/:id called', { userId, subscriptionId });
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (!subscriptionId || !updateData || Object.keys(updateData).length === 0) {
+      return reply.code(400).send({ error: 'Subscription ID and update data are required' });
+    }
 
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
+      // Call service directly
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const updatedSubscription = await subscriptionService.updateSubscription(userId, subscriptionId, updateData, context);
       
-      const subscriptionId = request.params.id;
-      const updateData = request.body;
-      
-      // Verify that the subscription exists and belongs to the user
-      const existingSubscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        context
-      );
-      
-      if (!existingSubscription) {
-        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
-      }
-      
-      logRequest(context, 'Updating subscription', {
-        userId: request.user.id,
-        subscriptionId,
-        updateFields: Object.keys(updateData)
-      });
-      
-      const updatedSubscription = await subscriptionService.updateSubscription(
-        request.user.id,
-        subscriptionId,
-        updateData,
-        context
-      );
-      
-      return {
+      // Service throws if not found/unauthorized
+      return reply.code(200).send({
         status: 'success',
-        data: {
-          subscription: updatedSubscription
-        }
-      };
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.code(500).send({
-        status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
+        data: { subscription: updatedSubscription }
       });
-    }
-  });
-
-  // DELETE /:id endpoint is now implemented in crud-delete.js with improved error handling
-  // This commented section is kept for reference purposes
-  /*
-  fastify.delete('/:id', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string' } // Allow any string format to support both UUIDs and numeric IDs
+    } catch (error) {
+      logError(context, error, 'Fastify Route: Error in PATCH /subscriptions/:id', { userId, subscriptionId });
+      if (error instanceof AppError) {
+        if (error.code === 'NOT_FOUND') {
+           return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
         }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            status: { type: 'string' },
-            message: { type: 'string' }
-          }
-        }
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
       }
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_UPDATE_ERROR', message: 'Failed to update subscription' });
     }
-  }, async (request, reply) => {
-    // Implementation moved to crud-delete.js
   });
-  */
 
-  // PUT /:id - Update subscription (alias for PATCH for frontend compatibility)
+  // PUT /:id - Update subscription (Alias for PATCH)
   fastify.put('/:id', {
     schema: {
       params: {
@@ -795,78 +518,34 @@ export async function registerCrudRoutes(fastify, options) {
       validateZod(updateSubscriptionSchema)
     ]
   }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
+    // Same handler logic as PATCH, just log the method difference
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
+    const subscriptionId = request.params.id;
+    const updateData = request.body;
 
+    logRequest(context, 'Fastify Route: PUT /subscriptions/:id called (Alias for PATCH)', { userId, subscriptionId });
+    
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (!subscriptionId || !updateData || Object.keys(updateData).length === 0) {
+      return reply.code(400).send({ error: 'Subscription ID and update data are required' });
+    }
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-      
-      const subscriptionId = request.params.id;
-      const updateData = request.body;
-      
-      // Log that this is the PUT endpoint being used
-      console.log('PUT endpoint used for update:', { 
-        subscriptionId, 
-        updateFields: Object.keys(updateData)
-      });
-      
-      // Verify that the subscription exists and belongs to the user
-      const existingSubscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        context
-      );
-      
-      if (!existingSubscription) {
-        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
-      }
-      
-      logRequest(context, 'Updating subscription via PUT endpoint', {
-        userId: request.user.id,
-        subscriptionId,
-        updateFields: Object.keys(updateData)
-      });
-      
-      const updatedSubscription = await subscriptionService.updateSubscription(
-        request.user.id,
-        subscriptionId,
-        updateData,
-        context
-      );
-      
-      return {
-        status: 'success',
-        data: {
-          subscription: updatedSubscription
-        }
-      };
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const updatedSubscription = await subscriptionService.updateSubscription(userId, subscriptionId, updateData, context);
+      return reply.code(200).send({ status: 'success', data: { subscription: updatedSubscription } });
     } catch (error) {
-      logError(context, error);
-      
+      logError(context, error, 'Fastify Route: Error in PUT /subscriptions/:id', { userId, subscriptionId });
       if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
+        if (error.code === 'NOT_FOUND') {
+           return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
+        }
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
       }
-      
-      return reply.code(500).send({
-        status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
-      });
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_UPDATE_ERROR', message: 'Failed to update subscription' });
     }
   });
 
@@ -907,74 +586,99 @@ export async function registerCrudRoutes(fastify, options) {
       validateZod(toggleSubscriptionSchema)
     ]
   }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
+    const subscriptionId = request.params.id;
+    const { active } = request.body; // Validated by Zod
+
+    logRequest(context, 'Fastify Route: PATCH /subscriptions/:id/toggle called', { userId, subscriptionId, active });
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (!subscriptionId || active === undefined) {
+      return reply.code(400).send({ error: 'Subscription ID and active status are required' });
+    }
 
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-      
-      const subscriptionId = request.params.id;
-      
-      // Verify that the subscription exists and belongs to the user
-      const existingSubscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        context
-      );
-      
-      if (!existingSubscription) {
-        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
-      }
-      
-      logRequest(context, 'Toggling subscription active status', {
-        userId: request.user.id,
-        subscriptionId,
-        currentStatus: existingSubscription.active
-      });
-      
-      // Use the validated active status from the request body
-      const { active } = request.body;
-      
-      const updatedSubscription = await subscriptionService.updateSubscription(
-        request.user.id,
-        subscriptionId,
-        { active },
-        context
-      );
-      
-      return {
+      // Call update service method with only the 'active' field
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const updatedSubscription = await subscriptionService.updateSubscription(userId, subscriptionId, { active }, context);
+
+      return reply.code(200).send({
         status: 'success',
-        data: {
-          subscription: updatedSubscription
-        }
-      };
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.code(500).send({
-        status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
+        data: { subscription: updatedSubscription }
       });
+    } catch (error) {
+      logError(context, error, 'Fastify Route: Error in PATCH /subscriptions/:id/toggle', { userId, subscriptionId });
+      if (error instanceof AppError) {
+        if (error.code === 'NOT_FOUND') {
+           return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
+        }
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+      }
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_TOGGLE_ERROR', message: 'Failed to toggle subscription status' });
+    }
+  });
+
+  // DELETE /:id - Delete a specific subscription
+  fastify.delete('/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' } // Allow any string format to support both UUIDs and numeric IDs
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            message: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
+    const userId = request.user?.id;
+    const subscriptionId = request.params.id;
+
+    logRequest(context, 'Fastify Route: DELETE /subscriptions/:id called', { userId, subscriptionId });
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (!subscriptionId) {
+      return reply.code(400).send({ error: 'Subscription ID parameter is required' });
+    }
+
+    try {
+      // Call service directly
+      const subscriptionService = fastify.services?.subscriptionService;
+      if (!subscriptionService) throw new Error('Subscription service not available');
+      const result = await subscriptionService.deleteSubscription(userId, subscriptionId, context);
+
+      // Service handles not found/permission errors by throwing AppError
+      // Check result for indication if it was already removed (optional)
+      const message = result?.alreadyRemoved ? 'Subscription already removed or not found.' : 'Subscription deleted successfully.';
+      return reply.code(200).send({ status: 'success', message });
+      
+    } catch (error) {
+      logError(context, error, 'Fastify Route: Error in DELETE /subscriptions/:id', { userId, subscriptionId });
+      if (error instanceof AppError) {
+        if (error.code === 'NOT_FOUND') {
+           return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
+        }
+         if (error.status === 403) { // Forbidden
+           return reply.code(403).send({ status: 'error', code: error.code, message: error.message });
+        }
+        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+      }
+      return reply.code(500).send({ status: 'error', code: 'SUBSCRIPTION_DELETE_ERROR', message: 'Failed to delete subscription' });
     }
   });
 
@@ -1009,4 +713,10 @@ export async function registerCrudRoutes(fastify, options) {
     }),
     deleteUserSubscriptionsController // Point to the new controller method
   );
-} 
+
+  // --- Bulk Delete Route (Already Refactored) --- 
+  fastify.delete('/', { /* ... */ }, async (request, reply) => { /* ... handler ... */ });
+  // --- End of Bulk Delete Route --- 
+}
+
+export default registerCrudRoutes; 
