@@ -12,9 +12,9 @@ echo Collected on: %date% %time%>> Logs\backend_runtime_logs.txt
 echo ------------------------------------------------------>> Logs\backend_runtime_logs.txt
 echo.>> Logs\backend_runtime_logs.txt
 
-:: Collect and append the logs
-echo Collecting backend runtime logs...
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=backend AND textPayload:*" --limit=500 --format="value(textPayload)" >> Logs\backend_runtime_logs.txt
+:: Collect and append the logs - focused on subscription processing
+echo Collecting backend runtime logs for subscription processing...
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=backend AND (textPayload:*subscription* OR textPayload:*process*)" --limit=500 --format="value(textPayload)" >> Logs\backend_runtime_logs.txt
 
 echo.>> Logs\backend_runtime_logs.txt
 echo ------------------------------------------------------>> Logs\backend_runtime_logs.txt

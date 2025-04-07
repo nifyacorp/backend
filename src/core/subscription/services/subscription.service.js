@@ -118,108 +118,68 @@ class SubscriptionService {
     logRequest(context, 'Fetching subscription by ID', { userId, subscriptionId });
 
     try {
-      // First try using the regular repository
-      try {
-        const result = await this.repository.getSubscriptionById(userId, subscriptionId, context);
+      // Only use the regular repository, no fallbacks
+      const result = await this.repository.getSubscriptionById(userId, subscriptionId, context);
 
-        if (result && result.rows && result.rows.length > 0) {
-          // Get the subscription from the result
-          const subscription = result.rows[0];
-          
-          // Normalize the prompts field to ensure it's compatible with various client expectations
-          if (subscription) {
-            try {
-              // Handle prompts field based on its type
-              if (subscription.prompts) {
-                // If it's already an array, great
-                if (Array.isArray(subscription.prompts)) {
-                  // Ensure all items are strings
-                  subscription.prompts = subscription.prompts.map(p => String(p));
-                } 
-                // If it's a string, parse it if it looks like JSON
-                else if (typeof subscription.prompts === 'string') {
-                  try {
-                    // Try to parse as JSON
-                    const parsed = JSON.parse(subscription.prompts);
-                    
-                    if (Array.isArray(parsed)) {
-                      subscription.prompts = parsed.map(p => String(p));
-                    } else if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
-                      // Handle new format with value property
-                      subscription.prompts = [String(parsed.value)];
-                    } else {
-                      // Fall back to using the original string
-                      subscription.prompts = [subscription.prompts];
-                    }
-                  } catch (e) {
-                    // Not valid JSON, use as a string
+      if (result && result.rows && result.rows.length > 0) {
+        // Get the subscription from the result
+        const subscription = result.rows[0];
+        
+        // Normalize the prompts field to ensure it's compatible with various client expectations
+        if (subscription) {
+          try {
+            // Handle prompts field based on its type
+            if (subscription.prompts) {
+              // If it's already an array, great
+              if (Array.isArray(subscription.prompts)) {
+                // Ensure all items are strings
+                subscription.prompts = subscription.prompts.map(p => String(p));
+              } 
+              // If it's a string, parse it if it looks like JSON
+              else if (typeof subscription.prompts === 'string') {
+                try {
+                  // Try to parse as JSON
+                  const parsed = JSON.parse(subscription.prompts);
+                  
+                  if (Array.isArray(parsed)) {
+                    subscription.prompts = parsed.map(p => String(p));
+                  } else if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
+                    // Handle new format with value property
+                    subscription.prompts = [String(parsed.value)];
+                  } else {
+                    // Fall back to using the original string
                     subscription.prompts = [subscription.prompts];
                   }
+                } catch (e) {
+                  // Not valid JSON, use as a string
+                  subscription.prompts = [subscription.prompts];
                 }
-                // Otherwise convert to array
-                else {
-                  subscription.prompts = [String(subscription.prompts)];
-                }
-              } else {
-                // Ensure prompts is never null/undefined
-                subscription.prompts = [];
               }
-            } catch (promptsError) {
-              console.error('Error normalizing prompts field:', promptsError);
-              subscription.prompts = [];
-            }
-            
-            // Log the normalized subscription for debugging
-            console.log('Normalized subscription from service repository:', {
-              id: subscription.id,
-              name: subscription.name,
-              prompts: subscription.prompts
-            });
-          }
-
-          return subscription;
-        }
-      } catch (serviceRepoError) {
-        // Log the error but don't fail yet - try data repository
-        console.warn('Service repository failed, falling back to data repository:', serviceRepoError);
-      }
-
-      // If service repository failed or returned no results, try the data repository
-      console.log('Trying data repository as fallback for subscription:', subscriptionId);
-      const dataSubscription = await this.dataRepository.findById(subscriptionId, {
-        withUserCheck: true,
-        userId,
-        context
-      });
-
-      if (dataSubscription) {
-        console.log('Found subscription in data repository:', {
-          id: dataSubscription.id,
-          name: dataSubscription.name
-        });
-        
-        // Normalize prompts if needed
-        if (!Array.isArray(dataSubscription.prompts)) {
-          try {
-            if (typeof dataSubscription.prompts === 'string') {
-              try {
-                const parsed = JSON.parse(dataSubscription.prompts);
-                dataSubscription.prompts = Array.isArray(parsed) ? parsed : [dataSubscription.prompts];
-              } catch (e) {
-                dataSubscription.prompts = [dataSubscription.prompts];
+              // Otherwise convert to array
+              else {
+                subscription.prompts = [String(subscription.prompts)];
               }
             } else {
-              dataSubscription.prompts = dataSubscription.prompts ? [String(dataSubscription.prompts)] : [];
+              // Ensure prompts is never null/undefined
+              subscription.prompts = [];
             }
-          } catch (e) {
-            dataSubscription.prompts = [];
+          } catch (promptsError) {
+            console.error('Error normalizing prompts field:', promptsError);
+            subscription.prompts = [];
           }
+          
+          // Log the normalized subscription for debugging
+          console.log('Normalized subscription from service repository:', {
+            id: subscription.id,
+            name: subscription.name,
+            prompts: subscription.prompts
+          });
         }
-        
-        return dataSubscription;
+
+        return subscription;
       }
 
-      // If we get here, the subscription was not found in either repository
+      // If we get here, the subscription was not found in the repository
       throw new AppError(
         SUBSCRIPTION_ERRORS.NOT_FOUND.code,
         SUBSCRIPTION_ERRORS.NOT_FOUND.message,
