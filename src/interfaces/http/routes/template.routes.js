@@ -4,7 +4,7 @@ import { logRequest, logError } from '../../../shared/logging/logger.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validateZod } from '../../../shared/utils/validation.js';
 import { 
-  createTemplateSchema as zodCreateTemplateSchema,
+  createSubscriptionSchema as zodCreateTemplateSchema,
   idParamSchema
 } from '../../../core/subscription/schemas.js';
 
