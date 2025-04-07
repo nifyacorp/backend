@@ -6,8 +6,6 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "migrations": "node run-migrations.js",
-    "migration:subscription": "node run-single-migration.js",
-    "fix:subscription-processing": "node src/fix-subscription-processing.js",
     "test:fixes": "node post-fix-test.js",
     "docs:generate": "node generate-api-docs.js",
     "docs:serve": "npx serve -C"

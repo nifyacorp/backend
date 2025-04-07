@@ -2,11 +2,6 @@ import { templateService } from '../../../core/subscription/index.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { validateZod } from '../../../shared/utils/validation.js';
-import { 
-  createSubscriptionSchema as zodCreateTemplateSchema,
-  idParamSchema
-} from '../../../core/subscription/schemas.js';
 
 const createTemplateSchema = {
   type: 'object',
@@ -65,20 +60,8 @@ const templateSchema = {
   }
 };
 
-const subscribeFromTemplateSchema = {
-  type: 'object',
-  properties: {
-    prompts: { 
-      type: 'array',
-      items: { type: 'string' },
-      maxItems: 3
-    },
-    frequency: { type: 'string', enum: ['immediate', 'daily'] }
-  }
-};
-
 export async function templateRoutes(fastify, options) {
-  // GET / - List public templates
+  // Public endpoint - List templates
   fastify.get('/', {
     schema: {
       querystring: {
@@ -111,27 +94,33 @@ export async function templateRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    const context = { requestId: request.id, path: request.url, method: request.method };
-    logRequest(context, 'Fastify Route: GET /templates called');
-    
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
+
     try {
-      const { page = 1, limit = 10 } = request.query;
+      const page = parseInt(request.query.page || '1');
+      const limit = parseInt(request.query.limit || '10');
       
-      const result = await templateService.getPublicTemplates(context, parseInt(page), parseInt(limit));
-      
-      return reply.code(200).send(result);
+      const result = await templateService.getPublicTemplates(context, page, limit);
+      return result;
     } catch (error) {
-      logError(context, error, 'Fastify Route: Error in GET /templates');
-      if (error instanceof AppError) {
-        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
-      }
-      return reply.code(500).send({ status: 'error', code: 'TEMPLATE_FETCH_ERROR', message: 'Failed to fetch templates' });
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
     }
   });
 
-  // GET /:id - Get template details
+  // Public endpoint - Get template details
   fastify.get('/:id', {
-    preHandler: [validateZod(idParamSchema, 'params')],
     schema: {
       response: {
         200: {
@@ -143,29 +132,31 @@ export async function templateRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    const context = { requestId: request.id, path: request.url, method: request.method };
-    const templateId = request.params.id;
-    logRequest(context, 'Fastify Route: GET /templates/:id called', { templateId });
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
 
     try {
-      const template = await templateService.getTemplateById(templateId, context);
-      
-      return reply.code(200).send({ template });
+      const template = await templateService.getTemplateById(request.params.id, context);
+      return { template };
     } catch (error) {
-      logError(context, error, 'Fastify Route: Error in GET /templates/:id', { templateId });
-      if (error instanceof AppError) {
-        if (error.code === 'TEMPLATE_NOT_FOUND') {
-          return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
-        }
-        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
-      }
-      return reply.code(500).send({ status: 'error', code: 'TEMPLATE_FETCH_ERROR', message: 'Failed to fetch template details' });
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
     }
   });
 
-  // POST / - Create new template
+  // Protected endpoint - Create new template
   fastify.post('/', {
-    preHandler: [validateZod(zodCreateTemplateSchema)],
+    preHandler: authenticate,
     schema: {
       body: createTemplateSchema,
       response: {
@@ -178,38 +169,51 @@ export async function templateRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    const context = { requestId: request.id, path: request.url, method: request.method };
-    const userId = request.user?.id;
-    logRequest(context, 'Fastify Route: POST /templates called', { userId });
-
-    if (!userId) {
-      return reply.code(401).send({ error: 'Authentication required' });
-    }
-    if (!request.body) {
-      return reply.code(400).send({ error: 'Request body is missing' });
-    }
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
 
     try {
-      const template = await templateService.createTemplate(userId, request.body, context);
-      
-      return reply.code(201).send({ template });
-    } catch (error) {
-      logError(context, error, 'Fastify Route: Error in POST /templates', { userId });
-      if (error instanceof AppError) {
-        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
-      return reply.code(500).send({ status: 'error', code: 'TEMPLATE_CREATE_ERROR', message: 'Failed to create template' });
+
+      const template = await templateService.createTemplate(
+        request.user.id,
+        request.body,
+        context
+      );
+      return { template };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
     }
   });
 
-  // POST /:id/subscribe - Create subscription from template
+  // Protected endpoint - Create subscription from template
   fastify.post('/:id/subscribe', {
-    preHandler: [
-      validateZod(idParamSchema, 'params'),
-      validateZod(subscribeFromTemplateSchema)
-    ],
+    preHandler: authenticate,
     schema: {
-      body: subscribeFromTemplateSchema,
+      body: {
+        type: 'object',
+        properties: {
+          prompts: { 
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 3
+          },
+          frequency: { type: 'string', enum: ['immediate', 'daily'] }
+        }
+      },
       response: {
         200: {
           type: 'object',
@@ -234,32 +238,34 @@ export async function templateRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    const context = { requestId: request.id, path: request.url, method: request.method };
-    const userId = request.user?.id;
-    const templateId = request.params.id;
-    const customizationOptions = request.body;
-
-    logRequest(context, 'Fastify Route: POST /templates/:id/subscribe called', { userId, templateId });
-
-    if (!userId) {
-      return reply.code(401).send({ error: 'Authentication required' });
-    }
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
 
     try {
-      const subscription = await templateService.createFromTemplate(userId, templateId, customizationOptions, context);
-      
-      return reply.code(201).send({ subscription });
-    } catch (error) {
-      logError(context, error, 'Fastify Route: Error in POST /templates/:id/subscribe', { userId, templateId });
-      if (error instanceof AppError) {
-        if (error.code === 'TEMPLATE_NOT_FOUND') {
-          return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
-        }
-        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+      if (!request.user?.id) {
+        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
-      return reply.code(500).send({ status: 'error', code: 'SUBSCRIBE_FROM_TEMPLATE_ERROR', message: 'Failed to create subscription from template' });
+
+      const subscription = await templateService.createFromTemplate(
+        request.user.id,
+        request.params.id,
+        request.body, // Pass customization options
+        context
+      );
+      return { subscription };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
     }
   });
 }
-
-export default templateRoutes;

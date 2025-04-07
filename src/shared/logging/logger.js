@@ -9,33 +9,34 @@ export function logRequest(context, message, data = {}) {
   });
 }
 
-export function logError(context = {}, error, message = 'Error occurred', extraData = {}) {
-  if (!error) {
-    log(50, 'logError called with null or undefined error object', context, extraData);
-    return;
-  }
-
-  const logData = {
-    ...context,
-    ...extraData,
-    error: {
+export function logError(context, error, additionalData = {}) {
+  // Check if error is already a plain object with an 'error' property
+  if (error && typeof error === 'object' && !error.message && error.error) {
+    console.error('❌ Error:', {
+      error: error.error,
+      subscription_id: error.subscription_id,
+      ...additionalData,
+      requestId: context.requestId,
+      path: context.path,
+      timestamp: new Date().toISOString()
+    });
+  } else {
+    console.error('❌ Error:', {
+      code: error.code,
       message: error.message,
-      name: error.name,
-      code: error.code, // Include error code if available (e.g., AppError)
-      status: error.status, // Include status if available
-      // Only include stack in non-production environments or if explicitly enabled
-      stack: process.env.NODE_ENV !== 'production' || process.env.LOG_STACK_TRACE === 'true' ? error.stack?.split('\n').map(s => s.trim()) : undefined,
-      details: error.details // Include details if it's an AppError
-    }
-  };
-
-  log(50, message, logData);
+      stack: error.stack,
+      ...additionalData,
+      requestId: context.requestId,
+      path: context.path,
+      timestamp: new Date().toISOString()
+    });
+  }
 
   // GitHub Issue Creation (non-blocking)
   if (process.env.ENABLE_GITHUB_ISSUE_REPORTING === 'true') {
     const combinedContext = {
       ...(context || {}),
-      ...(extraData || {}),
+      ...(additionalData || {}),
     };
     // Use setImmediate or similar to avoid blocking the current execution thread
     setImmediate(() => {

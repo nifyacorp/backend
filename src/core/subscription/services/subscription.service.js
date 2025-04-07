@@ -18,25 +18,88 @@ class SubscriptionService {
     logRequest(context, 'Fetching subscription statistics', { userId });
     
     try {
-      // REMOVED: Attempt to get cached stats from the non-existent subscription_stats table
-      // try {
-      //   const cachedStats = await query(...);
-      //   if (cachedStats.rows.length > 0) {
-      //     // ... logic to check cache age and return/refresh ...
-      //     return { /* cached data */ };
-      //   }
-      // } catch (cacheError) {
-      //   logError(context, cacheError, 'Error getting cached statistics');
-      // }
+      // First try to get cached stats from the subscription_stats table
+      try {
+        const cachedStats = await query(
+          `SELECT 
+            total, 
+            active, 
+            inactive, 
+            by_source as "bySource", 
+            by_frequency as "byFrequency",
+            updated_at as "updatedAt"
+          FROM subscription_stats 
+          WHERE user_id = $1`,
+          [userId]
+        );
+        
+        // If we have cached stats that are recent (less than 1 hour old), use them
+        if (cachedStats.rows.length > 0) {
+          const stats = cachedStats.rows[0];
+          
+          // Check if stats are recent (less than 1 hour old)
+          const updatedAt = new Date(stats.updatedAt);
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          
+          if (updatedAt > oneHourAgo) {
+            logRequest(context, 'Using cached subscription statistics', {
+              userId,
+              cacheAge: `${Math.round((Date.now() - updatedAt.getTime()) / 1000 / 60)} minutes`
+            });
+            
+            // Format the response
+            return {
+              total: stats.total,
+              active: stats.active,
+              inactive: stats.inactive,
+              bySource: stats.bySource,
+              byFrequency: stats.byFrequency,
+              cached: true,
+              updatedAt: stats.updatedAt
+            };
+          }
+          
+          // If stats are old, we'll refresh them but still return the cached version
+          // for a faster response, and update the cache asynchronously
+          logRequest(context, 'Cached statistics are outdated, will refresh asynchronously', {
+            userId,
+            cacheAge: `${Math.round((Date.now() - updatedAt.getTime()) / 1000 / 60)} minutes`
+          });
+          
+          // Trigger an asynchronous refresh without waiting for it
+          setTimeout(async () => {
+            try {
+              // Call the repository method to refresh statistics
+              await this.repository.getSubscriptionStats(userId, context);
+              logRequest(context, 'Statistics refreshed asynchronously', { userId });
+            } catch (refreshError) {
+              logError(context, refreshError, 'Error refreshing statistics asynchronously');
+            }
+          }, 0);
+          
+          // Return the cached stats while the refresh happens in the background
+          return {
+            total: stats.total,
+            active: stats.active,
+            inactive: stats.inactive,
+            bySource: stats.bySource,
+            byFrequency: stats.byFrequency,
+            cached: true,
+            updatedAt: stats.updatedAt,
+            refreshing: true
+          };
+        }
+      } catch (cacheError) {
+        // If there's an error with the cache, log it but continue to get stats directly
+        logError(context, cacheError, 'Error getting cached statistics');
+      }
       
-      // Calculate stats directly using the repository method
-      logRequest(context, 'Calculating subscription statistics directly', { userId });
-      // Assuming this.repository.getSubscriptionStats calculates from the main table
+      // Fall back to calculating stats directly
       return await this.repository.getSubscriptionStats(userId, context);
-
     } catch (error) {
-      logError(context, error, 'Service: Error in getSubscriptionStats');
-      // console.error('Service: Error in getSubscriptionStats:', error); // Keep console for debugging if needed
+      logError(context, error);
+      
+      console.error('Service: Error in getSubscriptionStats:', error);
       
       // Return a fallback response with zeros instead of throwing an error
       return {
@@ -1081,19 +1144,19 @@ class SubscriptionService {
       const subscription = result.rows[0];
       console.log('Processing subscription:', subscription);
       
-      logProcessing(context, 'Initiating subscription processing', { 
+      // Log that we're about to initiate processing
+      logProcessing(context, 'Initiating subscription processing', {
         subscriptionId,
-        type: subscription.type_id,
+        type: subscription.type_name,
         prompts: subscription.prompts
       });
-
-      // Normalize prompts format - handling different input formats
-      let processedPrompts = Array.isArray(subscription.prompts) ? subscription.prompts : [];
       
+      // Parse prompts if needed
+      let processedPrompts = [];
       try {
         if (typeof subscription.prompts === 'string') {
-          // Try to parse as JSON if it's a string
           try {
+            // Try to parse as JSON
             const parsed = JSON.parse(subscription.prompts);
             if (Array.isArray(parsed)) {
               processedPrompts = parsed;
@@ -1125,116 +1188,16 @@ class SubscriptionService {
         processedPrompts = [];
       }
       
-      // Check if subscription_processing table exists before trying to use it
-      let processingId;
-      try {
-        const tableCheckResult = await query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public'
-            AND table_name = 'subscription_processing'
-          ) as exists;
-        `);
-        
-        if (!tableCheckResult.rows[0].exists) {
-          logRequest(context, 'subscription_processing table does not exist, creating it now...', { subscriptionId });
-          
-          // Create the table if it doesn't exist
-          try {
-            await query(`
-              CREATE TABLE IF NOT EXISTS subscription_processing (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
-                status VARCHAR(50) NOT NULL DEFAULT 'pending',
-                started_at TIMESTAMP WITH TIME ZONE,
-                completed_at TIMESTAMP WITH TIME ZONE,
-                result JSONB DEFAULT '{}'::jsonb,
-                error_message TEXT,
-                user_id UUID,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-              );
-              
-              CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id 
-                ON subscription_processing(subscription_id);
-              CREATE INDEX IF NOT EXISTS idx_subscription_processing_status 
-                ON subscription_processing(status);
-            `);
-            logRequest(context, 'Successfully created subscription_processing table', { subscriptionId });
-          } catch (createError) {
-            logError(context, createError, 'Failed to create subscription_processing table');
-            // Continue with processing even if table creation fails - we'll handle the error later
-          }
-        }
-        
-        // Check if user_id column exists in subscription_processing table
-        const columnCheckResult = await query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.columns 
-            WHERE table_schema = 'public'
-            AND table_name = 'subscription_processing'
-            AND column_name = 'user_id'
-          ) as exists;
-        `);
-        
-        if (!columnCheckResult.rows[0].exists) {
-          logRequest(context, 'user_id column does not exist in subscription_processing table, using fallback query', { subscriptionId });
-          
-          // Use a fallback query without user_id if the column doesn't exist
-          const processingResult = await query(
-            `INSERT INTO subscription_processing
-             (subscription_id, status, created_at)
-             VALUES ($1, 'pending', NOW())
-             RETURNING id`,
-            [subscriptionId]
-          );
-          
-          processingId = processingResult.rows[0].id;
-          logRequest(context, 'Created processing record (without user_id)', { processingId, subscriptionId });
-        } else {
-          // Use the full query with user_id if the column exists
-          const processingResult = await query(
-            `INSERT INTO subscription_processing
-             (subscription_id, status, created_at, user_id)
-             VALUES ($1, 'pending', NOW(), $2)
-             RETURNING id`,
-            [subscriptionId, userId]
-          );
-          
-          processingId = processingResult.rows[0].id;
-          logRequest(context, 'Created processing record', { processingId, subscriptionId });
-        }
-      } catch (insertError) {
-        logError(context, insertError, 'Error creating processing record');
-        
-        // If error is because the table doesn't exist, we'll continue without a processing ID
-        if (insertError.message && insertError.message.includes('relation "subscription_processing" does not exist')) {
-          logRequest(context, 'Continuing without processing record due to missing table', { subscriptionId });
-          processingId = `temp-${Date.now()}`; // Generate a temporary ID
-        } else if (insertError.message && insertError.message.includes('column "user_id" of relation "subscription_processing" does not exist')) {
-          // If the error is specifically about missing user_id column, try again without it
-          try {
-            const fallbackResult = await query(
-              `INSERT INTO subscription_processing
-               (subscription_id, status, created_at)
-               VALUES ($1, 'pending', NOW())
-               RETURNING id`,
-              [subscriptionId]
-            );
-            
-            processingId = fallbackResult.rows[0].id;
-            logRequest(context, 'Created processing record (without user_id after column error)', { processingId, subscriptionId });
-          } catch (fallbackError) {
-            // For this error as well, continue with a temporary ID
-            logError(context, fallbackError, 'Failed to create processing record even without user_id');
-            processingId = `temp-${Date.now()}`; // Generate a temporary ID
-          }
-        } else {
-          // For other errors, we'll try to continue but log the error
-          logError(context, insertError, 'Will continue with event publishing despite database error');
-          processingId = `temp-${Date.now()}`; // Generate a temporary ID
-        }
-      }
+      // Record processing request in the database
+      const processingResult = await query(
+        `INSERT INTO subscription_processing
+         (subscription_id, status, requested_at, user_id)
+         VALUES ($1, 'pending', NOW(), $2)
+         RETURNING id`,
+        [subscriptionId, userId]
+      );
+      
+      const processingId = processingResult.rows[0].id;
       
       // Publish event to trigger processing
       try {
@@ -1246,7 +1209,7 @@ class SubscriptionService {
         
         await publishEvent('subscription.process', {
           subscription_id: subscriptionId,
-          processing_id: processingId || `temp-${Date.now()}`, // Use temp ID if no processing ID
+          processing_id: processingId,
           user_id: userId,
           type: subscription.type_id,
           type_name: subscription.type_name,
@@ -1256,30 +1219,23 @@ class SubscriptionService {
         
         return {
           message: 'Subscription processing initiated',
-          processingId: processingId || `temp-${Date.now()}`,
+          processingId,
           subscriptionId,
-          jobId: processingId || `temp-${Date.now()}`, // Include jobId for compatibility with frontend
+          jobId: processingId, // Include jobId for compatibility with frontend
           status: 'pending'
         };
       } catch (pubsubError) {
         logError(context, pubsubError, 'Failed to publish subscription.process event');
         
-        // Try to mark processing as failed if we have a processing ID
-        if (processingId && !processingId.startsWith('temp-')) {
-          try {
-            await query(
-              `UPDATE subscription_processing
-               SET status = 'failed', 
-                   completed_at = NOW(),
-                   error_message = $1
-               WHERE id = $2`,
-              ['Failed to publish processing event', processingId]
-            );
-          } catch (updateError) {
-            logError(context, updateError, 'Error updating processing status after event failure');
-            // Continue with the error response
-          }
-        }
+        // Mark processing as failed
+        await query(
+          `UPDATE subscription_processing
+           SET status = 'failed', 
+               completed_at = NOW(),
+               error = $1
+           WHERE id = $2`,
+          ['Failed to publish processing event', processingId]
+        );
         
         throw new AppError(
           SUBSCRIPTION_ERRORS.PROCESSING_ERROR.code,
@@ -1288,7 +1244,8 @@ class SubscriptionService {
         );
       }
     } catch (error) {
-      logError(context, error, 'Service: Error in processSubscription'); 
+      logError(context, error);
+      console.error('Service: Error in processSubscription:', error);
       
       if (error instanceof AppError) {
         throw error;
@@ -1299,112 +1256,6 @@ class SubscriptionService {
         SUBSCRIPTION_ERRORS.PROCESSING_ERROR.message,
         500,
         { error: error.message }
-      );
-    }
-  }
-
-  /**
-   * Get the processing status of a subscription
-   *
-   * @param {string} userId - User ID requesting the status
-   * @param {string} subscriptionId - ID of the subscription
-   * @param {object} context - Request context for logging
-   * @returns {Promise<object>} - Latest status record
-   */
-  async getSubscriptionStatus(userId, subscriptionId, context) {
-    logRequest(context, 'Fetching subscription processing status', { userId, subscriptionId });
-
-    try {
-      // Check if the user owns the subscription first
-      const checkResult = await query(
-        'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1 AND user_id = $2) as exists',
-        [subscriptionId, userId]
-      );
-
-      if (!checkResult.rows[0].exists) {
-        throw new AppError(
-          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
-          'Subscription not found or you do not have permission to view its status.',
-          404,
-          { subscriptionId }
-        );
-      }
-      
-      // Check if subscription_processing table exists
-      try {
-        const tableCheckResult = await query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public'
-            AND table_name = 'subscription_processing'
-          ) as exists;
-        `);
-        
-        if (!tableCheckResult.rows[0].exists) {
-          logRequest(context, 'subscription_processing table does not exist, returning fallback status', { subscriptionId });
-          return {
-            status: 'unknown',
-            message: 'Subscription status tracking is not available.',
-            fallback: true,
-            subscriptionId
-          };
-        }
-      } catch (tableError) {
-        logError(context, tableError, 'Error checking for subscription_processing table');
-        // Continue with normal flow, it will fail properly if table doesn't exist
-      }
-
-      // Fetch the latest processing status
-      const statusResult = await query(
-        `SELECT 
-           id as "processingId",
-           status,
-           created_at as "requestedAt",
-           started_at as "startedAt",
-           completed_at as "completedAt",
-           error_message as "error"
-         FROM subscription_processing 
-         WHERE subscription_id = $1
-         ORDER BY created_at DESC 
-         LIMIT 1`,
-        [subscriptionId]
-      );
-
-      if (statusResult.rows.length === 0) {
-        // No processing record found for this subscription
-        return {
-          status: 'unknown', // Or 'not_processed'
-          message: 'No processing status found for this subscription.',
-        };
-      }
-
-      return statusResult.rows[0];
-
-    } catch (error) {
-      // Handle specific errors that indicate the table doesn't exist
-      if (error.message && (
-          error.message.includes('relation "subscription_processing" does not exist') ||
-          error.message.includes('does not exist') && error.message.includes('subscription_processing')
-      )) {
-        logError(context, error, 'subscription_processing table does not exist');
-        // Return a fallback status object
-        return {
-          status: 'unknown',
-          message: 'Subscription status information is currently unavailable. Service maintenance in progress.',
-          maintenance: true,
-          subscriptionId
-        };
-      }
-      
-      logError(context, error, 'Error fetching subscription status');
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError(
-        'STATUS_FETCH_ERROR',
-        error.message || 'Failed to fetch subscription status',
-        500,
-        { subscriptionId }
       );
     }
   }
@@ -1462,17 +1313,11 @@ class SubscriptionService {
         const client = await query('BEGIN');
         
         try {
-          // First try to delete from subscription_processing if the table exists
-          try {
-            await client.query(
-              'DELETE FROM subscription_processing WHERE subscription_id = $1',
-              [subscriptionId]
-            );
-            logRequest(context, 'Deleted related processing records', { subscriptionId });
-          } catch (processingError) {
-            // Log but continue - table might not exist or other issue
-            logError(context, processingError, 'Error deleting from subscription_processing');
-          }
+          // Delete related records first
+          await client.query(
+            'DELETE FROM subscription_items WHERE subscription_id = $1',
+            [subscriptionId]
+          );
           
           // Then delete the subscription
           const deleteResult = await client.query(
@@ -1879,54 +1724,6 @@ class SubscriptionService {
         warning: true,
         error: error.message
       };
-    }
-  }
-
-  /**
-   * Delete all subscriptions for a specific user.
-   *
-   * @param {string} userId - User ID whose subscriptions should be deleted
-   * @param {object} context - Request context for logging
-   * @returns {Promise<{deletedCount: number}>} - The number of subscriptions deleted
-   */
-  async deleteUserSubscriptions(userId, context) {
-    logRequest(context, 'Deleting all subscriptions for user', { userId });
-    
-    if (!userId) {
-      throw new AppError('INVALID_USER', 'User ID is required for bulk deletion', 400);
-    }
-    
-    try {
-      // Perform a single delete operation targeting the user_id
-      const result = await query(
-        'DELETE FROM subscriptions WHERE user_id = $1 RETURNING id',
-        [userId]
-      );
-      
-      const deletedCount = result.rowCount || 0;
-      logRequest(context, `Deleted ${deletedCount} subscriptions for user`, { userId });
-      
-      // Optionally, publish a bulk delete event (if needed elsewhere)
-      // try {
-      //   await publishEvent('subscriptions.deleted.bulk', { 
-      //     userId,
-      //     deletedCount,
-      //     timestamp: new Date().toISOString()
-      //   }, context);
-      // } catch (publishError) {
-      //   logError(context, publishError, 'Failed to publish bulk delete event');
-      // }
-      
-      return { deletedCount };
-      
-    } catch (error) {
-      logError(context, error, 'Error during bulk subscription deletion');
-      throw new AppError(
-        'BULK_DELETE_ERROR',
-        error.message || 'Failed to delete user subscriptions',
-        500,
-        { userId }
-      );
     }
   }
 }

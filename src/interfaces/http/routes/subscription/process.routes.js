@@ -4,172 +4,352 @@
  */
 
 import { subscriptionService } from '../../../../core/subscription/index.js';
+import { buildErrorResponse, errorBuilders } from "../../../../shared/errors/ErrorResponseBuilder.js";
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
 import { query } from '../../../../infrastructure/database/client.js';
-// Schemas might be needed for validation if not applied globally
-import { idParamSchema } from '../../../../core/subscription/schemas.js'; 
-import { validateZod } from '../../../../shared/utils/validation.js';
+import axios from 'axios';
 
 /**
  * Register subscription processing routes
- * @param {import('fastify').FastifyInstance} fastify - Fastify instance
+ * @param {FastifyInstance} fastify - Fastify instance
  * @param {Object} options - Options
  */
 export async function registerProcessRoutes(fastify, options) {
-
-  // POST /:id/process - Process a subscription immediately
-  fastify.post('/:id/process', {
-    // Assuming preHandler for auth is applied globally/plugin level
-    preHandler: [validateZod(idParamSchema, 'params')], // Validate ID param
+  // POST /process/:id - Process a subscription immediately (alternative format endpoint)
+  // This endpoint exists to provide compatibility with frontend clients that might use this URL pattern
+  fastify.post('/process/:id', {
     schema: {
-      summary: 'Process Subscription',
-      description: 'Initiates immediate processing for a specific subscription.',
-      tags: ['Subscriptions'], // Consistent tag
       params: {
         type: 'object',
         required: ['id'],
         properties: {
-          id: { type: 'string', format: 'uuid', description: 'The UUID of the subscription.' }
+          id: { type: 'string' }
         }
       },
       response: {
-        202: { // Accepted: Processing started asynchronously
-          description: 'Subscription processing accepted.',
+        202: {
           type: 'object',
           properties: {
-            success: { type: 'boolean', example: true },
-            message: { type: 'string', example: 'Subscription processing initiated' },
-            processingId: { type: 'string', format: 'uuid' },
-            subscriptionId: { type: 'string', format: 'uuid' },
-            jobId: { type: 'string', format: 'uuid', description: 'Alias for processingId' },
-            status: { type: 'string', example: 'pending' }
+            status: { type: 'string' },
+            message: { type: 'string' },
+            subscription_id: { type: 'string' }
           }
-        },
-        401: { description: 'Unauthorized', type: 'object', properties: { error: { type: 'string' } } },
-        404: { description: 'Subscription Not Found', type: 'object', properties: { error: { type: 'string' } } },
-        500: { description: 'Internal Server Error', type: 'object', properties: { error: { type: 'string' } } }
+        }
       }
     }
   }, async (request, reply) => {
-    const context = { requestId: request.id, path: request.url, method: request.method };
-    const userId = request.user?.id;
-    const subscriptionId = request.params.id;
-
-    logRequest(context, 'Fastify Route: POST /subscriptions/:id/process called', { userId, subscriptionId });
-
-    if (!userId) {
-      return reply.code(401).send({ error: 'Authentication required' });
+    // Reroute to the standard endpoint handler
+    request.params.id = request.params.id;
+    return fastify.inject({
+      method: 'POST',
+      url: `/subscriptions/${request.params.id}/process`,
+      headers: request.headers,
+      payload: request.body
+    });
+  });
+  
+  // POST /:id/process - Process a subscription immediately
+  fastify.post('/:id/process', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' } // Allow any string format to support both UUIDs and numeric IDs
+        }
+      },
+      response: {
+        202: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            message: { type: 'string' },
+            subscription_id: { type: 'string' }
+          }
+        }
+      }
     }
-    // ID validated by preHandler
+  }, async (request, reply) => {
+    const requestContext = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method
+    };
 
     try {
-      // Check if the subscription exists first
-      const subscriptionExists = await query(
-        'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1 AND user_id = $2) as exists',
-        [subscriptionId, userId]
-      );
-      
-      if (!subscriptionExists.rows[0].exists) {
-        return reply.code(404).send({ 
-          error: 'Subscription not found',
-          code: 'SUBSCRIPTION_NOT_FOUND'
-        });
+      if (!request.user?.id) {
+        return reply.code(401).send(errorBuilders.unauthorized(request, "No user ID available"));
       }
 
-      // Check if subscription_processing table exists
-      const tableCheckResult = await query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public'
-          AND table_name = 'subscription_processing'
-        ) as exists;
-      `);
+      const subscriptionId = request.params.id;
       
-      // If the table doesn't exist, create it
-      if (!tableCheckResult.rows[0].exists) {
-        logRequest(context, 'subscription_processing table does not exist, creating it now...', { subscriptionId });
+      // Try to verify that the subscription belongs to the user
+      let subscription;
+      try {
+        subscription = await subscriptionService.getSubscriptionById(
+          request.user.id,
+          subscriptionId,
+          requestContext
+        );
         
-        try {
-          await query(`
-            CREATE TABLE IF NOT EXISTS subscription_processing (
-              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-              subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
-              status VARCHAR(50) NOT NULL DEFAULT 'pending',
-              started_at TIMESTAMP WITH TIME ZONE,
-              completed_at TIMESTAMP WITH TIME ZONE,
-              result JSONB DEFAULT '{}'::jsonb,
-              error_message TEXT,
-              user_id UUID,
-              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-              updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-            
-            CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id 
-              ON subscription_processing(subscription_id);
-            CREATE INDEX IF NOT EXISTS idx_subscription_processing_status 
-              ON subscription_processing(status);
-          `);
-          
-          logRequest(context, 'Successfully created subscription_processing table', { subscriptionId });
-        } catch (createError) {
-          logError(context, createError, 'Error creating subscription_processing table');
-          // Continue with processing - the service will handle the missing table
+        if (!subscription) {
+          logError(requestContext, 'Subscription not found for processing', {
+            subscription_id: subscriptionId,
+            user_id: request.user.id
+          });
+          return reply.code(404).send(errorBuilders.notFound(request, "Subscription", { id: subscriptionId }));
         }
-      }
-      
-      // Call service directly
-      const subscriptionService = fastify.services?.subscriptionService;
-      if (!subscriptionService) {
-        logError(context, new Error('Subscription service not available on Fastify instance'));
-        return reply.code(500).send({ error: 'Internal server configuration error' });
-      }
-      
-      // The service method now handles DB record creation and event publishing
-      const result = await subscriptionService.processSubscription(userId, subscriptionId, context);
-      
-      // Service throws AppError on failure (e.g., not found, pubsub fail)
-      // If successful, it returns { message, processingId, subscriptionId, jobId, status }
-      return reply.code(202).send({
-          success: true, 
-          ...result 
-      });
-
-    } catch (error) {
-      logError(context, error, 'Fastify Route: Error in POST /subscriptions/:id/process', { userId, subscriptionId });
-      
-      // Special handling for missing subscription_processing table
-      if (error.message && error.message.includes('relation "subscription_processing" does not exist')) {
-        logRequest(context, 'Handling missing subscription_processing table', { subscriptionId });
+      } catch (lookupError) {
+        // Log error but continue with a basic subscription object
+        logError(requestContext, 'Error looking up subscription for processing', {
+          error: lookupError.message,
+          subscription_id: subscriptionId,
+          user_id: request.user.id
+        });
         
-        // Return a successful response using a temporary processing ID
-        return reply.code(202).send({
-          success: true,
-          message: 'Subscription processing initiated (alternative handling)',
-          processingId: `temp-${Date.now()}`,
-          subscriptionId: subscriptionId,
-          jobId: `temp-${Date.now()}`,
-          status: 'pending',
-          note: 'Processing record table is being created. Status tracking will be available for future requests.'
+        // Create a fallback subscription object
+        subscription = {
+          id: subscriptionId,
+          userId: request.user.id,
+          type: request.query.type || 'unknown',
+          prompts: request.body.prompts || [],
+          metadata: request.body.metadata || {}
+        };
+        
+        logRequest(requestContext, 'Created fallback subscription object for processing', {
+          subscription_id: subscriptionId,
+          type: subscription.type
         });
       }
+      
+      // Get subscription worker URL with fallback
+      const subscriptionWorkerUrl = process.env.SUBSCRIPTION_WORKER_URL || 'http://localhost:8080';
+      
+      // Create a processing record in the database before sending to worker
+      let processingId;
+      try {
+        const processingResult = await query(
+          `INSERT INTO subscription_processing
+           (subscription_id, status, requested_by, metadata)
+           VALUES ($1, 'pending', $2, $3)
+           RETURNING id`,
+          [
+            subscriptionId,
+            request.user.id,
+            JSON.stringify({
+              requested_at: new Date().toISOString(),
+              request_id: requestContext.requestId,
+              user_agent: request.headers['user-agent']
+            })
+          ]
+        );
+        
+        processingId = processingResult.rows[0].id;
+        logRequest(requestContext, 'Created processing record', {
+          subscription_id: subscriptionId,
+          processing_id: processingId
+        });
+      } catch (dbError) {
+        logError(requestContext, 'Failed to create processing record', {
+          error: dbError.message,
+          subscription_id: subscriptionId
+        });
+        // Continue even if we couldn't create a processing record
+      }
+      
+      // Enhanced logging for debugging
+      logRequest(requestContext, 'Processing subscription request', {
+        subscription_id: subscriptionId,
+        processing_id: processingId,
+        worker_url: subscriptionWorkerUrl,
+        env_var_set: !!process.env.SUBSCRIPTION_WORKER_URL,
+        user_id: request.user.id
+      });
+      
+      // Immediately send a 202 Accepted response to the client
+      const response = {
+        status: 'success',
+        message: 'Subscription processing request accepted',
+        subscription_id: subscriptionId,
+        processing_id: processingId
+      };
+      
+      reply.code(202).send(response);
+      
+      // Capture the context value for the setTimeout callback
+      const requestContextCopy = { ...requestContext };
+      
+      // Process the subscription asynchronously after sending the response
+      setTimeout(async () => {
+        try {
+          logRequest(requestContextCopy, 'Processing subscription asynchronously', {
+            subscription_id: subscriptionId,
+            processing_id: processingId,
+            user_id: request.user.id,
+            worker_url: subscriptionWorkerUrl
+          });
+          
+          // Prepare request payload with full subscription data
+          const payload = {
+            user_id: request.user.id,
+            subscription_id: subscriptionId,
+            processing_id: processingId,
+            metadata: subscription.metadata || {},
+            prompts: subscription.prompts || [],
+            type: subscription.type || subscription.typeName
+          };
+          
+          // Log request details before sending
+          logRequest(requestContextCopy, 'Sending request to subscription worker', {
+            url: `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
+            subscription_id: subscriptionId,
+            timestamp: new Date().toISOString()
+          });
+          
+          // List of endpoints to try in order (from most specific to most general)
+          const endpointsToTry = [
+            `${subscriptionWorkerUrl}/process-subscription/${subscriptionId}`,
+            `${subscriptionWorkerUrl}/subscriptions/process-subscription/${subscriptionId}`
+          ];
+          
+          let lastError = null;
+          let success = false;
+          
+          // Try each endpoint until one succeeds
+          for (const endpoint of endpointsToTry) {
+            if (success) break;
+            
+            try {
+              logRequest(requestContextCopy, `Trying endpoint: ${endpoint}`, {
+                subscription_id: subscriptionId,
+                processing_id: processingId
+              });
+              
+              const processingResponse = await axios.post(
+                endpoint,
+                payload,
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Request-ID': requestContextCopy.requestId,
+                    'X-Processing-ID': processingId || 'unknown'
+                  },
+                  timeout: 15000 // 15 second timeout
+                }
+              );
+              
+              logRequest(requestContextCopy, 'Subscription worker response received', {
+                endpoint,
+                status: processingResponse.status,
+                data: processingResponse.data,
+                subscription_id: subscriptionId,
+                processing_id: processingId
+              });
+              
+              // If we reach here, the request was successful
+              success = true;
+              
+              // Update processing record if we have one
+              if (processingId) {
+                try {
+                  await query(
+                    `UPDATE subscription_processing
+                     SET status = 'processing', 
+                         updated_at = NOW(),
+                         metadata = jsonb_set(metadata, '{worker_response}', $1::jsonb)
+                     WHERE id = $2`,
+                    [JSON.stringify(processingResponse.data || {}), processingId]
+                  );
+                  
+                  logRequest(requestContextCopy, 'Updated processing record', {
+                    subscription_id: subscriptionId,
+                    processing_id: processingId,
+                    status: 'processing'
+                  });
+                } catch (updateError) {
+                  logError(requestContextCopy, 'Failed to update processing record', {
+                    error: updateError.message,
+                    subscription_id: subscriptionId,
+                    processing_id: processingId
+                  });
+                }
+              }
+              
+              break; // Exit the loop on success
+            } catch (error) {
+              lastError = error;
+              logError(requestContextCopy, `Endpoint ${endpoint} failed`, {
+                error: error.message,
+                code: error.code,
+                subscription_id: subscriptionId,
+                processing_id: processingId,
+                response: error.response?.data
+              });
+              
+              // Continue to next endpoint
+            }
+          }
+          
+          // If all endpoints failed
+          if (!success && lastError) {
+            throw lastError;
+          }
+          
+        } catch (asyncError) {
+          // Log the error but don't affect the client response (already sent)
+          logError(requestContextCopy, 'Failed to process subscription asynchronously', {
+            error: asyncError.message,
+            stack: asyncError.stack,
+            subscription_id: subscriptionId,
+            processing_id: processingId
+          });
+          
+          // Update processing record to error state if we have one
+          if (processingId) {
+            try {
+              await query(
+                `UPDATE subscription_processing
+                 SET status = 'error', 
+                     updated_at = NOW(),
+                     error = $1
+                 WHERE id = $2`,
+                [asyncError.message, processingId]
+              );
+              
+              logRequest(requestContextCopy, 'Updated processing record to error state', {
+                subscription_id: subscriptionId,
+                processing_id: processingId,
+                error: asyncError.message
+              });
+            } catch (updateError) {
+              logError(requestContextCopy, 'Failed to update processing record error state', {
+                error: updateError.message,
+                subscription_id: subscriptionId,
+                processing_id: processingId
+              });
+            }
+          }
+        }
+      }, 10); // Small delay to ensure reply is sent first
+      
+    } catch (error) {
+      logError(requestContext, error);
       
       if (error instanceof AppError) {
-        if (error.code === 'NOT_FOUND') {
-          return reply.code(404).send({ status: 'error', code: error.code, message: error.message });
-        }
-        // Handle specific processing errors if needed
-        if (error.code === 'PROCESSING_ERROR') {
-          return reply.code(500).send({ status: 'error', code: error.code, message: error.message });
-        }
-        return reply.code(error.status || 500).send({ status: 'error', code: error.code, message: error.message });
+        return reply.code(error.status).send(
+          buildErrorResponse(request, {
+            code: error.code,
+            message: error.message,
+            status: error.status,
+            details: error.details || {}
+          })
+        );
       }
-      // Generic error
-      return reply.code(500).send({ status: 'error', code: 'PROCESS_REQUEST_ERROR', message: 'Failed to request subscription processing' });
+      
+      return reply.code(500).send(
+        errorBuilders.serverError(request, error)
+      );
     }
   });
-
-  // Removed the alternative /process/:id route as it's redundant
 }
-
-export default registerProcessRoutes;

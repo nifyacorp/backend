@@ -11,12 +11,7 @@ import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
-import { subscriptionService } from './core/subscription/index.js';
-import { templateService } from './core/subscription/index.js';
-import notificationService from './core/notification/notification-service.js';
-import { userService } from './core/user/user.service.js';
 import { logError } from './shared/logging/logger.js'; // Use central logger
-import { query } from './infrastructure/database/client.js';
 
 // --- Server Initialization & Setup ---
 const fastify = createServer();
@@ -25,17 +20,6 @@ async function main() {
   try {
     // Register core plugins (CORS, Swagger, Express)
     await registerPlugins(fastify);
-
-    // Decorate services onto Fastify instance BEFORE registering routes that use them
-    fastify.decorate('services', {
-      authService,
-      subscriptionService,
-      templateService,
-      notificationService,
-      userService
-      // Add other services here
-    });
-    console.log('Core services decorated onto Fastify instance.');
 
     // Register custom content type parsers
     registerParsers(fastify);
@@ -88,8 +72,9 @@ async function main() {
     // --- Database Initialization & Server Start ---
     const port = parseInt(process.env.PORT || '8080', 10);
     const host = '0.0.0.0';
+    const delayMigrations = process.env.DELAY_MIGRATIONS === 'true';
 
-    console.log('Server configuration:', { port, host, environment: process.env.NODE_ENV || 'development' });
+    console.log('Server configuration:', { port, host, environment: process.env.NODE_ENV || 'development', delayMigrations });
 
     const startServer = async () => {
       try {
@@ -105,59 +90,24 @@ async function main() {
       try {
         console.log('Initializing database connection and running migrations...');
         await initializeDatabase(); // Assumes this handles connection and migrations
-        
-        // Explicitly check for the subscription_processing table and create it if not exists
-        try {
-          console.log('Checking for subscription_processing table...');
-          const tableCheckResult = await query(`
-            SELECT EXISTS (
-              SELECT FROM information_schema.tables 
-              WHERE table_schema = 'public'
-              AND table_name = 'subscription_processing'
-            ) as exists;
-          `);
-          
-          if (!tableCheckResult.rows[0].exists) {
-            console.log('subscription_processing table does not exist, creating it now...');
-            await query(`
-              CREATE TABLE IF NOT EXISTS subscription_processing (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
-                status VARCHAR(50) NOT NULL DEFAULT 'pending',
-                started_at TIMESTAMP WITH TIME ZONE,
-                completed_at TIMESTAMP WITH TIME ZONE,
-                result JSONB DEFAULT '{}'::jsonb,
-                error_message TEXT,
-                user_id UUID,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-              );
-              
-              CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id ON subscription_processing(subscription_id);
-              CREATE INDEX IF NOT EXISTS idx_subscription_processing_status ON subscription_processing(status);
-            `);
-            console.log('Successfully created subscription_processing table.');
-          } else {
-            console.log('subscription_processing table already exists.');
-          }
-        } catch (tableErr) {
-          logError({ phase: 'TableCheck' }, tableErr, 'Failed to check/create subscription_processing table');
-          // Don't throw error, continue with startup
-        }
-        
         console.log('Database initialized successfully.');
       } catch (migrationErr) {
-        logError({ phase: 'Migrations' }, migrationErr, 'Database initialization/migration failed (STOPPING STARTUP)');
+        logError({ phase: 'Migrations' }, migrationErr, 'Database initialization/migration failed (continuing startup)');
         // Decide if server should start despite migration failure. For Cloud Run, often yes.
-        // For safety, let's prevent startup if migrations fail.
-        throw migrationErr; 
       }
     };
 
-    // Always run migrations before starting the server
-    console.log('Running database initialization before starting server.');
-    await runMigrations();
-    await startServer();
+    if (delayMigrations) {
+      console.log('DELAY_MIGRATIONS enabled: Starting server first.');
+      await startServer();
+      // Run migrations asynchronously after a short delay
+      console.log('Scheduling database initialization in the background (5 seconds delay).');
+      setTimeout(runMigrations, 5000);
+    } else {
+      console.log('Running database initialization before starting server.');
+      await runMigrations();
+      await startServer();
+    }
 
   } catch (err) {
     // Use Fastify logger for fatal startup errors if available, otherwise console
