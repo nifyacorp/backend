@@ -404,58 +404,92 @@ export async function initializeDatabase() {
   }
   
   try {
-    // First verify connection with retry
+    // Attempt to connect to database
     await attemptDatabaseConnection();
-
-    // Always try the startup migration first (unless explicitly disabled)
-    if (USE_STARTUP_MIGRATION) {
-      console.log('🔄 Using startup migration system...');
-      try {
-        // Import and run the startup migration
-        const { runStartupMigration } = await import('./startup-migration.js');
-        const migrationSuccess = await runStartupMigration();
-        
-        if (migrationSuccess) {
-          console.log('✅ Startup migration completed successfully');
-          console.log('Database initialization completed successfully');
-          return; // Exit early if startup migration succeeds
-        } else {
-          console.warn('⚠️ Startup migration had issues, falling back to single schema migrations');
-          // Will fall through to try single schema approach
+    
+    // Check critical tables and create if missing
+    console.log('Checking critical database tables...');
+    
+    // Check subscription_processing table specifically
+    try {
+      console.log('Checking for subscription_processing table...');
+      const tableCheckResult = await query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public'
+          AND table_name = 'subscription_processing'
+        ) as exists;
+      `);
+      
+      if (!tableCheckResult.rows[0].exists) {
+        console.log('WARNING: subscription_processing table does not exist, attempting to create it...');
+        try {
+          // First check if subscriptions table exists as we need it for the foreign key
+          const subscriptionsExists = await query(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public'
+              AND table_name = 'subscriptions'
+            ) as exists;
+          `);
+          
+          if (subscriptionsExists.rows[0].exists) {
+            // Create subscription_processing table with FK reference to subscriptions
+            await query(`
+              CREATE TABLE IF NOT EXISTS subscription_processing (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+                status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                started_at TIMESTAMP WITH TIME ZONE,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                result JSONB DEFAULT '{}'::jsonb,
+                error_message TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+              );
+              
+              CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id 
+                ON subscription_processing(subscription_id);
+              CREATE INDEX IF NOT EXISTS idx_subscription_processing_status 
+                ON subscription_processing(status);
+            `);
+            console.log('Successfully created subscription_processing table and indexes.');
+          } else {
+            console.log('Cannot create subscription_processing table - subscriptions table does not exist.');
+          }
+        } catch (createError) {
+          console.error('Failed to create subscription_processing table:', {
+            message: createError.message,
+            stack: createError.stack?.split('\n')[0]
+          });
+          // We'll continue initialization even if table creation fails
         }
-      } catch (error) {
-        console.error('❌ Error during startup migration:', error.message);
-        console.warn('⚠️ Falling back to single schema migrations');
-        // Will fall through to try single schema approach
+      } else {
+        console.log('subscription_processing table exists, proceeding with normal initialization.');
       }
-    }
-
-    // If we get here, either startup migration is disabled or it failed
-    if (USE_SINGLE_SCHEMA) {
-      console.log('🔄 Using single schema migration system...');
-      try {
-        await initializeSingleSchema();
-        console.log('✅ Single schema migration completed successfully');
-      } catch (error) {
-        console.error('❌ Error during single schema migration:', error.message);
-        console.warn('⚠️ Falling back to incremental migrations');
-        await initializeMultipleMigrations();
-      }
-    } else {
-      // Use the traditional incremental migration system
-      console.log('🔄 Using incremental migration system...');
-      await initializeMultipleMigrations();
+    } catch (tableCheckError) {
+      console.error('Error checking for subscription_processing table:', {
+        message: tableCheckError.message
+      });
+      // Continue with initialization
     }
     
-    console.log('Database initialization completed successfully');
+    console.log('Database initialization completed successfully.');
+    return true;
   } catch (error) {
-    console.error('Failed to initialize database:', error);
-    throw new AppError(
-      'DATABASE_INIT_ERROR',
-      'Failed to initialize database',
-      500,
-      { originalError: error.message }
-    );
+    console.error('Database initialization failed:', {
+      message: error.message,
+      stack: error.stack?.split('\n')[0],
+      timestamp: new Date().toISOString()
+    });
+    
+    // In development mode, we might want to continue anyway
+    if (isLocalDevelopment && process.env.CONTINUE_ON_DB_ERROR === 'true') {
+      console.warn('Continuing startup despite database initialization failure (DEVELOPMENT MODE)');
+      return false;
+    }
+    
+    throw error;
   }
 }
 

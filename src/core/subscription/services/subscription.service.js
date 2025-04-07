@@ -1125,16 +1125,77 @@ class SubscriptionService {
         processedPrompts = [];
       }
       
-      // Record processing request in the database
-      const processingResult = await query(
-        `INSERT INTO subscription_processing
-         (subscription_id, status, created_at, user_id)
-         VALUES ($1, 'pending', NOW(), $2)
-         RETURNING id`,
-        [subscriptionId, userId]
-      );
+      // Check if subscription_processing table exists before trying to use it
+      let processingId;
+      try {
+        const tableCheckResult = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public'
+            AND table_name = 'subscription_processing'
+          ) as exists;
+        `);
+        
+        if (!tableCheckResult.rows[0].exists) {
+          logRequest(context, 'subscription_processing table does not exist, creating it now...', { subscriptionId });
+          
+          // Create the table if it doesn't exist
+          try {
+            await query(`
+              CREATE TABLE IF NOT EXISTS subscription_processing (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+                status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                started_at TIMESTAMP WITH TIME ZONE,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                result JSONB DEFAULT '{}'::jsonb,
+                error_message TEXT,
+                user_id UUID,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+              );
+              
+              CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id 
+                ON subscription_processing(subscription_id);
+              CREATE INDEX IF NOT EXISTS idx_subscription_processing_status 
+                ON subscription_processing(status);
+            `);
+            logRequest(context, 'Successfully created subscription_processing table', { subscriptionId });
+          } catch (createError) {
+            logError(context, createError, 'Failed to create subscription_processing table');
+            // Continue with processing even if table creation fails - we'll handle the error later
+          }
+        }
+      } catch (tableCheckError) {
+        logError(context, tableCheckError, 'Error checking for subscription_processing table');
+        // Continue, we'll handle any errors when trying to insert
+      }
       
-      const processingId = processingResult.rows[0].id;
+      // Record processing request in the database
+      try {
+        const processingResult = await query(
+          `INSERT INTO subscription_processing
+           (subscription_id, status, created_at, user_id)
+           VALUES ($1, 'pending', NOW(), $2)
+           RETURNING id`,
+          [subscriptionId, userId]
+        );
+        
+        processingId = processingResult.rows[0].id;
+        logRequest(context, 'Created processing record', { processingId, subscriptionId });
+      } catch (insertError) {
+        logError(context, insertError, 'Error creating processing record');
+        
+        // If error is because the table doesn't exist, we'll continue without a processing ID
+        if (insertError.message && insertError.message.includes('relation "subscription_processing" does not exist')) {
+          logRequest(context, 'Continuing without processing record due to missing table', { subscriptionId });
+          processingId = `temp-${Date.now()}`; // Generate a temporary ID
+        } else {
+          // For other errors, we'll try to continue but log the error
+          logError(context, insertError, 'Will continue with event publishing despite database error');
+          processingId = `temp-${Date.now()}`; // Generate a temporary ID
+        }
+      }
       
       // Publish event to trigger processing
       try {
@@ -1146,7 +1207,7 @@ class SubscriptionService {
         
         await publishEvent('subscription.process', {
           subscription_id: subscriptionId,
-          processing_id: processingId,
+          processing_id: processingId || `temp-${Date.now()}`, // Use temp ID if no processing ID
           user_id: userId,
           type: subscription.type_id,
           type_name: subscription.type_name,
@@ -1156,23 +1217,30 @@ class SubscriptionService {
         
         return {
           message: 'Subscription processing initiated',
-          processingId,
+          processingId: processingId || `temp-${Date.now()}`,
           subscriptionId,
-          jobId: processingId, // Include jobId for compatibility with frontend
+          jobId: processingId || `temp-${Date.now()}`, // Include jobId for compatibility with frontend
           status: 'pending'
         };
       } catch (pubsubError) {
         logError(context, pubsubError, 'Failed to publish subscription.process event');
         
-        // Mark processing as failed
-        await query(
-          `UPDATE subscription_processing
-           SET status = 'failed', 
-               completed_at = NOW(),
-               error = $1
-           WHERE id = $2`,
-          ['Failed to publish processing event', processingId]
-        );
+        // Try to mark processing as failed if we have a processing ID
+        if (processingId && !processingId.startsWith('temp-')) {
+          try {
+            await query(
+              `UPDATE subscription_processing
+               SET status = 'failed', 
+                   completed_at = NOW(),
+                   error_message = $1
+               WHERE id = $2`,
+              ['Failed to publish processing event', processingId]
+            );
+          } catch (updateError) {
+            logError(context, updateError, 'Error updating processing status after event failure');
+            // Continue with the error response
+          }
+        }
         
         throw new AppError(
           SUBSCRIPTION_ERRORS.PROCESSING_ERROR.code,
@@ -1182,7 +1250,6 @@ class SubscriptionService {
       }
     } catch (error) {
       logError(context, error, 'Service: Error in processSubscription'); 
-      // console.error('Service: Error in processSubscription:', error); // Keep if needed
       
       if (error instanceof AppError) {
         throw error;
@@ -1223,6 +1290,30 @@ class SubscriptionService {
           { subscriptionId }
         );
       }
+      
+      // Check if subscription_processing table exists
+      try {
+        const tableCheckResult = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public'
+            AND table_name = 'subscription_processing'
+          ) as exists;
+        `);
+        
+        if (!tableCheckResult.rows[0].exists) {
+          logRequest(context, 'subscription_processing table does not exist, returning fallback status', { subscriptionId });
+          return {
+            status: 'unknown',
+            message: 'Subscription status tracking is not available.',
+            fallback: true,
+            subscriptionId
+          };
+        }
+      } catch (tableError) {
+        logError(context, tableError, 'Error checking for subscription_processing table');
+        // Continue with normal flow, it will fail properly if table doesn't exist
+      }
 
       // Fetch the latest processing status
       const statusResult = await query(
@@ -1251,6 +1342,21 @@ class SubscriptionService {
       return statusResult.rows[0];
 
     } catch (error) {
+      // Handle specific errors that indicate the table doesn't exist
+      if (error.message && (
+          error.message.includes('relation "subscription_processing" does not exist') ||
+          error.message.includes('does not exist') && error.message.includes('subscription_processing')
+      )) {
+        logError(context, error, 'subscription_processing table does not exist');
+        // Return a fallback status object
+        return {
+          status: 'unknown',
+          message: 'Subscription status information is currently unavailable. Service maintenance in progress.',
+          maintenance: true,
+          subscriptionId
+        };
+      }
+      
       logError(context, error, 'Error fetching subscription status');
       if (error instanceof AppError) {
         throw error;

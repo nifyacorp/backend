@@ -16,6 +16,7 @@ import { templateService } from './core/subscription/index.js';
 import notificationService from './core/notification/notification-service.js';
 import { userService } from './core/user/user.service.js';
 import { logError } from './shared/logging/logger.js'; // Use central logger
+import { query } from './infrastructure/database/client.js';
 
 // --- Server Initialization & Setup ---
 const fastify = createServer();
@@ -104,6 +105,45 @@ async function main() {
       try {
         console.log('Initializing database connection and running migrations...');
         await initializeDatabase(); // Assumes this handles connection and migrations
+        
+        // Explicitly check for the subscription_processing table and create it if not exists
+        try {
+          console.log('Checking for subscription_processing table...');
+          const tableCheckResult = await query(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public'
+              AND table_name = 'subscription_processing'
+            ) as exists;
+          `);
+          
+          if (!tableCheckResult.rows[0].exists) {
+            console.log('subscription_processing table does not exist, creating it now...');
+            await query(`
+              CREATE TABLE IF NOT EXISTS subscription_processing (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+                status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                started_at TIMESTAMP WITH TIME ZONE,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                result JSONB DEFAULT '{}'::jsonb,
+                error_message TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+              );
+              
+              CREATE INDEX IF NOT EXISTS idx_subscription_processing_subscription_id ON subscription_processing(subscription_id);
+              CREATE INDEX IF NOT EXISTS idx_subscription_processing_status ON subscription_processing(status);
+            `);
+            console.log('Successfully created subscription_processing table.');
+          } else {
+            console.log('subscription_processing table already exists.');
+          }
+        } catch (tableErr) {
+          logError({ phase: 'TableCheck' }, tableErr, 'Failed to check/create subscription_processing table');
+          // Don't throw error, continue with startup
+        }
+        
         console.log('Database initialized successfully.');
       } catch (migrationErr) {
         logError({ phase: 'Migrations' }, migrationErr, 'Database initialization/migration failed (STOPPING STARTUP)');

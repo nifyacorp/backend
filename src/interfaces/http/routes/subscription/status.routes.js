@@ -6,6 +6,7 @@
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { buildErrorResponse, errorBuilders } from '../../../../shared/errors/ErrorResponseBuilder.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
+import { query } from '../../../../infrastructure/database/client.js';
 // Note: Database query is likely handled in the service, not directly in route
 // import { query } from '../../../../infrastructure/database/client.js';
 // No need for Express imports
@@ -81,6 +82,42 @@ export async function registerStatusRoutes(fastify, options) {
       }
 
       try {
+        // Check if subscription_processing table exists before proceeding
+        const tableCheckResult = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public'
+            AND table_name = 'subscription_processing'
+          ) as exists;
+        `);
+        
+        // If subscription_processing table doesn't exist, return a fallback status
+        if (!tableCheckResult.rows[0].exists) {
+          logRequest(context, 'subscription_processing table does not exist, returning fallback status', { subscriptionId });
+          
+          // Check if subscription exists and belongs to the user first
+          const subscriptionExists = await query(
+            'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1 AND user_id = $2) as exists',
+            [subscriptionId, userId]
+          );
+          
+          if (!subscriptionExists.rows[0].exists) {
+            return reply.code(404).send({ 
+              error: 'Subscription not found',
+              code: 'SUBSCRIPTION_NOT_FOUND'
+            });
+          }
+          
+          // Return a placeholder status for the subscription
+          return reply.code(200).send({
+            status: 'unknown',
+            message: 'Subscription status information is unavailable',
+            fallback: true,
+            subscriptionId
+          });
+        }
+
+        // Continue with normal flow if table exists
         // Access the service from Fastify instance (assuming it's decorated)
         const subscriptionService = fastify.services?.subscriptionService;
         if (!subscriptionService) {
