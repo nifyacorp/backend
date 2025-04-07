@@ -101,26 +101,15 @@ export async function registerProcessRoutes(fastify, options) {
           return reply.code(404).send(errorBuilders.notFound(request, "Subscription", { id: subscriptionId }));
         }
       } catch (lookupError) {
-        // Log error but continue with a basic subscription object
         logError(requestContext, 'Error looking up subscription for processing', {
           error: lookupError.message,
           subscription_id: subscriptionId,
           user_id: request.user.id
         });
         
-        // Create a fallback subscription object
-        subscription = {
-          id: subscriptionId,
-          userId: request.user.id,
-          type: request.query.type || 'unknown',
-          prompts: request.body.prompts || [],
-          metadata: request.body.metadata || {}
-        };
-        
-        logRequest(requestContext, 'Created fallback subscription object for processing', {
-          subscription_id: subscriptionId,
-          type: subscription.type
-        });
+        // Return error response instead of using fallback
+        return reply.code(500).send(errorBuilders.serverError(request, 
+          new Error(`Unable to fetch subscription from database: ${lookupError.message}`)));
       }
       
       // Get subscription worker URL with fallback

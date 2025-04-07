@@ -32,7 +32,8 @@ export function registerDeleteEndpoint(fastify) {
               type: 'object',
               properties: {
                 id: { type: 'string' },
-                alreadyRemoved: { type: 'boolean' }
+                alreadyRemoved: { type: 'boolean' },
+                actuallyDeleted: { type: 'boolean' }
               }
             }
           }
@@ -86,7 +87,8 @@ export function registerDeleteEndpoint(fastify) {
         // Translate service response to API response
         logRequest(context, 'Subscription deletion completed', {
           subscription_id: subscriptionId,
-          already_removed: result.alreadyRemoved
+          already_removed: result.alreadyRemoved,
+          actually_deleted: !result.alreadyRemoved, // If not already removed, it was deleted
         });
         
         return reply.code(200).send({
@@ -96,7 +98,8 @@ export function registerDeleteEndpoint(fastify) {
             : 'Subscription deleted successfully'),
           details: {
             id: subscriptionId,
-            alreadyRemoved: result.alreadyRemoved
+            alreadyRemoved: result.alreadyRemoved,
+            actuallyDeleted: !result.alreadyRemoved // Add this flag to indicate deletion actually happened
           }
         });
       } catch (serviceError) {
@@ -128,19 +131,21 @@ export function registerDeleteEndpoint(fastify) {
                 details: {
                   id: subscriptionId,
                   alreadyRemoved: forceResult.alreadyRemoved,
+                  actuallyDeleted: !forceResult.alreadyRemoved,
                   forced: true
                 }
               });
             } catch (forceError) {
               logError(context, forceError, 'Force deletion also failed');
               
-              // Still return success for UI consistency
+              // Return success but with additional details indicating actual DB operation status
               return reply.code(200).send({
                 status: 'success',
                 message: 'Subscription removal processed',
                 details: {
                   id: subscriptionId,
                   alreadyRemoved: true,
+                  actuallyDeleted: false, // Add this flag to indicate nothing was actually deleted
                   error: forceError.message
                 }
               });
@@ -175,6 +180,7 @@ export function registerDeleteEndpoint(fastify) {
             error: serviceError.message,
             errorCode: serviceError.code || 'UNKNOWN_ERROR',
             errorDetails: serviceError.details || {},
+            actuallyDeleted: false,
             debugInfo: {
               stack,
               timestamp: new Date().toISOString()
@@ -196,7 +202,8 @@ export function registerDeleteEndpoint(fastify) {
           message: 'Subscription has been removed',
           details: { 
             id: request.params.id,
-            alreadyRemoved: true 
+            alreadyRemoved: true,
+            actuallyDeleted: false // Nothing was deleted because it wasn't found
           }
         });
       }
@@ -220,6 +227,7 @@ export function registerDeleteEndpoint(fastify) {
           error: error.message,
           errorCode: error.code || 'UNEXPECTED_ERROR',
           errorDetails: error.details || {},
+          actuallyDeleted: false,
           debugInfo: {
             stack,
             timestamp: new Date().toISOString(),

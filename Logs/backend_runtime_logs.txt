@@ -1,280 +1,282 @@
 ------------------------------------------------------
-Backend Runtime Logs - Version ID: b6bdd256-2c27-4817-ac76-bd176b5f8c88
-Collected on: 07/04/2025 23:59:26,14
+Backend Runtime Logs - Version ID: 2acc3f59-0052-42df-87b0-1e91825f50a9
+Collected on: 08/04/2025  0:40:17,54
 ------------------------------------------------------
 
 }
-  timestamp: '2025-04-07T21:59:10.286Z'
-  path: undefined,
-  requestId: undefined,
-  unread: 0,
-  total: 0,
-  count: 0,
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Returning notifications: {
+  timestamp: '2025-04-07T22:39:45.086Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+  error: 'Request failed with status code 404',
+    '    at async Timeout._onTimeout (file:///usr/src/app/src/interfaces/http/routes/subscription/process.routes.js:229:42)',
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at Axios.request (file:///usr/src/app/node_modules/axios/lib/core/Axios.js:45:41)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)\n' +
+    '    at endReadableNT (node:internal/streams/readable:1698:12)\n' +
+    '    at IncomingMessage.emit (node:events:536:35)\n' +
+    '    at IncomingMessage.handleStreamEnd (file:///usr/src/app/node_modules/axios/lib/adapters/http.js:599:11)\n' +
+    '    at settle (file:///usr/src/app/node_modules/axios/lib/core/settle.js:19:12)\n' +
+  stack: 'AxiosError: Request failed with status code 404\n' +
+  message: undefined,
+  code: undefined,
+? Error: {
 }
-  timestamp: '2025-04-07T21:59:10.286Z'
-  path: undefined,
-  requestId: undefined,
-  sample: 'No notifications',
-  formattedCount: 0,
-  originalCount: 0,
-?? Formatted notifications: {
+  timestamp: '2025-04-07T22:39:44.985Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  },
+    }
+      '/api/boe/process': 'Process BOE-specific subscription'
+      '/api/subscriptions/batch/process': 'Process subscriptions in batch',
+      '/api/subscriptions/pending': 'List pending subscriptions',
+      '/api/subscriptions/process/:id': 'Process a subscription',
+      '/health': 'Health check endpoint',
+      '/api': 'API documentation',
+    available_endpoints: {
+    message: 'The requested endpoint POST /api/subscriptions/process-subscription/dedf65f7-4123-47bd-bd9f-03ada4483b9d does not exist',
+    error: 'Not Found',
+    status: 'error',
+  response: {
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+  error: 'Request failed with status code 404',
+  stack: undefined,
+  message: undefined,
+  code: 'ERR_BAD_REQUEST',
+? Error: {
 }
-  timestamp: '2025-04-07T21:59:10.286Z'
-  path: undefined,
-  requestId: undefined,
-  unreadCount: 0,
-  totalCount: 0,
-  count: 0,
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Successfully retrieved notifications: {
-Database connection released { timestamp: '2025-04-07T21:59:10.285Z' }
+  timestamp: '2025-04-07T22:39:43.485Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+? Trying endpoint: https://subscription-worker-415554190254.us-central1.run.app/subscriptions/process-subscription/dedf65f7-4123-47bd-bd9f-03ada4483b9d: {
 }
-  timestamp: '2025-04-07T21:59:10.285Z'
-  rowCount: 1,
+  timestamp: '2025-04-07T22:39:43.386Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  },
+    }
+      '/api/boe/process': 'Process BOE-specific subscription'
+      '/api/subscriptions/batch/process': 'Process subscriptions in batch',
+      '/api/subscriptions/pending': 'List pending subscriptions',
+      '/api/subscriptions/process/:id': 'Process a subscription',
+      '/health': 'Health check endpoint',
+      '/api': 'API documentation',
+    available_endpoints: {
+    message: 'The requested endpoint POST /api/process-subscription/dedf65f7-4123-47bd-bd9f-03ada4483b9d does not exist',
+    error: 'Not Found',
+    status: 'error',
+  response: {
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+  error: 'Request failed with status code 404',
+  stack: undefined,
+  message: undefined,
+  code: 'ERR_BAD_REQUEST',
+? Error: {
+}
+  timestamp: '2025-04-07T22:39:39.549Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+? Trying endpoint: https://subscription-worker-415554190254.us-central1.run.app/process-subscription/dedf65f7-4123-47bd-bd9f-03ada4483b9d: {
+}
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process'
+  requestId: 'req-2',
+  timestamp: '2025-04-07T22:39:39.549Z',
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+  url: 'https://subscription-worker-415554190254.us-central1.run.app/process-subscription/dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+? Sending request to subscription worker: {
+}
+  timestamp: '2025-04-07T22:39:39.549Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  worker_url: 'https://subscription-worker-415554190254.us-central1.run.app',
+  user_id: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+? Processing subscription asynchronously: {
+}
+  timestamp: '2025-04-07T22:39:39.537Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  user_id: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  env_var_set: true,
+  worker_url: 'https://subscription-worker-415554190254.us-central1.run.app',
+  processing_id: undefined,
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+? Processing subscription request: {
+}
+  timestamp: '2025-04-07T22:39:39.536Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  subscription_id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+  error: 'Database operation failed: column "requested_by" of relation "subscription_processing" does not exist',
+  stack: undefined,
+  message: undefined,
+  code: undefined,
+? Error: {
+Database connection released { timestamp: '2025-04-07T22:39:39.536Z' }
+}
+  timestamp: '2025-04-07T22:39:39.536Z'
   duration: '2ms',
-    '     AND n.rea...',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Query executed successfully: {
+  params: '3 parameters',
+    '           RETURNING id',
+    "           VALUES ($1, 'pending', $2, $3)\n" +
+    '           (subscription_id, status, requested_by, metadata)\n' +
+  query: 'INSERT INTO subscription_processing\n' +
+  position: '74',
+  hint: undefined,
+  detail: undefined,
+  code: '42703',
+  error: 'column "requested_by" of relation "subscription_processing" does not exist',
+Database query error: {
 }
-  timestamp: '2025-04-07T21:59:10.283Z'
-  paramCount: 1,
-    '     AND n.rea...',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:59:10.283Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
-    '     AND n.read = false',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  query: '\n' +
-Executing notification count query: {
-Database connection released { timestamp: '2025-04-07T21:59:10.283Z' }
-}
-  timestamp: '2025-04-07T21:59:10.283Z'
-  rowCount: 1,
-  duration: '3ms',
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:59:10.280Z'
-  paramCount: 0,
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:59:10.280Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-Set RLS context successfully: {
-Database connection released { timestamp: '2025-04-07T21:59:10.280Z' }
-}
-  timestamp: '2025-04-07T21:59:10.280Z'
-  rowCount: null,
-  duration: '4ms',
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:59:10.276Z'
-  paramCount: 0,
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Database connection obtained for query: {
-Database connection released { timestamp: '2025-04-07T21:59:10.276Z' }
-}
-  timestamp: '2025-04-07T21:59:10.276Z'
-  rowCount: 1,
-  duration: '2ms',
-    '    ',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:59:10.274Z'
-  paramCount: 1,
-    '    ',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:59:10.274Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
-    '    ',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  query: '\n' +
-Executing notification count query: {
-Database connection released { timestamp: '2025-04-07T21:59:10.274Z' }
-}
-  timestamp: '2025-04-07T21:59:10.274Z'
-  rowCount: 1,
-  duration: '3ms',
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:59:10.271Z'
-  paramCount: 0,
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:59:10.271Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-Set RLS context successfully: {
-Database connection released { timestamp: '2025-04-07T21:59:10.271Z' }
-}
-  timestamp: '2025-04-07T21:59:10.271Z'
-  rowCount: null,
-  duration: '1ms',
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:59:10.270Z'
-  paramCount: 0,
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Database connection obtained for query: {
-----NOTIFICATION SERVICE DEBUGGING END----
-Converting notification fields to match frontend expectations
-Preparing to return 0 notifications to client
-----NOTIFICATION SERVICE DEBUGGING START----
-----NOTIFICATION DEBUGGING END----
-Retrieved 0 notifications from database
-----NOTIFICATION DEBUGGING START----
-Query result summary: { rowCount: 0, timestamp: '2025-04-07T21:59:10.270Z' }
-Database connection released { timestamp: '2025-04-07T21:59:10.269Z' }
-}
-  timestamp: '2025-04-07T21:59:10.269Z'
-  rowCount: 0,
-  duration: '3ms',
-    '             n.source_url as ...',
-    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:59:10.266Z'
+  timestamp: '2025-04-07T22:39:39.534Z'
   paramCount: 3,
-    '             n.source_url as ...',
-    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
-  text: '\n' +
+    '   ...',
+    '           (subscription_id, status, requested_by, metadata)\n' +
+  text: 'INSERT INTO subscription_processing\n' +
 Database connection obtained for query: {
 }
-  timestamp: '2025-04-07T21:59:10.266Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9', 1, 0 ],
-    '     ORDER BY n.created_at DESC LIMIT $2 OFFSET $3',
-    '      WHERE n.user_id = $1\n' +
-    '      LEFT JOIN subscriptions s ON n.subscription_id = s.id\n' +
-    '      FROM notifications n\n' +
-    '             s.name as subscription_name\n' +
-    '             n.created_at as "createdAt", n.read_at as "readAt",\n' +
-    '             n.source_url as "sourceUrl", n.read, n.metadata,\n' +
-    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
-  query: '\n' +
-Executing notification query: {
-Database connection released { timestamp: '2025-04-07T21:59:10.266Z' }
+  name: 'Test BOE Subscription 2025-04-04T12:46:01.013Z'
+  id: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
+Found subscription in data repository: {
+Database connection released { timestamp: '2025-04-07T22:39:39.534Z' }
 }
-  timestamp: '2025-04-07T21:59:10.266Z'
+  timestamp: '2025-04-07T22:39:39.533Z'
   rowCount: 1,
-  duration: '5ms',
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
+  duration: '4ms',
+    '            s...',
+    '            s.description, \n' +
+    '            s.name, \n' +
+    '            s.id, \n' +
+    '          SELECT \n' +
   text: '\n' +
 Query executed successfully: {
 }
-  timestamp: '2025-04-07T21:59:10.261Z'
-  paramCount: 0,
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
+  timestamp: '2025-04-07T22:39:39.529Z'
+  paramCount: 2,
+    '            s...',
+    '            s.description, \n' +
+    '            s.name, \n' +
+    '            s.id, \n' +
+    '          SELECT \n' +
   text: '\n' +
 Database connection obtained for query: {
 }
-  timestamp: '2025-04-07T21:59:10.261Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-Set RLS context successfully: {
-Database connection released { timestamp: '2025-04-07T21:59:10.261Z' }
+  timestamp: '2025-04-07T22:39:39.529Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+    '    at async Object.<anonymous> (file:///usr/src/app/src/interfaces/http/routes/subscription/process.routes.js:90:24)',
+    '    at async SubscriptionService.getSubscriptionById (file:///usr/src/app/src/core/subscription/services/subscription.service.js:123:24)\n' +
+    '    at async SubscriptionRepository.getSubscriptionById (file:///usr/src/app/src/core/subscription/services/subscription.repository.js:446:22)\n' +
+Trying data repository as fallback for subscription: dedf65f7-4123-47bd-bd9f-03ada4483b9d
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at query (file:///usr/src/app/src/infrastructure/database/client.js:341:11)\n' +
+  stack: 'Error: Database operation failed: column s.logo does not exist\n' +
+  message: 'Database operation failed: column s.logo does not exist',
+  code: 'DATABASE_ERROR',
+? Error: {
 }
-  timestamp: '2025-04-07T21:59:10.261Z'
-  rowCount: null,
-  duration: '2ms',
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+  timestamp: '2025-04-07T22:39:39.528Z'
+  },
+    detail: undefined
+    code: '42703',
+    originalError: 'column s.logo does not exist',
+  details: {
+  status: 500,
+  code: 'DATABASE_ERROR',
+    at async Object.<anonymous> (file:///usr/src/app/src/interfaces/http/routes/subscription/process.routes.js:90:24) {
+    at async SubscriptionService.getSubscriptionById (file:///usr/src/app/src/core/subscription/services/subscription.service.js:123:24)
+    at async SubscriptionRepository.getSubscriptionById (file:///usr/src/app/src/core/subscription/services/subscription.repository.js:446:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at query (file:///usr/src/app/src/infrastructure/database/client.js:341:11)
+Repository: Error in getSubscriptionById: AppError: Database operation failed: column s.logo does not exist
+Database connection released { timestamp: '2025-04-07T22:39:39.528Z' }
+}
+  timestamp: '2025-04-07T22:39:39.527Z'
+  duration: '4ms',
+  params: '2 parameters',
+    '          s.settin...',
+    '          s.active,\n' +
+    '          s.frequency,\n' +
+    '          s.logo,\n' +
+    '          s.prompts,\n' +
+    '          s.description,\n' +
+    '          s.name,\n' +
+    '          s.type_id as "typeId",\n' +
+    '          s.id,\n' +
+  query: 'SELECT \n' +
+  position: '132',
+  hint: undefined,
+  detail: undefined,
+  code: '42703',
+  error: 'column s.logo does not exist',
+Database query error: {
+}
+  timestamp: '2025-04-07T22:39:39.523Z'
+  paramCount: 2,
+    '...',
+    '          s.description,\n' +
+    '          s.name,\n' +
+    '          s.type_id as "typeId",\n' +
+    '          s.id,\n' +
+  text: 'SELECT \n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T22:39:39.523Z' }
+}
+  timestamp: '2025-04-07T22:39:39.523Z'
+  rowCount: 1,
+  duration: '3ms',
+    ' ...',
+    '            WHERE id = $1 AND user_id = $2\n' +
+    '            SELECT 1 FROM subscriptions \n' +
+  text: 'SELECT EXISTS(\n' +
 Query executed successfully: {
 }
-  timestamp: '2025-04-07T21:59:10.259Z'
-  paramCount: 0,
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+  timestamp: '2025-04-07T22:39:39.520Z'
+  paramCount: 2,
+    ' ...',
+    '            WHERE id = $1 AND user_id = $2\n' +
+    '            SELECT 1 FROM subscriptions \n' +
+  text: 'SELECT EXISTS(\n' +
 Database connection obtained for query: {
 }
-  path: undefined
-  requestId: undefined,
-  timestamp: '2025-04-07T21:59:10.259Z',
-  entityType: undefined,
-  options: { limit: 1, offset: 0, unreadOnly: false, subscriptionId: null },
+  subscriptionId: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d'
   userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Fetching user notifications: {
+Repository: getSubscriptionById called with: {
 }
-  timestamp: '2025-04-07T21:59:10.259Z'
-  path: undefined,
-  requestId: undefined,
-  subscriptionId: null,
-  unreadOnly: false,
-  offset: 0,
-  page: 1,
-  limit: 1,
+  timestamp: '2025-04-07T22:39:39.520Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  subscriptionId: 'dedf65f7-4123-47bd-bd9f-03ada4483b9d',
   userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Parsed query parameters: {
+? Fetching subscription by ID: {
+Database connection released { timestamp: '2025-04-07T22:39:39.519Z' }
 }
-  timestamp: '2025-04-07T21:59:10.259Z'
-  requestId: undefined,
-  path: undefined,
-  query: { page: 1, limit: 1, unread: true },
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Processing notification request: {
-Database connection released { timestamp: '2025-04-07T21:59:10.258Z' }
-}
-  timestamp: '2025-04-07T21:59:10.258Z'
+  timestamp: '2025-04-07T22:39:39.519Z'
   rowCount: 1,
-  duration: '24ms',
+  duration: '32ms',
   text: 'SELECT id FROM users WHERE id = $1',
 Query executed successfully: {
 }
-  timestamp: '2025-04-07T21:59:10.255Z'
+  timestamp: '2025-04-07T22:39:39.514Z'
   paramCount: 1,
   text: 'SELECT id FROM users WHERE id = $1',
 Database connection obtained for query: {
 }
-  timestamp: '2025-04-07T21:59:10.232Z'
+  timestamp: '2025-04-07T22:39:39.483Z'
   signatureLength: 43,
   payloadLength: 214,
   headerLength: 36,
 ? Token parts: {
 }
-  timestamp: '2025-04-07T21:59:10.232Z'
+  timestamp: '2025-04-07T22:39:39.482Z'
   issuer: undefined,
   payloadClaims: [ 'sub', 'email', 'name', 'email_verified', 'type', 'iat', 'exp' ],
   tokenType: 'access',
@@ -283,7 +285,7 @@ Database connection obtained for query: {
   hasHeader: true,
 ? Token structure: {
 }
-  timestamp: '2025-04-07T21:59:10.232Z'
+  timestamp: '2025-04-07T22:39:39.482Z'
   isRefreshToken: false,
   secretLastChar: 'd',
   secretFirstChar: 'x',
@@ -292,214 +294,212 @@ Database connection obtained for query: {
   tokenFormat: 'eyJhbGciOiJIUzI1NiIs...',
   hasToken: true,
 ? Verifying JWT access token... {
+Processed subscription body (compat parser): { name: '', type: undefined, promptsCount: 0 }
 }
-  timestamp: '2025-04-07T21:59:10.231Z'
-  userId: undefined,
-  },
-    unread: 'true'
-    limit: '1',
-    page: '1',
-  query: Empty <[Object: null prototype] {}> {
-  path: '/api/v1/notifications?page=1&limit=1&unread=true',
-Notification request received: {
+  timestamp: '2025-04-07T22:39:39.480Z'
+  path: '/api/v1/subscriptions/dedf65f7-4123-47bd-bd9f-03ada4483b9d/process',
+  requestId: 'req-2',
+  bodyEmpty: false,
+  bodyLength: 2,
+  contentType: 'application/json',
+? Parsing JSON body: {
+Default STARTUP TCP probe succeeded after 1 attempt for container "placeholder-1" on port 8080.
+Server listening on 8080
+Database initialized successfully.
+Database initialization completed successfully
+? Startup migration completed successfully
+? Database schema is up to date
 }
-  timestamp: '2025-04-07T21:58:53.778Z'
-  path: undefined,
-  requestId: undefined,
-  unread: 0,
-  total: 0,
-  count: 0,
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Returning notifications: {
+  timestamp: '2025-04-07T22:38:30.743Z'
+  path: 'startup-migration',
+  requestId: 'migration-1744065510727',
+? Schema version 20250402000100 already applied, skipping migration: {
+Database connection released { timestamp: '2025-04-07T22:38:30.742Z' }
 }
-  timestamp: '2025-04-07T21:58:53.778Z'
-  path: undefined,
-  requestId: undefined,
-  sample: 'No notifications',
-  formattedCount: 0,
-  originalCount: 0,
-?? Formatted notifications: {
-}
-  timestamp: '2025-04-07T21:58:53.778Z'
-  path: undefined,
-  requestId: undefined,
-  unreadCount: 0,
-  totalCount: 0,
-  count: 0,
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-?? Successfully retrieved notifications: {
-Database connection released { timestamp: '2025-04-07T21:58:53.778Z' }
-}
-  timestamp: '2025-04-07T21:58:53.778Z'
-  rowCount: 1,
-  duration: '2ms',
-    '     AND n.rea...',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:58:53.776Z'
-  paramCount: 1,
-    '     AND n.rea...',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:58:53.776Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
-    '     AND n.read = false',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  query: '\n' +
-Executing notification count query: {
-Database connection released { timestamp: '2025-04-07T21:58:53.776Z' }
-}
-  timestamp: '2025-04-07T21:58:53.776Z'
+  timestamp: '2025-04-07T22:38:30.742Z'
   rowCount: 1,
   duration: '3ms',
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
+  text: 'SELECT version FROM schema_version WHERE version = $1',
 Query executed successfully: {
 }
-  timestamp: '2025-04-07T21:58:53.773Z'
-  paramCount: 0,
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:58:53.773Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-Set RLS context successfully: {
-Database connection released { timestamp: '2025-04-07T21:58:53.773Z' }
-}
-  timestamp: '2025-04-07T21:58:53.773Z'
-  rowCount: null,
-  duration: '3ms',
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:58:53.770Z'
-  paramCount: 0,
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Database connection obtained for query: {
-Database connection released { timestamp: '2025-04-07T21:58:53.770Z' }
-}
-  timestamp: '2025-04-07T21:58:53.770Z'
-  rowCount: 1,
-  duration: '2ms',
-    '    ',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:58:53.768Z'
+  timestamp: '2025-04-07T22:38:30.739Z'
   paramCount: 1,
-    '    ',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  text: '\n' +
+  text: 'SELECT version FROM schema_version WHERE version = $1',
 Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T22:38:30.739Z' }
 }
-  timestamp: '2025-04-07T21:58:53.768Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
-    '    ',
-    '      WHERE n.user_id = $1\n' +
-    '      FROM notifications n\n' +
-    '      SELECT COUNT(*) as count\n' +
-  query: '\n' +
-Executing notification count query: {
-Database connection released { timestamp: '2025-04-07T21:58:53.768Z' }
-}
-  timestamp: '2025-04-07T21:58:53.767Z'
+  timestamp: '2025-04-07T22:38:30.739Z'
   rowCount: 1,
-  duration: '2ms',
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:58:53.765Z'
-  paramCount: 0,
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
-  text: '\n' +
-Database connection obtained for query: {
-}
-  timestamp: '2025-04-07T21:58:53.765Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-Set RLS context successfully: {
-Database connection released { timestamp: '2025-04-07T21:58:53.765Z' }
-}
-  timestamp: '2025-04-07T21:58:53.765Z'
-  rowCount: null,
-  duration: '2ms',
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T21:58:53.763Z'
-  paramCount: 0,
-  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
-Database connection obtained for query: {
-----NOTIFICATION SERVICE DEBUGGING END----
-Converting notification fields to match frontend expectations
-Preparing to return 0 notifications to client
-----NOTIFICATION SERVICE DEBUGGING START----
-----NOTIFICATION DEBUGGING END----
-Retrieved 0 notifications from database
-----NOTIFICATION DEBUGGING START----
-Query result summary: { rowCount: 0, timestamp: '2025-04-07T21:58:53.762Z' }
-Database connection released { timestamp: '2025-04-07T21:58:53.762Z' }
-}
-  timestamp: '2025-04-07T21:58:53.762Z'
-  rowCount: 0,
   duration: '4ms',
-    '             n.source_url as ...',
-    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
   text: '\n' +
 Query executed successfully: {
 }
-  timestamp: '2025-04-07T21:58:53.758Z'
-  paramCount: 3,
-    '             n.source_url as ...',
-    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  timestamp: '2025-04-07T22:38:30.736Z'
+  paramCount: 1,
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T22:38:30.735Z' }
+}
+  timestamp: '2025-04-07T22:38:30.735Z'
+  rowCount: 1,
+  duration: '8ms',
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T22:38:30.728Z'
+  paramCount: 1,
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
   text: '\n' +
 Database connection obtained for query: {
 }
-  timestamp: '2025-04-07T21:58:53.758Z'
-  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
-  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9', 1, 0 ],
-    '     ORDER BY n.created_at DESC LIMIT $2 OFFSET $3',
-    '      WHERE n.user_id = $1\n' +
-    '      LEFT JOIN subscriptions s ON n.subscription_id = s.id\n' +
-    '      FROM notifications n\n' +
-    '             s.name as subscription_name\n' +
-    '             n.created_at as "createdAt", n.read_at as "readAt",\n' +
-    '             n.source_url as "sourceUrl", n.read, n.metadata,\n' +
-    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
-  query: '\n' +
-Executing notification query: {
-Database connection released { timestamp: '2025-04-07T21:58:53.758Z' }
+  timestamp: '2025-04-07T22:38:30.727Z'
+  path: 'startup-migration',
+  requestId: 'migration-1744065510727',
+? Starting database schema migration: {
+Checking database schema and applying migrations if needed...
+? Using startup migration system...
 }
-  timestamp: '2025-04-07T21:58:53.757Z'
+  timestamp: '2025-04-07T22:38:30.722Z'
+  poolSize: 1,
+  database: 'nifya',
+Database connection verified: {
+Database connection released { timestamp: '2025-04-07T22:38:30.721Z' }
+}
+  timestamp: '2025-04-07T22:38:30.721Z'
+  rowCount: 1,
+  duration: '331ms',
+  text: 'SELECT current_database() as db_name',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T22:38:30.716Z'
+  paramCount: 0,
+  text: 'SELECT current_database() as db_name',
+Database connection obtained for query: {
+Database connection attempt 1/5...
+Initializing database connection and running migrations...
+Running database initialization before starting server.
+}
+  delayMigrations: false
+  environment: 'production',
+  host: '0.0.0.0',
+  port: 8080,
+Server configuration: {
+Auth service initialized successfully
+}
+  timestamp: '2025-04-07T22:38:30.389Z'
+  hasRefreshSecret: true,
+  accessSecretLength: 32,
+? JWT secrets loaded successfully from Secret Manager {
+}
+  error: '5 NOT_FOUND: Secret [projects/415554190254/secrets/JWT_REFRESH_SECRET] not found or has no versions.'
+?? JWT refresh secret not found, using access token secret instead {
+? Fetching JWT secrets from Secret Manager...
+Initializing auth service...
+Authenticated v1 routes (users, subscriptions, notifications) registered.
+Public v1 routes (templates) registered.
+Compatibility routes (e.g., /api/v1/me) registered.
+Legacy subscription redirects registered.
+Legacy /api/auth routes registered.
+Diagnostics routes registered.
+Core routes (/health, /version) registered.
+Custom content type parsers registered.
+Additional API documentation pages setup.
+@fastify/express plugin registered.
+Swagger UI plugin registered.
+Server listening on 8080
+Default STARTUP TCP probe succeeded after 1 attempt for container "placeholder-1" on port 8080.
+Swagger plugin registered.
+CORS plugin registered.
+Fastify instance created.
+Database initialized successfully.
+Database initialization completed successfully
+? Startup migration completed successfully
+? Database schema is up to date
+}
+  timestamp: '2025-04-07T22:38:29.633Z'
+  path: 'startup-migration',
+  requestId: 'migration-1744065509612',
+? Schema version 20250402000100 already applied, skipping migration: {
+Database connection released { timestamp: '2025-04-07T22:38:29.633Z' }
+}
+  timestamp: '2025-04-07T22:38:29.632Z'
   rowCount: 1,
   duration: '6ms',
-    '          WHERE table_sche...',
-    '          SELECT FROM information_schema.tables \n' +
-    '        SELECT EXISTS (\n' +
+  text: 'SELECT version FROM schema_version WHERE version = $1',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T22:38:29.626Z'
+  paramCount: 1,
+  text: 'SELECT version FROM schema_version WHERE version = $1',
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T22:38:29.626Z' }
+}
+  timestamp: '2025-04-07T22:38:29.625Z'
+  rowCount: 1,
+  duration: '4ms',
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
   text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T22:38:29.621Z'
+  paramCount: 1,
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T22:38:29.621Z' }
+}
+  timestamp: '2025-04-07T22:38:29.621Z'
+  rowCount: 1,
+  duration: '9ms',
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T22:38:29.612Z'
+  paramCount: 1,
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T22:38:29.612Z'
+  path: 'startup-migration',
+  requestId: 'migration-1744065509612',
+? Starting database schema migration: {
+Checking database schema and applying migrations if needed...
+? Using startup migration system...
+}
+  timestamp: '2025-04-07T22:38:29.605Z'
+  poolSize: 1,
+  database: 'nifya',
+Database connection verified: {
+Database connection released { timestamp: '2025-04-07T22:38:29.604Z' }
+}
+  timestamp: '2025-04-07T22:38:29.604Z'
+  rowCount: 1,
+  duration: '341ms',
+  text: 'SELECT current_database() as db_name',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T22:38:29.599Z'
+  paramCount: 0,
+  text: 'SELECT current_database() as db_name',
+Database connection obtained for query: {
