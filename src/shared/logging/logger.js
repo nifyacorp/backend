@@ -1,3 +1,5 @@
+import { createGithubIssue } from '../github/issue-creator.js';
+
 export function logRequest(context, message, data = {}) {
   console.log(`📝 ${message}:`, {
     ...data,
@@ -27,6 +29,24 @@ export function logError(context, error, additionalData = {}) {
       requestId: context.requestId,
       path: context.path,
       timestamp: new Date().toISOString()
+    });
+  }
+
+  // GitHub Issue Creation (non-blocking)
+  if (process.env.ENABLE_GITHUB_ISSUE_REPORTING === 'true') {
+    const combinedContext = {
+      ...(context || {}),
+      ...(additionalData || {}),
+    };
+    // Use setImmediate or similar to avoid blocking the current execution thread
+    setImmediate(() => {
+        try {
+            // Ensure we pass a proper Error object
+            const errorToReport = (error instanceof Error) ? error : new Error(JSON.stringify(error || 'Unknown Error'));
+            createGithubIssue(errorToReport, combinedContext);
+        } catch (githubErr) {
+            console.error('Error invoking createGithubIssue:', githubErr);
+        }
     });
   }
 }
