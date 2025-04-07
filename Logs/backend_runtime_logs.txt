@@ -1,55 +1,505 @@
 ------------------------------------------------------
-Backend Runtime Logs - Version ID: 4f886062-fbc4-43c2-b635-b0252e7aee5e
-Collected on: 07/04/2025 23:52:56,23
+Backend Runtime Logs - Version ID: b6bdd256-2c27-4817-ac76-bd176b5f8c88
+Collected on: 07/04/2025 23:59:26,14
 ------------------------------------------------------
 
-Default STARTUP TCP probe succeeded after 1 attempt for container "placeholder-1" on port 8080.
-Server listening on 8080
-Database initialized successfully.
-Database initialization completed successfully
-? Startup migration completed successfully
-? Database schema is up to date
 }
-  timestamp: '2025-04-07T19:58:18.330Z'
-  path: 'startup-migration',
-  requestId: 'migration-1744055898316',
-? Schema version 20250402000100 already applied, skipping migration: {
-Database connection released { timestamp: '2025-04-07T19:58:18.330Z' }
+  timestamp: '2025-04-07T21:59:10.286Z'
+  path: undefined,
+  requestId: undefined,
+  unread: 0,
+  total: 0,
+  count: 0,
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Returning notifications: {
 }
-  timestamp: '2025-04-07T19:58:18.330Z'
+  timestamp: '2025-04-07T21:59:10.286Z'
+  path: undefined,
+  requestId: undefined,
+  sample: 'No notifications',
+  formattedCount: 0,
+  originalCount: 0,
+?? Formatted notifications: {
+}
+  timestamp: '2025-04-07T21:59:10.286Z'
+  path: undefined,
+  requestId: undefined,
+  unreadCount: 0,
+  totalCount: 0,
+  count: 0,
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Successfully retrieved notifications: {
+Database connection released { timestamp: '2025-04-07T21:59:10.285Z' }
+}
+  timestamp: '2025-04-07T21:59:10.285Z'
   rowCount: 1,
-  duration: '3ms',
-  text: 'SELECT version FROM schema_version WHERE version = $1',
-Query executed successfully: {
-}
-  timestamp: '2025-04-07T19:58:18.327Z'
-  paramCount: 1,
-  text: 'SELECT version FROM schema_version WHERE version = $1',
-Database connection obtained for query: {
-Database connection released { timestamp: '2025-04-07T19:58:18.327Z' }
-}
-  timestamp: '2025-04-07T19:58:18.327Z'
-  rowCount: 1,
-  duration: '3ms',
-    "        WHERE table_schema = '...",
-    '        SELECT FROM information_schema.tables \n' +
-    '      SELECT EXISTS (\n' +
+  duration: '2ms',
+    '     AND n.rea...',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
   text: '\n' +
 Query executed successfully: {
 }
-  timestamp: '2025-04-07T19:58:18.324Z'
+  timestamp: '2025-04-07T21:59:10.283Z'
   paramCount: 1,
-    "        WHERE table_schema = '...",
-    '        SELECT FROM information_schema.tables \n' +
-    '      SELECT EXISTS (\n' +
+    '     AND n.rea...',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
   text: '\n' +
 Database connection obtained for query: {
-Database connection released { timestamp: '2025-04-07T19:58:18.324Z' }
 }
-  timestamp: '2025-04-07T19:58:18.323Z'
+  timestamp: '2025-04-07T21:59:10.283Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
+    '     AND n.read = false',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  query: '\n' +
+Executing notification count query: {
+Database connection released { timestamp: '2025-04-07T21:59:10.283Z' }
+}
+  timestamp: '2025-04-07T21:59:10.283Z'
   rowCount: 1,
-  duration: '7ms',
-    "        WHERE table_schema = '...",
-    '        SELECT FROM information_schema.tables \n' +
-    '      SELECT EXISTS (\n' +
+  duration: '3ms',
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.280Z'
+  paramCount: 0,
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:59:10.280Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Set RLS context successfully: {
+Database connection released { timestamp: '2025-04-07T21:59:10.280Z' }
+}
+  timestamp: '2025-04-07T21:59:10.280Z'
+  rowCount: null,
+  duration: '4ms',
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.276Z'
+  paramCount: 0,
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T21:59:10.276Z' }
+}
+  timestamp: '2025-04-07T21:59:10.276Z'
+  rowCount: 1,
+  duration: '2ms',
+    '    ',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.274Z'
+  paramCount: 1,
+    '    ',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:59:10.274Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
+    '    ',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  query: '\n' +
+Executing notification count query: {
+Database connection released { timestamp: '2025-04-07T21:59:10.274Z' }
+}
+  timestamp: '2025-04-07T21:59:10.274Z'
+  rowCount: 1,
+  duration: '3ms',
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.271Z'
+  paramCount: 0,
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:59:10.271Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Set RLS context successfully: {
+Database connection released { timestamp: '2025-04-07T21:59:10.271Z' }
+}
+  timestamp: '2025-04-07T21:59:10.271Z'
+  rowCount: null,
+  duration: '1ms',
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.270Z'
+  paramCount: 0,
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Database connection obtained for query: {
+----NOTIFICATION SERVICE DEBUGGING END----
+Converting notification fields to match frontend expectations
+Preparing to return 0 notifications to client
+----NOTIFICATION SERVICE DEBUGGING START----
+----NOTIFICATION DEBUGGING END----
+Retrieved 0 notifications from database
+----NOTIFICATION DEBUGGING START----
+Query result summary: { rowCount: 0, timestamp: '2025-04-07T21:59:10.270Z' }
+Database connection released { timestamp: '2025-04-07T21:59:10.269Z' }
+}
+  timestamp: '2025-04-07T21:59:10.269Z'
+  rowCount: 0,
+  duration: '3ms',
+    '             n.source_url as ...',
+    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.266Z'
+  paramCount: 3,
+    '             n.source_url as ...',
+    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:59:10.266Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9', 1, 0 ],
+    '     ORDER BY n.created_at DESC LIMIT $2 OFFSET $3',
+    '      WHERE n.user_id = $1\n' +
+    '      LEFT JOIN subscriptions s ON n.subscription_id = s.id\n' +
+    '      FROM notifications n\n' +
+    '             s.name as subscription_name\n' +
+    '             n.created_at as "createdAt", n.read_at as "readAt",\n' +
+    '             n.source_url as "sourceUrl", n.read, n.metadata,\n' +
+    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  query: '\n' +
+Executing notification query: {
+Database connection released { timestamp: '2025-04-07T21:59:10.266Z' }
+}
+  timestamp: '2025-04-07T21:59:10.266Z'
+  rowCount: 1,
+  duration: '5ms',
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.261Z'
+  paramCount: 0,
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:59:10.261Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Set RLS context successfully: {
+Database connection released { timestamp: '2025-04-07T21:59:10.261Z' }
+}
+  timestamp: '2025-04-07T21:59:10.261Z'
+  rowCount: null,
+  duration: '2ms',
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.259Z'
+  paramCount: 0,
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Database connection obtained for query: {
+}
+  path: undefined
+  requestId: undefined,
+  timestamp: '2025-04-07T21:59:10.259Z',
+  entityType: undefined,
+  options: { limit: 1, offset: 0, unreadOnly: false, subscriptionId: null },
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Fetching user notifications: {
+}
+  timestamp: '2025-04-07T21:59:10.259Z'
+  path: undefined,
+  requestId: undefined,
+  subscriptionId: null,
+  unreadOnly: false,
+  offset: 0,
+  page: 1,
+  limit: 1,
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Parsed query parameters: {
+}
+  timestamp: '2025-04-07T21:59:10.259Z'
+  requestId: undefined,
+  path: undefined,
+  query: { page: 1, limit: 1, unread: true },
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Processing notification request: {
+Database connection released { timestamp: '2025-04-07T21:59:10.258Z' }
+}
+  timestamp: '2025-04-07T21:59:10.258Z'
+  rowCount: 1,
+  duration: '24ms',
+  text: 'SELECT id FROM users WHERE id = $1',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:59:10.255Z'
+  paramCount: 1,
+  text: 'SELECT id FROM users WHERE id = $1',
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:59:10.232Z'
+  signatureLength: 43,
+  payloadLength: 214,
+  headerLength: 36,
+? Token parts: {
+}
+  timestamp: '2025-04-07T21:59:10.232Z'
+  issuer: undefined,
+  payloadClaims: [ 'sub', 'email', 'name', 'email_verified', 'type', 'iat', 'exp' ],
+  tokenType: 'access',
+  algorithm: 'HS256',
+  headerComplete: '{"alg":"HS256","typ":"JWT"}',
+  hasHeader: true,
+? Token structure: {
+}
+  timestamp: '2025-04-07T21:59:10.232Z'
+  isRefreshToken: false,
+  secretLastChar: 'd',
+  secretFirstChar: 'x',
+  secretLength: 32,
+  hasSecret: true,
+  tokenFormat: 'eyJhbGciOiJIUzI1NiIs...',
+  hasToken: true,
+? Verifying JWT access token... {
+}
+  timestamp: '2025-04-07T21:59:10.231Z'
+  userId: undefined,
+  },
+    unread: 'true'
+    limit: '1',
+    page: '1',
+  query: Empty <[Object: null prototype] {}> {
+  path: '/api/v1/notifications?page=1&limit=1&unread=true',
+Notification request received: {
+}
+  timestamp: '2025-04-07T21:58:53.778Z'
+  path: undefined,
+  requestId: undefined,
+  unread: 0,
+  total: 0,
+  count: 0,
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Returning notifications: {
+}
+  timestamp: '2025-04-07T21:58:53.778Z'
+  path: undefined,
+  requestId: undefined,
+  sample: 'No notifications',
+  formattedCount: 0,
+  originalCount: 0,
+?? Formatted notifications: {
+}
+  timestamp: '2025-04-07T21:58:53.778Z'
+  path: undefined,
+  requestId: undefined,
+  unreadCount: 0,
+  totalCount: 0,
+  count: 0,
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+?? Successfully retrieved notifications: {
+Database connection released { timestamp: '2025-04-07T21:58:53.778Z' }
+}
+  timestamp: '2025-04-07T21:58:53.778Z'
+  rowCount: 1,
+  duration: '2ms',
+    '     AND n.rea...',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.776Z'
+  paramCount: 1,
+    '     AND n.rea...',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:58:53.776Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
+    '     AND n.read = false',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  query: '\n' +
+Executing notification count query: {
+Database connection released { timestamp: '2025-04-07T21:58:53.776Z' }
+}
+  timestamp: '2025-04-07T21:58:53.776Z'
+  rowCount: 1,
+  duration: '3ms',
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.773Z'
+  paramCount: 0,
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:58:53.773Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Set RLS context successfully: {
+Database connection released { timestamp: '2025-04-07T21:58:53.773Z' }
+}
+  timestamp: '2025-04-07T21:58:53.773Z'
+  rowCount: null,
+  duration: '3ms',
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.770Z'
+  paramCount: 0,
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T21:58:53.770Z' }
+}
+  timestamp: '2025-04-07T21:58:53.770Z'
+  rowCount: 1,
+  duration: '2ms',
+    '    ',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.768Z'
+  paramCount: 1,
+    '    ',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:58:53.768Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9' ],
+    '    ',
+    '      WHERE n.user_id = $1\n' +
+    '      FROM notifications n\n' +
+    '      SELECT COUNT(*) as count\n' +
+  query: '\n' +
+Executing notification count query: {
+Database connection released { timestamp: '2025-04-07T21:58:53.768Z' }
+}
+  timestamp: '2025-04-07T21:58:53.767Z'
+  rowCount: 1,
+  duration: '2ms',
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.765Z'
+  paramCount: 0,
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:58:53.765Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+Set RLS context successfully: {
+Database connection released { timestamp: '2025-04-07T21:58:53.765Z' }
+}
+  timestamp: '2025-04-07T21:58:53.765Z'
+  rowCount: null,
+  duration: '2ms',
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.763Z'
+  paramCount: 0,
+  text: "SET LOCAL app.current_user_id = '65c6074d-dbc4-4091-8e45-b6aecffd9ab9'",
+Database connection obtained for query: {
+----NOTIFICATION SERVICE DEBUGGING END----
+Converting notification fields to match frontend expectations
+Preparing to return 0 notifications to client
+----NOTIFICATION SERVICE DEBUGGING START----
+----NOTIFICATION DEBUGGING END----
+Retrieved 0 notifications from database
+----NOTIFICATION DEBUGGING START----
+Query result summary: { rowCount: 0, timestamp: '2025-04-07T21:58:53.762Z' }
+Database connection released { timestamp: '2025-04-07T21:58:53.762Z' }
+}
+  timestamp: '2025-04-07T21:58:53.762Z'
+  rowCount: 0,
+  duration: '4ms',
+    '             n.source_url as ...',
+    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T21:58:53.758Z'
+  paramCount: 3,
+    '             n.source_url as ...',
+    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  text: '\n' +
+Database connection obtained for query: {
+}
+  timestamp: '2025-04-07T21:58:53.758Z'
+  userId: '65c6074d-dbc4-4091-8e45-b6aecffd9ab9',
+  params: [ '65c6074d-dbc4-4091-8e45-b6aecffd9ab9', 1, 0 ],
+    '     ORDER BY n.created_at DESC LIMIT $2 OFFSET $3',
+    '      WHERE n.user_id = $1\n' +
+    '      LEFT JOIN subscriptions s ON n.subscription_id = s.id\n' +
+    '      FROM notifications n\n' +
+    '             s.name as subscription_name\n' +
+    '             n.created_at as "createdAt", n.read_at as "readAt",\n' +
+    '             n.source_url as "sourceUrl", n.read, n.metadata,\n' +
+    '      SELECT n.id, n.user_id, n.subscription_id, n.title, n.content, \n' +
+  query: '\n' +
+Executing notification query: {
+Database connection released { timestamp: '2025-04-07T21:58:53.758Z' }
+}
+  timestamp: '2025-04-07T21:58:53.757Z'
+  rowCount: 1,
+  duration: '6ms',
+    '          WHERE table_sche...',
+    '          SELECT FROM information_schema.tables \n' +
+    '        SELECT EXISTS (\n' +
   text: '\n' +
