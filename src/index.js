@@ -128,6 +128,7 @@ async function main() {
                 completed_at TIMESTAMP WITH TIME ZONE,
                 result JSONB DEFAULT '{}'::jsonb,
                 error_message TEXT,
+                user_id UUID,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
               );

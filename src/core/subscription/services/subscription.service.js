@@ -1081,10 +1081,9 @@ class SubscriptionService {
       const subscription = result.rows[0];
       console.log('Processing subscription:', subscription);
       
-      // Log that we're about to initiate processing
-      logProcessing(context, 'Initiating subscription processing', {
+      logProcessing(context, 'Initiating subscription processing', { 
         subscriptionId,
-        type: subscription.type_name,
+        type: subscription.type_id,
         prompts: subscription.prompts
       });
       
@@ -1323,7 +1322,7 @@ class SubscriptionService {
            created_at as "requestedAt",
            started_at as "startedAt",
            completed_at as "completedAt",
-           error
+           error_message as "error"
          FROM subscription_processing 
          WHERE subscription_id = $1
          ORDER BY created_at DESC 
@@ -1423,11 +1422,17 @@ class SubscriptionService {
         const client = await query('BEGIN');
         
         try {
-          // Delete related records first
-          await client.query(
-            'DELETE FROM subscription_items WHERE subscription_id = $1',
-            [subscriptionId]
-          );
+          // First try to delete from subscription_processing if the table exists
+          try {
+            await client.query(
+              'DELETE FROM subscription_processing WHERE subscription_id = $1',
+              [subscriptionId]
+            );
+            logRequest(context, 'Deleted related processing records', { subscriptionId });
+          } catch (processingError) {
+            // Log but continue - table might not exist or other issue
+            logError(context, processingError, 'Error deleting from subscription_processing');
+          }
           
           // Then delete the subscription
           const deleteResult = await client.query(
