@@ -14,7 +14,7 @@ import {
   idParamSchema,
   subscriptionQuerySchema
 } from '../../../../core/subscription/schemas.js';
-import { apiDocumenter } from '../../../../shared/utils/api-documenter.js';
+import { apiDocumenter } from '../../../../shared/utils/api-docs.js';
 
 // Schema definitions
 const subscriptionSchema = {
