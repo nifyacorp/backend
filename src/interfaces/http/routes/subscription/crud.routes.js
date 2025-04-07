@@ -4,6 +4,7 @@
  */
 
 import { subscriptionService } from '../../../../core/subscription/index.js';
+import { subscriptionSchemas, subscriptionQuerySchema } from '../../../../core/subscription/schemas.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
 import { validateZod } from '../../../../shared/utils/validation.js';
@@ -12,9 +13,7 @@ import {
   updateSubscriptionSchema,
   toggleSubscriptionSchema,
   idParamSchema,
-  subscriptionQuerySchema
 } from '../../../../core/subscription/schemas.js';
-import { apiDocumenter } from '../../../../shared/utils/api-docs.js';
 
 // Schema definitions
 const subscriptionSchema = {
@@ -683,7 +682,7 @@ export async function registerCrudRoutes(fastify, options) {
   // DELETE / - Delete all subscriptions for the authenticated user
   fastify.delete(
     '/',
-    apiDocumenter({ // Add API documentation
+    {
       summary: 'Delete All Subscriptions',
       description: 'Deletes all subscriptions associated with the authenticated user.',
       tags: ['Subscriptions'],
@@ -707,7 +706,7 @@ export async function registerCrudRoutes(fastify, options) {
         500: { description: 'Internal Server Error' },
       },
       security: [{ bearerAuth: [] }],
-    }),
+    },
     async (request, reply) => {
       const context = { requestId: request.id, path: request.url, method: request.method }; // Basic context
       const userId = request.user?.id;
