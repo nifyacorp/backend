@@ -18,88 +18,25 @@ class SubscriptionService {
     logRequest(context, 'Fetching subscription statistics', { userId });
     
     try {
-      // First try to get cached stats from the subscription_stats table
-      try {
-        const cachedStats = await query(
-          `SELECT 
-            total, 
-            active, 
-            inactive, 
-            by_source as "bySource", 
-            by_frequency as "byFrequency",
-            updated_at as "updatedAt"
-          FROM subscription_stats 
-          WHERE user_id = $1`,
-          [userId]
-        );
-        
-        // If we have cached stats that are recent (less than 1 hour old), use them
-        if (cachedStats.rows.length > 0) {
-          const stats = cachedStats.rows[0];
-          
-          // Check if stats are recent (less than 1 hour old)
-          const updatedAt = new Date(stats.updatedAt);
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-          
-          if (updatedAt > oneHourAgo) {
-            logRequest(context, 'Using cached subscription statistics', {
-              userId,
-              cacheAge: `${Math.round((Date.now() - updatedAt.getTime()) / 1000 / 60)} minutes`
-            });
-            
-            // Format the response
-            return {
-              total: stats.total,
-              active: stats.active,
-              inactive: stats.inactive,
-              bySource: stats.bySource,
-              byFrequency: stats.byFrequency,
-              cached: true,
-              updatedAt: stats.updatedAt
-            };
-          }
-          
-          // If stats are old, we'll refresh them but still return the cached version
-          // for a faster response, and update the cache asynchronously
-          logRequest(context, 'Cached statistics are outdated, will refresh asynchronously', {
-            userId,
-            cacheAge: `${Math.round((Date.now() - updatedAt.getTime()) / 1000 / 60)} minutes`
-          });
-          
-          // Trigger an asynchronous refresh without waiting for it
-          setTimeout(async () => {
-            try {
-              // Call the repository method to refresh statistics
-              await this.repository.getSubscriptionStats(userId, context);
-              logRequest(context, 'Statistics refreshed asynchronously', { userId });
-            } catch (refreshError) {
-              logError(context, refreshError, 'Error refreshing statistics asynchronously');
-            }
-          }, 0);
-          
-          // Return the cached stats while the refresh happens in the background
-          return {
-            total: stats.total,
-            active: stats.active,
-            inactive: stats.inactive,
-            bySource: stats.bySource,
-            byFrequency: stats.byFrequency,
-            cached: true,
-            updatedAt: stats.updatedAt,
-            refreshing: true
-          };
-        }
-      } catch (cacheError) {
-        // If there's an error with the cache, log it but continue to get stats directly
-        logError(context, cacheError, 'Error getting cached statistics');
-      }
+      // REMOVED: Attempt to get cached stats from the non-existent subscription_stats table
+      // try {
+      //   const cachedStats = await query(...);
+      //   if (cachedStats.rows.length > 0) {
+      //     // ... logic to check cache age and return/refresh ...
+      //     return { /* cached data */ };
+      //   }
+      // } catch (cacheError) {
+      //   logError(context, cacheError, 'Error getting cached statistics');
+      // }
       
-      // Fall back to calculating stats directly
+      // Calculate stats directly using the repository method
+      logRequest(context, 'Calculating subscription statistics directly', { userId });
+      // Assuming this.repository.getSubscriptionStats calculates from the main table
       return await this.repository.getSubscriptionStats(userId, context);
+
     } catch (error) {
-      logError(context, error);
-      
-      console.error('Service: Error in getSubscriptionStats:', error);
+      logError(context, error, 'Service: Error in getSubscriptionStats');
+      // console.error('Service: Error in getSubscriptionStats:', error); // Keep console for debugging if needed
       
       // Return a fallback response with zeros instead of throwing an error
       return {

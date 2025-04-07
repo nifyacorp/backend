@@ -8,6 +8,7 @@ import { registerCrudRoutes } from './crud.routes.js';
 import { registerProcessRoutes } from './process.routes.js';
 import { registerSharingRoutes } from './sharing.routes.js';
 import { registerStatusRoutes } from './status.routes.js';
+// import { registerDeleteEndpoint } from './crud-delete.js'; // Removed to avoid duplicate route error
 import { subscriptionService } from '../../../../core/subscription/index.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
 
@@ -119,6 +120,10 @@ export async function subscriptionRoutes(fastify, options) {
   // Register all route groups after the special routes
   await registerTypeRoutes(fastify, options);
   await registerCrudRoutes(fastify, options);
+  
+  // Note: The improved delete endpoint from crud-delete.js is not registered
+  // to avoid the "Method 'DELETE' already declared for route '/api/v1/subscriptions/:id'" error
+  // The delete functionality in crud.routes.js is used instead
   
   await registerProcessRoutes(fastify, options);
   await registerSharingRoutes(fastify, options);

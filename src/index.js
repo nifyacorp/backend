@@ -11,6 +11,10 @@ import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
+import { subscriptionService } from './core/subscription/index.js';
+import { templateService } from './core/subscription/index.js';
+import { notificationService } from './core/notification/index.js';
+import { userService } from './core/user/index.js';
 import { logError } from './shared/logging/logger.js'; // Use central logger
 
 // --- Server Initialization & Setup ---
@@ -20,6 +24,17 @@ async function main() {
   try {
     // Register core plugins (CORS, Swagger, Express)
     await registerPlugins(fastify);
+
+    // Decorate services onto Fastify instance BEFORE registering routes that use them
+    fastify.decorate('services', {
+      authService,
+      subscriptionService,
+      templateService,
+      notificationService,
+      userService
+      // Add other services here
+    });
+    console.log('Core services decorated onto Fastify instance.');
 
     // Register custom content type parsers
     registerParsers(fastify);
