@@ -1,0 +1,55 @@
+------------------------------------------------------
+Backend Runtime Logs - Version ID: 4f886062-fbc4-43c2-b635-b0252e7aee5e
+Collected on: 07/04/2025 23:52:56,23
+------------------------------------------------------
+
+Default STARTUP TCP probe succeeded after 1 attempt for container "placeholder-1" on port 8080.
+Server listening on 8080
+Database initialized successfully.
+Database initialization completed successfully
+? Startup migration completed successfully
+? Database schema is up to date
+}
+  timestamp: '2025-04-07T19:58:18.330Z'
+  path: 'startup-migration',
+  requestId: 'migration-1744055898316',
+? Schema version 20250402000100 already applied, skipping migration: {
+Database connection released { timestamp: '2025-04-07T19:58:18.330Z' }
+}
+  timestamp: '2025-04-07T19:58:18.330Z'
+  rowCount: 1,
+  duration: '3ms',
+  text: 'SELECT version FROM schema_version WHERE version = $1',
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T19:58:18.327Z'
+  paramCount: 1,
+  text: 'SELECT version FROM schema_version WHERE version = $1',
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T19:58:18.327Z' }
+}
+  timestamp: '2025-04-07T19:58:18.327Z'
+  rowCount: 1,
+  duration: '3ms',
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Query executed successfully: {
+}
+  timestamp: '2025-04-07T19:58:18.324Z'
+  paramCount: 1,
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
+Database connection obtained for query: {
+Database connection released { timestamp: '2025-04-07T19:58:18.324Z' }
+}
+  timestamp: '2025-04-07T19:58:18.323Z'
+  rowCount: 1,
+  duration: '7ms',
+    "        WHERE table_schema = '...",
+    '        SELECT FROM information_schema.tables \n' +
+    '      SELECT EXISTS (\n' +
+  text: '\n' +
