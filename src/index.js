@@ -13,7 +13,7 @@ import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 import { subscriptionService } from './core/subscription/index.js';
 import { templateService } from './core/subscription/index.js';
-import { notificationService } from './core/notification/notification-service.js';
+import notificationService from './core/notification/notification-service.js';
 import { userService } from './core/user/user.service.js';
 import { logError } from './shared/logging/logger.js'; // Use central logger
 
