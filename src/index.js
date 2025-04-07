@@ -87,9 +87,8 @@ async function main() {
     // --- Database Initialization & Server Start ---
     const port = parseInt(process.env.PORT || '8080', 10);
     const host = '0.0.0.0';
-    const delayMigrations = process.env.DELAY_MIGRATIONS === 'true';
 
-    console.log('Server configuration:', { port, host, environment: process.env.NODE_ENV || 'development', delayMigrations });
+    console.log('Server configuration:', { port, host, environment: process.env.NODE_ENV || 'development' });
 
     const startServer = async () => {
       try {
@@ -107,22 +106,17 @@ async function main() {
         await initializeDatabase(); // Assumes this handles connection and migrations
         console.log('Database initialized successfully.');
       } catch (migrationErr) {
-        logError({ phase: 'Migrations' }, migrationErr, 'Database initialization/migration failed (continuing startup)');
+        logError({ phase: 'Migrations' }, migrationErr, 'Database initialization/migration failed (STOPPING STARTUP)');
         // Decide if server should start despite migration failure. For Cloud Run, often yes.
+        // For safety, let's prevent startup if migrations fail.
+        throw migrationErr; 
       }
     };
 
-    if (delayMigrations) {
-      console.log('DELAY_MIGRATIONS enabled: Starting server first.');
-      await startServer();
-      // Run migrations asynchronously after a short delay
-      console.log('Scheduling database initialization in the background (5 seconds delay).');
-      setTimeout(runMigrations, 5000);
-    } else {
-      console.log('Running database initialization before starting server.');
-      await runMigrations();
-      await startServer();
-    }
+    // Always run migrations before starting the server
+    console.log('Running database initialization before starting server.');
+    await runMigrations();
+    await startServer();
 
   } catch (err) {
     // Use Fastify logger for fatal startup errors if available, otherwise console

@@ -1128,7 +1128,7 @@ class SubscriptionService {
       // Record processing request in the database
       const processingResult = await query(
         `INSERT INTO subscription_processing
-         (subscription_id, status, requested_at, user_id)
+         (subscription_id, status, created_at, user_id)
          VALUES ($1, 'pending', NOW(), $2)
          RETURNING id`,
         [subscriptionId, userId]
@@ -1181,8 +1181,8 @@ class SubscriptionService {
         );
       }
     } catch (error) {
-      logError(context, error);
-      console.error('Service: Error in processSubscription:', error);
+      logError(context, error, 'Service: Error in processSubscription'); 
+      // console.error('Service: Error in processSubscription:', error); // Keep if needed
       
       if (error instanceof AppError) {
         throw error;
@@ -1229,13 +1229,13 @@ class SubscriptionService {
         `SELECT 
            id as "processingId",
            status,
-           requested_at as "requestedAt",
+           created_at as "requestedAt",
            started_at as "startedAt",
            completed_at as "completedAt",
            error
          FROM subscription_processing 
          WHERE subscription_id = $1
-         ORDER BY requested_at DESC 
+         ORDER BY created_at DESC 
          LIMIT 1`,
         [subscriptionId]
       );
