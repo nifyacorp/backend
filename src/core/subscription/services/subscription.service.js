@@ -1261,6 +1261,73 @@ class SubscriptionService {
   }
 
   /**
+   * Get the processing status of a subscription
+   *
+   * @param {string} userId - User ID requesting the status
+   * @param {string} subscriptionId - ID of the subscription
+   * @param {object} context - Request context for logging
+   * @returns {Promise<object>} - Latest status record
+   */
+  async getSubscriptionStatus(userId, subscriptionId, context) {
+    logRequest(context, 'Fetching subscription processing status', { userId, subscriptionId });
+
+    try {
+      // Check if the user owns the subscription first
+      const checkResult = await query(
+        'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1 AND user_id = $2) as exists',
+        [subscriptionId, userId]
+      );
+
+      if (!checkResult.rows[0].exists) {
+        throw new AppError(
+          SUBSCRIPTION_ERRORS.NOT_FOUND.code,
+          'Subscription not found or you do not have permission to view its status.',
+          404,
+          { subscriptionId }
+        );
+      }
+
+      // Fetch the latest processing status
+      const statusResult = await query(
+        `SELECT 
+           id as "processingId",
+           status,
+           requested_at as "requestedAt",
+           started_at as "startedAt",
+           completed_at as "completedAt",
+           error
+         FROM subscription_processing 
+         WHERE subscription_id = $1
+         ORDER BY requested_at DESC 
+         LIMIT 1`,
+        [subscriptionId]
+      );
+
+      if (statusResult.rows.length === 0) {
+        // No processing record found for this subscription
+        return {
+          status: 'unknown', // Or 'not_processed'
+          message: 'No processing status found for this subscription.',
+        };
+      }
+
+      return statusResult.rows[0];
+
+    } catch (error) {
+      logError(context, error, 'Error fetching subscription status');
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(
+        'STATUS_FETCH_ERROR',
+        error.message || 'Failed to fetch subscription status',
+        500,
+        { subscriptionId }
+      );
+    }
+  }
+
+  /**
    * Delete a subscription and all its related records
    * 
    * This method uses the subscription repository to delete a subscription within a transaction
@@ -1724,6 +1791,54 @@ class SubscriptionService {
         warning: true,
         error: error.message
       };
+    }
+  }
+
+  /**
+   * Delete all subscriptions for a specific user.
+   *
+   * @param {string} userId - User ID whose subscriptions should be deleted
+   * @param {object} context - Request context for logging
+   * @returns {Promise<{deletedCount: number}>} - The number of subscriptions deleted
+   */
+  async deleteUserSubscriptions(userId, context) {
+    logRequest(context, 'Deleting all subscriptions for user', { userId });
+    
+    if (!userId) {
+      throw new AppError('INVALID_USER', 'User ID is required for bulk deletion', 400);
+    }
+    
+    try {
+      // Perform a single delete operation targeting the user_id
+      const result = await query(
+        'DELETE FROM subscriptions WHERE user_id = $1 RETURNING id',
+        [userId]
+      );
+      
+      const deletedCount = result.rowCount || 0;
+      logRequest(context, `Deleted ${deletedCount} subscriptions for user`, { userId });
+      
+      // Optionally, publish a bulk delete event (if needed elsewhere)
+      // try {
+      //   await publishEvent('subscriptions.deleted.bulk', { 
+      //     userId,
+      //     deletedCount,
+      //     timestamp: new Date().toISOString()
+      //   }, context);
+      // } catch (publishError) {
+      //   logError(context, publishError, 'Failed to publish bulk delete event');
+      // }
+      
+      return { deletedCount };
+      
+    } catch (error) {
+      logError(context, error, 'Error during bulk subscription deletion');
+      throw new AppError(
+        'BULK_DELETE_ERROR',
+        error.message || 'Failed to delete user subscriptions',
+        500,
+        { userId }
+      );
     }
   }
 }

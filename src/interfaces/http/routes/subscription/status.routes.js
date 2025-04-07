@@ -3,226 +3,115 @@
  * Handles routes related to checking subscription processing status
  */
 
-import { buildErrorResponse, errorBuilders } from "../../../../shared/errors/ErrorResponseBuilder.js";
 import { AppError } from '../../../../shared/errors/AppError.js';
+import { buildErrorResponse, errorBuilders } from '../../../../shared/errors/ErrorResponseBuilder.js';
 import { logRequest, logError } from '../../../../shared/logging/logger.js';
-import { query } from '../../../../infrastructure/database/client.js';
+// Note: Database query is likely handled in the service, not directly in route
+// import { query } from '../../../../infrastructure/database/client.js';
+// No need for Express imports
+// import express from 'express';
+// Middleware needs to be adapted or assumed to be handled globally/via hooks in Fastify
+// import { authMiddleware } from '../middleware/auth.middleware.js';
+// import { apiDocumenter } from '../middleware/apiDocumenter.middleware.js'; 
+// Controller import is okay, but we'll call the service directly for simplicity
+import { getSubscriptionStatusController } from '../../controllers/subscription.controller.js'; 
 
 /**
  * Register subscription status routes
- * @param {FastifyInstance} fastify - Fastify instance
- * @param {Object} options - Options
+ * @param {import('fastify').FastifyInstance} fastify - Fastify instance
+ * @param {object} options - Options passed to register
  */
 export async function registerStatusRoutes(fastify, options) {
-  // GET /:id/status - Get processing status of a subscription
-  fastify.get('/:id/status', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string' }
-        }
-      },
-      response: {
-        200: {
+
+  // Define the route for getting subscription status using Fastify syntax
+  fastify.get(
+    '/:id/status',
+    {
+      // Add preHandler hooks for authentication if needed (Fastify style)
+      // preHandler: [fastify.authenticate], // Example: if using fastify-jwt or similar
+      schema: { // API documentation via Fastify schema
+        summary: 'Get Subscription Processing Status',
+        description: 'Retrieves the latest processing status record for a specific subscription.',
+        tags: ['Subscriptions'],
+        params: {
           type: 'object',
+          required: ['id'],
           properties: {
-            status: { type: 'string' },
-            processing: {
-              type: 'object',
-              properties: {
-                status: { type: 'string' },
-                last_run_at: { type: 'string', nullable: true },
-                next_run_at: { type: 'string', nullable: true },
-                error: { type: 'string', nullable: true },
-                created_at: { type: 'string' },
-                updated_at: { type: 'string' },
-                processing_id: { type: 'string' },
-                metadata: { 
-                  type: 'object',
-                  additionalProperties: true,
-                  nullable: true
-                }
-              }
-            }
+            id: { type: 'string', format: 'uuid', description: 'The UUID of the subscription.' }
           }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const requestContext = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method
-    };
-
-    try {
-      if (!request.user?.id) {
-        return reply.code(401).send(errorBuilders.unauthorized(request, "No user ID available"));
-      }
-
+        },
+        response: {
+          200: {
+            description: 'Subscription status retrieved successfully.',
+            type: 'object',
+            properties: {
+              processingId: { type: 'string', format: 'uuid', nullable: true },
+              status: { type: 'string', enum: ['pending', 'processing', 'completed', 'failed', 'unknown'] },
+              requestedAt: { type: 'string', format: 'date-time', nullable: true },
+              startedAt: { type: 'string', format: 'date-time', nullable: true },
+              completedAt: { type: 'string', format: 'date-time', nullable: true },
+              error: { type: 'string', nullable: true },
+              message: { type: 'string', description: 'Included if status is unknown', nullable: true }
+            },
+          },
+          401: { description: 'Unauthorized', type: 'object', properties: { error: {type: 'string'} } },
+          403: { description: 'Forbidden', type: 'object', properties: { error: {type: 'string'} } },
+          404: { description: 'Not Found', type: 'object', properties: { error: {type: 'string'} } },
+          500: { description: 'Internal Server Error', type: 'object', properties: { error: {type: 'string'} } }
+        },
+        // Assuming security is defined globally or via a hook
+        // security: [{ bearerAuth: [] }], 
+      },
+    },
+    // Handler using Fastify request/reply
+    async (request, reply) => {
+      const context = { requestId: request.id, path: request.url, method: request.method };
+      // Assuming auth middleware/hook adds user to request
+      const userId = request.user?.id; 
       const subscriptionId = request.params.id;
-      
-      // Log the status request
-      logRequest(requestContext, 'Getting subscription processing status', {
-        subscription_id: subscriptionId,
-        user_id: request.user.id
-      });
-      
+
+      logRequest(context, 'Fastify Route: GET /:id/status called', { userId, subscriptionId });
+
+      if (!userId) {
+        return reply.code(401).send({ error: 'Authentication required' });
+      }
+      if (!subscriptionId) {
+        // Fastify handles param validation based on schema, but extra check doesn't hurt
+        return reply.code(400).send({ error: 'Subscription ID is required' });
+      }
+
       try {
-        // Check if the subscription_processing table exists
-        const tableCheck = await query(
-          `SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'subscription_processing'
-          ) as exists`
-        );
-        
-        if (!tableCheck.rows[0].exists) {
-          // Table doesn't exist, return default response
-          console.log('subscription_processing table does not exist');
-          const defaultProcessing = {
-            status: 'pending',
-            last_run_at: null,
-            next_run_at: null,
-            error: null,
-            processing_id: 'default-no-table',
-            metadata: { note: "Processing system not available" },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          return reply.code(200).send({
-            status: 'success',
-            processing: defaultProcessing
+        // Access the service from Fastify instance (assuming it's decorated)
+        const subscriptionService = fastify.services?.subscriptionService;
+        if (!subscriptionService) {
+            logError(context, new Error('Subscription service not available on Fastify instance'));
+            return reply.code(500).send({ error: 'Internal server configuration error' });
+        }
+
+        // Call the service method directly
+        const status = await subscriptionService.getSubscriptionStatus(userId, subscriptionId, context);
+
+        // Status is either the record or { status: 'unknown', message: '...' }
+        return reply.code(200).send(status);
+
+      } catch (error) {
+        logError(context, error, 'Fastify Route: Error in GET /:id/status', { userId, subscriptionId });
+        if (error instanceof AppError) {
+          // Use error properties for response
+          return reply.code(error.status || 500).send({ 
+            error: error.message, 
+            code: error.code, 
+            details: error.details 
           });
         }
-      } catch (tableCheckError) {
-        console.error('Error checking for subscription_processing table:', tableCheckError);
-        // Continue with the query anyway
+        // Generic fallback
+        return reply.code(500).send({ error: 'Failed to fetch subscription status' });
       }
-      
-      // Get the processing status from the database with a more resilient query
-      const processingResult = await query(
-        `SELECT 
-           p.id as processing_id, 
-           p.status, 
-           p.last_run_at, 
-           p.next_run_at, 
-           p.error, 
-           p.metadata, 
-           p.created_at, 
-           p.updated_at
-         FROM 
-           subscriptions s
-         LEFT JOIN 
-           subscription_processing p ON p.subscription_id = s.id
-         WHERE 
-           s.id = $1 
-           AND s.user_id = $2
-         ORDER BY 
-           p.created_at DESC NULLS LAST
-         LIMIT 1`,
-        [subscriptionId, request.user.id]
-      );
-      
-      // If no results or no processing record exists
-      if (processingResult.rows.length === 0 || !processingResult.rows[0].processing_id) {
-        // Check if the subscription exists first if we didn't get any rows
-        if (processingResult.rows.length === 0) {
-          const subscriptionCheck = await query(
-            `SELECT id FROM subscriptions WHERE id = $1 AND user_id = $2`,
-            [subscriptionId, request.user.id]
-          );
-          
-          if (subscriptionCheck.rows.length === 0) {
-            return reply.code(404).send(errorBuilders.notFound(request, "Subscription", { id: subscriptionId }));
-          }
-        }
-        
-        // Subscription exists but no processing record - create a default one
-        const defaultProcessing = {
-          status: 'pending',
-          last_run_at: null,
-          next_run_at: null,
-          error: null,
-          processing_id: 'unprocessed-' + Date.now(),
-          metadata: { note: "No processing history available", jobId: 'unprocessed-' + Date.now() },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        logRequest(requestContext, 'No processing record found, returning default status', {
-          subscription_id: subscriptionId,
-          user_id: request.user.id
-        });
-        
-        return reply.code(200).send({
-          status: 'success',
-          processing: defaultProcessing
-        });
-      }
-      
-      // Return the processing status
-      const processing = processingResult.rows[0];
-      
-      // Convert dates to ISO strings for consistent API response
-      if (processing.last_run_at) processing.last_run_at = processing.last_run_at.toISOString();
-      if (processing.next_run_at) processing.next_run_at = processing.next_run_at.toISOString();
-      if (processing.created_at) processing.created_at = processing.created_at.toISOString();
-      if (processing.updated_at) processing.updated_at = processing.updated_at.toISOString();
-      
-      // Parse metadata if it's a JSON string
-      if (processing.metadata && typeof processing.metadata === 'string') {
-        try {
-          processing.metadata = JSON.parse(processing.metadata);
-        } catch (e) {
-          // If parsing fails, keep as string
-          console.error('Failed to parse metadata JSON:', e);
-        }
-      }
-      
-      // Ensure metadata is an object
-      if (!processing.metadata || typeof processing.metadata !== 'object') {
-        processing.metadata = { jobId: processing.processing_id || 'unknown' };
-      }
-      
-      // Add jobId field for compatibility with frontend if not present
-      if (!processing.metadata.jobId) {
-        processing.metadata.jobId = processing.processing_id || 'unknown';
-      }
-      
-      // Log the status check
-      logRequest(requestContext, 'Retrieved subscription processing status', {
-        subscription_id: subscriptionId,
-        processing_status: processing.status,
-        processing_id: processing.processing_id
-      });
-      
-      return reply.code(200).send({
-        status: 'success',
-        processing
-      });
-      
-    } catch (error) {
-      logError(requestContext, error);
-      
-      if (error instanceof AppError) {
-        return reply.code(error.status).send(
-          buildErrorResponse(request, {
-            code: error.code,
-            message: error.message,
-            status: error.status,
-            details: error.details || {}
-          })
-        );
-      }
-      
-      return reply.code(500).send(
-        errorBuilders.serverError(request, error)
-      );
     }
-  });
+  );
+
+  // Register other status-related routes here if needed
 }
+
+// Export the registration function itself
+export default registerStatusRoutes;

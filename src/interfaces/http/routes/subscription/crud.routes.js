@@ -14,6 +14,9 @@ import {
   idParamSchema,
   subscriptionQuerySchema
 } from '../../../../core/subscription/schemas.js';
+import { authMiddleware } from '../../../../shared/middlewares/auth.middleware.js';
+import { apiDocumenter } from '../../../../shared/utils/api-documenter.js';
+import { deleteUserSubscriptionsController } from '../../../../controllers/subscription/delete-user-subscriptions.controller.js';
 
 // Schema definitions
 const subscriptionSchema = {
@@ -974,4 +977,36 @@ export async function registerCrudRoutes(fastify, options) {
       });
     }
   });
+
+  // DELETE / - Delete all subscriptions for the authenticated user
+  fastify.delete(
+    '/',
+    authMiddleware, // Ensure user is authenticated
+    apiDocumenter({ // Add API documentation
+      summary: 'Delete All Subscriptions',
+      description: 'Deletes all subscriptions associated with the authenticated user.',
+      tags: ['Subscriptions'],
+      responses: {
+        200: {
+          description: 'Subscriptions deleted successfully.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean' },
+                  message: { type: 'string' },
+                  deletedCount: { type: 'integer' },
+                },
+              },
+            },
+          },
+        },
+        401: { description: 'Unauthorized' },
+        500: { description: 'Internal Server Error' },
+      },
+      security: [{ bearerAuth: [] }],
+    }),
+    deleteUserSubscriptionsController // Point to the new controller method
+  );
 } 
