@@ -1,5 +1,4 @@
 import * as dotenv from 'dotenv';
-import Fastify from 'fastify';
 import * as process from 'process';
 import { createServer, registerPlugins } from './infrastructure/server/setup.js';
 import { registerParsers } from './infrastructure/server/parsers.js';
@@ -10,7 +9,7 @@ import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
 import { notificationRoutes } from './interfaces/http/routes/notification.routes.js';
 import { registerSubscriptionProcessingRoutes } from './interfaces/http/routes/subscription-processing.routes.js';
-import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './interfaces/http/routes/diagnostics.routes.js';
+import diagnosticsRoutes from './interfaces/http/routes/diagnostics.routes.js';
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
@@ -19,20 +18,15 @@ import { logger } from './shared/logging/logger.js';
 // Initialize environment variables
 dotenv.config();
 
-// Import configuration
-import { config } from '../.bolt/config.json' assert { type: 'json' };
+// Use the server config from the createServer function
+const fastify = createServer();
+const { port, host } = fastify.serverConfig;
 
 async function main() {
-  const port = config.server.port || 3000;
-  const host = config.server.host || '0.0.0.0';
-
   try {
     // Initialize database before starting server
     logger.info('Running database initialization before starting server.');
     await initializeDatabase();
-
-    // Create and configure Fastify instance
-    const fastify = Fastify({ logger: false });
 
     // Register plugins and routes
     await registerPlugins(fastify);
