@@ -27,21 +27,25 @@ async function main() {
     await registerPlugins(fastify);
     await registerParsers(fastify);
 
-    // Register core routes first
-    await coreRoutes(fastify);
-    await diagnosticsRoutes(fastify);
+    // Register core routes (e.g., /health, /version) - No prefix
+    await fastify.register(coreRoutes);
 
-    // Register legacy routes for backward compatibility
-    await legacyRoutes(fastify);
-    await compatibilityRoutes(fastify);
+    // Register diagnostics routes under /diagnostics
+    // Note: Removed the duplicate /health check from diagnostics.routes.js previously
+    await fastify.register(diagnosticsRoutes, { prefix: '/diagnostics' });
 
-    // Register public routes
-    await templateRoutes(fastify);
+    // Register legacy/compatibility routes - No prefix initially
+    // These might define absolute paths or need specific root paths
+    await fastify.register(legacyRoutes);
+    await fastify.register(compatibilityRoutes);
 
-    // Register authenticated routes
-    await userRoutes(fastify);
-    await subscriptionRoutes(fastify);
-    await notificationRoutes(fastify);
+    // Register public API routes under /api/v1
+    await fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
+
+    // Register authenticated API routes under /api/v1
+    await fastify.register(userRoutes, { prefix: '/api/v1/users' });
+    await fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
+    await fastify.register(notificationRoutes, { prefix: '/api/v1/notifications' });
 
     // Start the server
     await fastify.listen({ port, host });
