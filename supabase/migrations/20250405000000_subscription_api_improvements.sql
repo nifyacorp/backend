@@ -35,27 +35,8 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- Check if statistics tables exist, create if not
 DO $$
 BEGIN
-  -- Check if subscription_stats table exists
-  IF NOT EXISTS (
-    SELECT FROM information_schema.tables 
-    WHERE table_name = 'subscription_stats'
-  ) THEN
-    -- Create subscription_stats table
-    CREATE TABLE subscription_stats (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-      total INTEGER NOT NULL DEFAULT 0,
-      active INTEGER NOT NULL DEFAULT 0,
-      inactive INTEGER NOT NULL DEFAULT 0,
-      by_source JSONB NOT NULL DEFAULT '{}'::jsonb,
-      by_frequency JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      UNIQUE(user_id)
-    );
-
-    -- Create index on user_id for faster lookups
-    CREATE INDEX idx_subscription_stats_user_id ON subscription_stats(user_id);
-  END IF;
+  -- No need to create subscription_stats table anymore
+  -- Add any other necessary migrations here
 END $$;
 
 -- Create function to update subscription stats
