@@ -11,118 +11,50 @@ import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
-import { logError } from './shared/logging/logger.js'; // Use central logger
-
-// --- Server Initialization & Setup ---
-const fastify = createServer();
+import logger from '../../utils/logger.js';
 
 async function main() {
   try {
-    // Register core plugins (CORS, Swagger, Express)
+    // Initialize database before starting server
+    logger.info('Running database initialization before starting server.');
+    await initializeDatabase();
+
+    // Create and configure Fastify instance
+    const fastify = createServer();
+    const { port, host } = fastify.serverConfig;
+
+    // Register plugins and routes
     await registerPlugins(fastify);
+    await registerParsers(fastify);
 
-    // Register custom content type parsers
-    registerParsers(fastify);
+    // Register core routes first
+    await coreRoutes(fastify);
+    await diagnosticsRoutes(fastify);
 
-    // --- Route Registration ---
+    // Register legacy routes for backward compatibility
+    await legacyRoutes(fastify);
+    await compatibilityRoutes(fastify);
 
-    // Core routes (e.g., /health, /version)
-    await fastify.register(coreRoutes);
+    // Register public routes
+    await templateRoutes(fastify);
 
-    // Diagnostics routes (public for testing, uses Fastify and Express)
-    // Consider securing these or making them environment-specific
-    await fastify.register(diagnosticsRoutes, { prefix: '/api/v1/diagnostics' });
-    fastify.use('/api/diagnostics', diagnosticsExpressRouter);
-    console.log("Diagnostics routes registered.");
+    // Register authenticated routes
+    await userRoutes(fastify);
+    await subscriptionRoutes(fastify);
+    await notificationRoutes(fastify);
 
-    // Register legacy route handlers (/api/auth, /api/subscriptions redirects)
-    await fastify.register(legacyRoutes);
+    // Start the server
+    await fastify.listen({ port, host });
+    logger.info(`Server listening on ${port}`);
 
-    // Register compatibility routes (/api/v1/me, /v1/me/*)
-    // These are authenticated
-    await fastify.register(compatibilityRoutes);
-    console.log("Compatibility routes (e.g., /api/v1/me) registered.");
-
-    // Public v1 routes
-    await fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
-    console.log("Public v1 routes (templates) registered.");
-
-    // Authenticated v1 routes
-    await fastify.register(async function (fastifyInstance) {
-      fastifyInstance.addHook('preHandler', authenticate);
-
-      await fastifyInstance.register(userRoutes, { prefix: '/api/v1/users' });
-      await fastifyInstance.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
-      await fastifyInstance.register(notificationRoutes, { prefix: '/api/v1/notifications' });
-
-      console.log("Authenticated v1 routes (users, subscriptions, notifications) registered.");
-    });
-
-    // --- Service Initialization ---
-    // Initialize external services like Auth0 client
-    try {
-      console.log('Initializing auth service...');
-      await authService.initialize();
-      console.log('Auth service initialized successfully');
-    } catch (authError) {
-      // Log error but continue startup, as it might not be critical depending on the environment
-      logError({ service: 'AuthServiceInit' }, authError, 'Auth service initialization failed (continuing startup)');
-    }
-
-    // --- Database Initialization & Server Start ---
-    const port = parseInt(process.env.PORT || '8080', 10);
-    const host = '0.0.0.0';
-    const delayMigrations = process.env.DELAY_MIGRATIONS === 'true';
-
-    console.log('Server configuration:', { port, host, environment: process.env.NODE_ENV || 'development', delayMigrations });
-
-    const startServer = async () => {
-      try {
-        await fastify.listen({ port, host });
-        console.log(`Server listening on ${fastify.server.address().port}`);
-      } catch (listenError) {
-        logError({ phase: 'ServerListen' }, listenError, `Failed to start server on port ${port}`);
-        throw listenError; // Re-throw to exit process
-      }
-    };
-
-    const runMigrations = async () => {
-      try {
-        console.log('Initializing database connection and running migrations...');
-        await initializeDatabase(); // Assumes this handles connection and migrations
-        console.log('Database initialized successfully.');
-      } catch (migrationErr) {
-        logError({ phase: 'Migrations' }, migrationErr, 'Database initialization/migration failed (continuing startup)');
-        // Decide if server should start despite migration failure. For Cloud Run, often yes.
-      }
-    };
-
-    if (delayMigrations) {
-      console.log('DELAY_MIGRATIONS enabled: Starting server first.');
-      await startServer();
-      // Run migrations asynchronously after a short delay
-      console.log('Scheduling database initialization in the background (5 seconds delay).');
-      setTimeout(runMigrations, 5000);
-    } else {
-      console.log('Running database initialization before starting server.');
-      await runMigrations();
-      await startServer();
-    }
-
-  } catch (err) {
-    // Use Fastify logger for fatal startup errors if available, otherwise console
-    const logger = fastify.log || console;
-    logger.error({ phase: 'MainStartup', error: err.message, stack: err.stack }, 'Fatal error during server startup');
+  } catch (error) {
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 }
 
-// --- Global Error Handling (Optional but Recommended) ---
-// fastify.setErrorHandler(function (error, request, reply) {
-//   logError({ requestId: request.id, path: request.url, method: request.method }, error, 'Unhandled error in route');
-//   // Send generic error response
-//   reply.status(500).send({ error: 'Internal Server Error' });
-// });
-
-// --- Start Application ---
-main();
+// Start the application
+main().catch((error) => {
+  logger.error('Unhandled error:', error);
+  process.exit(1);
+});

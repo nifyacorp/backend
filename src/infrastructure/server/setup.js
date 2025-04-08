@@ -5,6 +5,7 @@ import swaggerUI from '@fastify/swagger-ui';
 import express from '@fastify/express';
 import { ALLOWED_HEADERS } from '../../shared/constants/headers.js';
 import apiDocs from '../../shared/utils/api-docs.js'; // Assuming path is correct
+import logger from '../../../utils/logger.js';
 
 /**
  * Creates and configures the Fastify server instance.
@@ -18,11 +19,30 @@ export function createServer() {
     ignoreTrailingSlash: true,
     onProtoPoisoning: 'error', // More secure default
     onConstructorPoisoning: 'error', // More secure default
+    trustProxy: true
     // Add request ID generation if not using a custom logger that provides it
     // requestIdHeader: 'x-request-id',
     // genReqId: function (req) { return require('crypto').randomUUID() }
   });
-  console.log("Fastify instance created.");
+
+  // Get port from environment variable with fallback
+  const PORT = process.env.PORT || 8080;
+  const HOST = process.env.HOST || '0.0.0.0';
+
+  // Store server configuration for logging
+  fastify.decorate('serverConfig', {
+    port: PORT,
+    host: HOST,
+    environment: process.env.NODE_ENV || 'development',
+    delayMigrations: false
+  });
+
+  logger.info("Fastify instance created with configuration:", {
+    port: PORT,
+    host: HOST,
+    environment: process.env.NODE_ENV || 'development'
+  });
+
   return fastify;
 }
 
