@@ -11,7 +11,7 @@ import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
-import logger from '../../utils/logger.js';
+import logger from '../utils/logger.js';
 
 async function main() {
   try {
