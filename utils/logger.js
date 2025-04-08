@@ -1,6 +1,6 @@
-const winston = require('winston');
-const { format } = require('winston');
-const { ElasticsearchTransport } = require('winston-elasticsearch');
+import winston from 'winston';
+import { format } from 'winston';
+import { ElasticsearchTransport } from 'winston-elasticsearch';
 
 // Create a default logger configuration
 const createLogger = () => {
@@ -118,7 +118,7 @@ const createLogger = () => {
 const logger = createLogger();
 
 // Add request context for tracing
-const addRequestContext = (req, res, next) => {
+export const addRequestContext = (req, res, next) => {
   const requestId = req.headers['x-request-id'] || require('uuid').v4();
   
   // Create a request-specific child logger
@@ -137,7 +137,7 @@ const addRequestContext = (req, res, next) => {
 };
 
 // Utility to log the start of an HTTP request
-const logRequest = (req, res, next) => {
+export const logRequest = (req, res, next) => {
   if (!req.logger) {
     // If middleware wasn't applied, use the default logger
     req.logger = logger;
@@ -167,7 +167,7 @@ const logRequest = (req, res, next) => {
 };
 
 // Custom middleware for authentication logging
-const logAuthentication = (req, res, next) => {
+export const logAuthentication = (req, res, next) => {
   if (req.user) {
     if (!req.logger) {
       req.logger = logger;
@@ -184,7 +184,4 @@ const logAuthentication = (req, res, next) => {
   next();
 };
 
-module.exports = logger;
-module.exports.addRequestContext = addRequestContext;
-module.exports.logRequest = logRequest;
-module.exports.logAuthentication = logAuthentication; 
+export default logger; 

@@ -60,24 +60,22 @@ if (isProduction) {
 }
 
 // Log database configuration (excluding sensitive data)
-console.log('Database configuration:', {
+logger.info('Database configuration:', {
   host: dbConfig.host,
   port: dbConfig.port,
   database: dbConfig.database,
   hasUser: !!dbConfig.user,
   hasPassword: !!dbConfig.password,
-  environment: isProduction ? 'production' : 'development',
-  timestamp: new Date().toISOString()
+  environment: isProduction ? 'production' : 'development'
 });
 
 // Create database connection pool
 export const pool = new Pool(dbConfig);
 
 pool.on('error', (err) => {
-  console.error('Unexpected database error:', {
+  logger.error('Unexpected database error:', {
     message: err.message,
-    code: err.code,
-    timestamp: new Date().toISOString()
+    code: err.code
   });
 });
 
@@ -365,7 +363,7 @@ export async function query(text, params) {
 
 export async function initializeDatabase() {
   if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
-    console.log('Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization');
+    logger.info('Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization');
     return;
   }
   
@@ -376,25 +374,23 @@ export async function initializeDatabase() {
   // Function to retry database connection
   async function attemptDatabaseConnection(retryCount = 0) {
     try {
-      console.log(`Database connection attempt ${retryCount + 1}/${MAX_RETRIES}...`);
+      logger.info(`Database connection attempt ${retryCount + 1}/${MAX_RETRIES}...`);
       const result = await query('SELECT current_database() as db_name');
-      console.log('Database connection verified:', {
+      logger.info('Database connection verified:', {
         database: result.rows[0].db_name,
-        poolSize: pool.totalCount,
-        timestamp: new Date().toISOString()
+        poolSize: pool.totalCount
       });
       return result;
     } catch (error) {
       if (retryCount < MAX_RETRIES - 1) {
-        console.log(`Connection failed, retrying in ${RETRY_DELAY_MS}ms...`, {
+        logger.warn(`Connection failed, retrying in ${RETRY_DELAY_MS}ms...`, {
           error: error.message,
-          attempt: retryCount + 1,
-          timestamp: new Date().toISOString()
+          attempt: retryCount + 1
         });
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
         return attemptDatabaseConnection(retryCount + 1);
       } else {
-        console.error('Maximum connection retry attempts reached');
+        logger.error('Maximum connection retry attempts reached');
         throw error;
       }
     }
@@ -406,47 +402,47 @@ export async function initializeDatabase() {
 
     // Always try the startup migration first (unless explicitly disabled)
     if (USE_STARTUP_MIGRATION) {
-      console.log('🔄 Using startup migration system...');
+      logger.info('🔄 Using startup migration system...');
       try {
         // Import and run the startup migration
         const { runStartupMigration } = await import('./startup-migration.js');
         const migrationSuccess = await runStartupMigration();
         
         if (migrationSuccess) {
-          console.log('✅ Startup migration completed successfully');
-          console.log('Database initialization completed successfully');
+          logger.info('✅ Startup migration completed successfully');
+          logger.info('Database initialization completed successfully');
           return; // Exit early if startup migration succeeds
         } else {
-          console.warn('⚠️ Startup migration had issues, falling back to single schema migrations');
+          logger.warn('⚠️ Startup migration had issues, falling back to single schema migrations');
           // Will fall through to try single schema approach
         }
       } catch (error) {
-        console.error('❌ Error during startup migration:', error.message);
-        console.warn('⚠️ Falling back to single schema migrations');
+        logger.error('❌ Error during startup migration:', error.message);
+        logger.warn('⚠️ Falling back to single schema migrations');
         // Will fall through to try single schema approach
       }
     }
 
     // If we get here, either startup migration is disabled or it failed
     if (USE_SINGLE_SCHEMA) {
-      console.log('🔄 Using single schema migration system...');
+      logger.info('🔄 Using single schema migration system...');
       try {
         await initializeSingleSchema();
-        console.log('✅ Single schema migration completed successfully');
+        logger.info('✅ Single schema migration completed successfully');
       } catch (error) {
-        console.error('❌ Error during single schema migration:', error.message);
-        console.warn('⚠️ Falling back to incremental migrations');
+        logger.error('❌ Error during single schema migration:', error.message);
+        logger.warn('⚠️ Falling back to incremental migrations');
         await initializeMultipleMigrations();
       }
     } else {
       // Use the traditional incremental migration system
-      console.log('🔄 Using incremental migration system...');
+      logger.info('🔄 Using incremental migration system...');
       await initializeMultipleMigrations();
     }
     
-    console.log('Database initialization completed successfully');
+    logger.info('Database initialization completed successfully');
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    logger.error('Failed to initialize database:', error);
     throw new AppError(
       'DATABASE_INIT_ERROR',
       'Failed to initialize database',
@@ -463,32 +459,32 @@ export async function initializeDatabase() {
  */
 export async function setRLSContext(userId) {
   if (!userId) {
-    console.warn('Attempted to set RLS context without a user ID');
+    logger.warn('Attempted to set RLS context without a user ID');
     return;
   }
   
   // Skip in development mode with validation disabled
   if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
-    console.log('DEVELOPMENT MODE: Skipping RLS context setting');
+    logger.info('DEVELOPMENT MODE: Skipping RLS context setting');
     return;
   }
   
   // Validate that userId is a valid UUID to prevent SQL injection
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(userId)) {
-    console.error('Invalid UUID format for RLS context', { userId });
+    logger.error('Invalid UUID format for RLS context', { userId });
     throw new Error('Invalid UUID format for user ID');
   }
   
   try {
     // Use a string literal instead of parameterized query for SET LOCAL
     await query(`SET LOCAL app.current_user_id = '${userId}'`, []);
-    console.log('Set RLS context successfully:', {
+    logger.info('Set RLS context successfully:', {
       userId,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Failed to set RLS context:', {
+    logger.error('Failed to set RLS context:', {
       error: error.message,
       userId,
       timestamp: new Date().toISOString()
@@ -510,7 +506,7 @@ export async function withRLSContext(userId, callback) {
   
   // Skip in development mode with validation disabled
   if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
-    console.log('DEVELOPMENT MODE: Skipping RLS context for callback execution');
+    logger.info('DEVELOPMENT MODE: Skipping RLS context for callback execution');
     return await callback({ query: async (text, params) => ({ rows: [], rowCount: 0 }) });
   }
   
