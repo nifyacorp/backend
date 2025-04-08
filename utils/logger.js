@@ -5,16 +5,28 @@ const { ElasticsearchTransport } = require('winston-elasticsearch');
 // Create a default logger configuration
 const createLogger = () => {
   // Define log formats
-  const consoleFormat = format.combine(
+  const sqlFormat = format.combine(
     format.timestamp(),
-    format.colorize(),
-    format.printf(({ level, message, timestamp, ...metadata }) => {
+    format.printf(({ level, message, sql, params, duration, rowCount, timestamp, ...metadata }) => {
+      if (sql) {
+        // Format SQL queries more cleanly
+        const formattedSql = sql.replace(/\s+/g, ' ').trim();
+        const paramInfo = params ? `[${params.join(', ')}]` : 'no params';
+        return `${timestamp} ${level}: ${message} - SQL: ${formattedSql} - PARAMS: ${paramInfo} - DURATION: ${duration}ms - ROWS: ${rowCount}`;
+      }
+      
       let metaStr = '';
       if (Object.keys(metadata).length > 0) {
         metaStr = JSON.stringify(metadata);
       }
       return `${timestamp} ${level}: ${message} ${metaStr}`;
     })
+  );
+
+  const consoleFormat = format.combine(
+    format.timestamp(),
+    format.colorize(),
+    sqlFormat
   );
 
   const jsonFormat = format.combine(
@@ -32,6 +44,13 @@ const createLogger = () => {
       filename: 'logs/error.log',
       level: 'error',
       format: jsonFormat
+    }),
+    new winston.transports.File({
+      filename: 'logs/sql.log',
+      level: 'debug',
+      format: sqlFormat,
+      // Only log messages with SQL property
+      filter: (info) => info.sql !== undefined
     }),
     new winston.transports.File({
       filename: 'logs/combined.log',

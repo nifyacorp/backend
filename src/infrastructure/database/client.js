@@ -2,6 +2,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
+import { sanitizeSqlForLogging, sanitizeParamsForLogging } from '../../../utils/sql-sanitizer.js';
 // Migration system configuration
 // Prioritize startup migration, then fall back to single schema, then traditional migrations
 const USE_STARTUP_MIGRATION = process.env.USE_STARTUP_MIGRATION !== 'false'; // Default to true
@@ -81,9 +82,11 @@ pool.on('error', (err) => {
 export async function query(text, params) {
   // Skip actual DB operations in development mode if specified
   if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
-    console.log('DEVELOPMENT MODE: Skipping database query:', { 
-      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-      timestamp: new Date().toISOString()
+    logger.debug('DEVELOPMENT MODE: Skipping database query', { 
+      sql: sanitizeSqlForLogging(text),
+      params: sanitizeParamsForLogging(params),
+      duration: 0,
+      rowCount: 0
     });
     
     // Mock subscription type data for getUserSubscriptions
@@ -305,37 +308,34 @@ export async function query(text, params) {
     // Get client from pool
     client = await pool.connect();
     
-    console.log('Database connection obtained for query:', { 
-      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-      paramCount: params ? params.length : 0,
-      timestamp: new Date().toISOString()
-    });
-    
     // Execute query
     const res = await client.query(text, params);
     const duration = Date.now() - start;
     
-    console.log('Query executed successfully:', { 
-      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-      duration: `${duration}ms`,
-      rowCount: res.rowCount,
-      timestamp: new Date().toISOString()
+    // Log query execution with sanitized data
+    logger.debug('Query executed', { 
+      sql: sanitizeSqlForLogging(text),
+      params: sanitizeParamsForLogging(params),
+      duration,
+      rowCount: res.rowCount
     });
     
     return res;
   } catch (error) {
     const duration = Date.now() - start;
     
-    console.error('Database query error:', {
-      error: error.message,
-      code: error.code,
-      detail: error.detail,
-      hint: error.hint,
-      position: error.position,
-      query: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
-      params: params ? `${params.length} parameters` : 'no parameters',
-      duration: `${duration}ms`,
-      timestamp: new Date().toISOString()
+    // Log error with sanitized data
+    logger.error('Database query error', {
+      sql: sanitizeSqlForLogging(text),
+      params: sanitizeParamsForLogging(params),
+      duration,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        hint: error.hint,
+        position: error.position
+      }
     });
     
     throw new AppError(
@@ -349,17 +349,12 @@ export async function query(text, params) {
       }
     );
   } finally {
-    // Release client back to pool
     if (client) {
       try {
         client.release();
-        console.log('Database connection released', {
-          timestamp: new Date().toISOString()
-        });
       } catch (releaseError) {
-        console.error('Error releasing database connection', {
-          error: releaseError.message,
-          timestamp: new Date().toISOString()
+        logger.error('Error releasing database connection', {
+          error: releaseError.message
         });
       }
     }
