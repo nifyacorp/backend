@@ -1,3 +1,6 @@
+import * as dotenv from 'dotenv';
+import Fastify from 'fastify';
+import * as process from 'process';
 import { createServer, registerPlugins } from './infrastructure/server/setup.js';
 import { registerParsers } from './infrastructure/server/parsers.js';
 import { coreRoutes } from './interfaces/http/routes/core.routes.js';
@@ -5,24 +8,31 @@ import { legacyRoutes } from './interfaces/http/routes/legacy.routes.js';
 import { compatibilityRoutes } from './interfaces/http/routes/compat.routes.js';
 import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
-import { templateRoutes } from './interfaces/http/routes/template.routes.js';
 import { notificationRoutes } from './interfaces/http/routes/notification.routes.js';
 import { registerSubscriptionProcessingRoutes } from './interfaces/http/routes/subscription-processing.routes.js';
 import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './interfaces/http/routes/diagnostics.routes.js';
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
-import logger from '../utils/logger.js';
+import { logger } from './shared/logging/logger.js';
+
+// Initialize environment variables
+dotenv.config();
+
+// Import configuration
+import { config } from './config/index.js';
 
 async function main() {
+  const port = config.server.port || 3000;
+  const host = config.server.host || '0.0.0.0';
+
   try {
     // Initialize database before starting server
     logger.info('Running database initialization before starting server.');
     await initializeDatabase();
 
     // Create and configure Fastify instance
-    const fastify = createServer();
-    const { port, host } = fastify.serverConfig;
+    const fastify = Fastify({ logger: false });
 
     // Register plugins and routes
     await registerPlugins(fastify);
@@ -39,9 +49,6 @@ async function main() {
     // These might define absolute paths or need specific root paths
     await fastify.register(legacyRoutes);
     await fastify.register(compatibilityRoutes);
-
-    // Register public API routes under /api/v1
-    await fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
 
     // Register authenticated API routes under /api/v1
     await fastify.register(userRoutes, { prefix: '/api/v1/users' });
