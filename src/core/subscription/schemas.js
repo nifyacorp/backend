@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Import the standardized schemas using ES Module syntax
-import SubscriptionSchemas from '../../../schemas/subscription/index.js';
+import SubscriptionSchemas from '../../schemas/subscription/index.js';
 
 const {
   BaseSubscriptionSchema,
