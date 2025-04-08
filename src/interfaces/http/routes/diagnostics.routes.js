@@ -430,30 +430,6 @@ export default async function diagnosticsRoutes(fastify) {
     }
   });
   
-  fastify.get('/health', async () => {
-    try {
-      const startTime = Date.now();
-      const dbResult = await query('SELECT NOW()');
-      const endTime = Date.now();
-      
-      return {
-        status: 'healthy',
-        database: {
-          status: 'connected',
-          response_time: endTime - startTime
-        }
-      };
-    } catch (error) {
-      return {
-        status: 'unhealthy',
-        database: {
-          status: 'error',
-          message: error.message
-        }
-      };
-    }
-  });
-
   // Check if user exists endpoint
   fastify.get('/user-exists/:userId', async (request, reply) => {
     try {
