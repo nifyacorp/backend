@@ -77,7 +77,9 @@ class AuthService {
       }
       
       console.log('✅ JWT secrets loaded successfully from Secret Manager', {
-        accessSecretLength: this.JWT_SECRET.length,
+        accessSecretLength: this.JWT_SECRET?.length,
+        accessSecretStart: this.JWT_SECRET ? this.JWT_SECRET.substring(0, 4) : 'N/A',
+        accessSecretEnd: this.JWT_SECRET ? this.JWT_SECRET.substring(this.JWT_SECRET.length - 4) : 'N/A',
         hasRefreshSecret: !!this.JWT_REFRESH_SECRET,
         timestamp: new Date().toISOString()
       });
@@ -103,12 +105,11 @@ class AuthService {
     const tokenType = isRefreshToken ? 'refresh' : 'access';
     
     console.log(`🔑 Verifying JWT ${tokenType} token...`, {
-      hasToken: !!token,
-      tokenFormat: token ? `${token.substring(0, 20)}...` : 'none',
+      tokenPreview: token ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}` : 'none',
       hasSecret: !!secretToUse,
       secretLength: secretToUse?.length,
-      secretFirstChar: secretToUse ? secretToUse[0] : null,
-      secretLastChar: secretToUse ? secretToUse[secretToUse.length - 1] : null,
+      secretStart: secretToUse ? secretToUse.substring(0, 4) : 'N/A',
+      secretEnd: secretToUse ? secretToUse.substring(secretToUse.length - 4) : 'N/A',
       isRefreshToken,
       timestamp: new Date().toISOString()
     });
@@ -148,27 +149,29 @@ class AuthService {
       
       // Verify with the appropriate secret based on token type
       const decoded = jwt.verify(token, secretToUse);
+      console.log('✅ Token verified successfully. Decoded payload:', { 
+          sub: decoded.sub, 
+          email: decoded.email, 
+          type: decoded.type,
+          iat: decoded.iat,
+          exp: decoded.exp 
+      });
       
       // Additional validation for token type
-      if (isRefreshToken && decoded.type !== 'refresh') {
-        console.error('❌ Token type mismatch: Expected refresh token but got:', decoded.type);
+      const expectedType = isRefreshToken ? 'refresh' : 'access';
+      console.log(`🔍 Checking token type. Expected: ${expectedType}, Actual: ${decoded.type}`);
+      if (decoded.type !== expectedType) {
+        console.error(`❌ Token type mismatch: Expected ${expectedType} token but got:`, decoded.type);
         throw new AppError(
           AUTH_ERRORS.INVALID_TOKEN.code,
-          'Invalid token type: Expected refresh token',
+          `Invalid token type: Expected ${expectedType} token`,
           401
         );
       }
       
-      if (!isRefreshToken && decoded.type !== 'access') {
-        console.error('❌ Token type mismatch: Expected access token but got:', decoded.type);
-        throw new AppError(
-          AUTH_ERRORS.INVALID_TOKEN.code,
-          'Invalid token type: Expected access token',
-          401
-        );
-      }
-      
+      console.log(`🔍 Checking sub claim. Present: ${!!decoded.sub}`);
       if (!decoded || !decoded.sub) {
+        console.error('❌ Invalid token format: missing sub claim');
         throw new AppError(
           AUTH_ERRORS.INVALID_TOKEN.code,
           'Invalid token format: missing sub claim',

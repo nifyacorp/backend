@@ -116,15 +116,14 @@ export async function authenticate(request, reply) {
     const authHeader = authHeaderExact || authHeaderLower;
     const userId = userIdExact || userIdLower;
     
-    // logger.logAuth({ requestId: request.id, path: request.url }, 'Processing authentication', { // Simplified logging
-    //   hasAuthLower: !!authHeaderLower,
-    //   hasAuthExact: !!authHeaderExact,
-    //   hasUserIdLower: !!userIdLower,
-    //   hasUserIdExact: !!userIdExact,
-    //   authHeader: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
-    //   path: request.url,
-    //   requestId: request.id
-    // });
+    console.log('🛡️ Authenticating request...', { 
+      requestId: request.id, 
+      path: request.url,
+      authorizationHeader: request.headers.authorization ? `${request.headers.authorization.substring(0, 15)}...` : 'none',
+      tokenExtracted: !!authHeader,
+      xUserIdHeader: userId || 'none',
+      timestamp: new Date().toISOString() 
+    });
 
     // Check for missing header
     if (!authHeader) {
@@ -210,9 +209,19 @@ export async function authenticate(request, reply) {
 
     // logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { userId, requestId: request.id }); // Simplified logging
   } catch (error) {
-    logger.logError({ requestId: request.id, path: request.url }, error, {
-      code: error.code
+    console.error('💥 Error in authentication middleware:', { 
+      requestId: request.id,
+      path: request.url,
+      errorName: error.name,
+      errorMessage: error.message, 
+      errorCode: error.code,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
     });
+    // Distinguish between authentication errors and other server errors
+    if (error instanceof AppError && error.status === 401) {
+      return reply.code(401).send({ error: 'Unauthorized', message: error.message });
+    }
     
     reply.code(error.status || 401).send(error.toJSON ? error.toJSON() : {
       error: error.message,
