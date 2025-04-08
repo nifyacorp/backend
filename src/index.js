@@ -18,9 +18,6 @@ import * as loggerModule from './shared/logging/logger.js';
 // Initialize environment variables
 dotenv.config();
 
-// Initialize authentication service (loads JWT secrets)
-await authService.initialize();
-
 // Use the server config from the createServer function
 const fastify = createServer();
 const { port, host } = fastify.serverConfig;
@@ -35,6 +32,10 @@ const logger = {
 
 async function main() {
   try {
+    // Initialize auth service to load JWT secrets
+    logger.info('Initializing authentication service...');
+    await authService.initialize();
+    
     // Initialize database before starting server
     logger.info('Running database initialization before starting server.');
     await initializeDatabase();
