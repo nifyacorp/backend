@@ -172,24 +172,43 @@ All authenticated routes require:
 
 ## 📦 Data Models
 
-### Subscription Model
+### Subscription Schema
+
+The backend uses standardized subscription schemas for validation and type safety. These schemas are defined in `src/schemas/subscription/` and include:
+
+- **Base Schema**: Common fields and validation rules for all subscriptions
+- **Create Schema**: Rules for creating new subscriptions
+- **Update Schema**: Rules for updating existing subscriptions
+- **Response Schema**: Structures for API responses
+
+The standardized fields are:
+- `name`: String (3-100 chars) - Subscription name
+- `description`: Optional string (max 500 chars)
+- `type`: Enum ('boe', 'real-estate', 'custom') - Subscription type
+- `prompts`: Array of 1-3 strings - Search terms or instructions
+- `frequency`: Enum ('immediate', 'daily') - Processing frequency
+- `active`: Boolean - Subscription status
+
+These schemas enforce consistent validation across all subscription endpoints, improving API reliability and providing clear error messages.
 
 ```javascript
-/**
- * Subscription object structure
- * @typedef {Object} Subscription
- * @property {string} id - UUID
- * @property {string} user_id - User UUID
- * @property {string} name - Subscription name
- * @property {string} description - Optional description
- * @property {string} type - Subscription type (e.g., "BOE", "real-estate")
- * @property {Array<string>} prompts - List of user prompts (1-3)
- * @property {string} status - Current status
- * @property {Object} metadata - Additional data
- * @property {Date} created_at - Creation timestamp
- * @property {Date} updated_at - Last update timestamp
- */
+// Example of using the schemas in a route handler
+const validationResult = CreateSubscriptionSchema.safeParse(request.body);
+    
+if (!validationResult.success) {
+  // Extract error details for better error messages
+  const errors = validationResult.error.format();
+  
+  throw new AppError(
+    'VALIDATION_ERROR',
+    'Invalid subscription data',
+    400,
+    { validationErrors: errors }
+  );
+}
 ```
+
+For more details, see the [Subscription Schema Documentation](../docs/subscription-schemas.md).
 
 ### Notification Model
 
