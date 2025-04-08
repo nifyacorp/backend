@@ -18,6 +18,9 @@ import * as loggerModule from './shared/logging/logger.js';
 // Initialize environment variables
 dotenv.config();
 
+// Initialize authentication service (loads JWT secrets)
+await authService.initialize();
+
 // Use the server config from the createServer function
 const fastify = createServer();
 const { port, host } = fastify.serverConfig;
