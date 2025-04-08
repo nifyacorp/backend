@@ -296,6 +296,12 @@ class SubscriptionService {
             name: row.name,
             description: row.description || '',
             type: row.type_id, // No join for type name, just use ID
+            type_id: row.type_id,
+            type_name: row.type_name,
+            type_icon: row.type_icon,
+            type_description: row.type_description,
+            parser_url: row.parser_url,
+            logo_url: row.logo_url,
             prompts: prompts,
             frequency: row.frequency || 'daily',
             active: row.active,
