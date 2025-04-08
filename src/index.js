@@ -20,7 +20,7 @@ import { logger } from './shared/logging/logger.js';
 dotenv.config();
 
 // Import configuration
-import { config } from '../.bolt/config.json';
+import { config } from '../.bolt/config.json' assert { type: 'json' };
 
 async function main() {
   const port = config.server.port || 3000;
