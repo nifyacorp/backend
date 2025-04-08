@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
 import { sanitizeSqlForLogging, sanitizeParamsForLogging } from '../../../utils/sql-sanitizer.js';
+import logger from '../../../utils/logger.js';
+
 // Migration system configuration
 // Prioritize startup migration, then fall back to single schema, then traditional migrations
 const USE_STARTUP_MIGRATION = process.env.USE_STARTUP_MIGRATION !== 'false'; // Default to true

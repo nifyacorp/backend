@@ -4,29 +4,46 @@ const { ElasticsearchTransport } = require('winston-elasticsearch');
 
 // Create a default logger configuration
 const createLogger = () => {
-  // Define log formats
+  // Define base format for SQL queries
+  const sqlBaseFormat = format.printf(({ level, message, sql, params, duration, rowCount, timestamp, ...metadata }) => {
+    if (sql) {
+      // Format SQL queries more cleanly
+      const formattedSql = sql.replace(/\s+/g, ' ').trim();
+      const paramInfo = params ? `[${params.join(', ')}]` : 'no params';
+      return `${timestamp} ${level}: ${message} - SQL: ${formattedSql} - PARAMS: ${paramInfo} - DURATION: ${duration}ms - ROWS: ${rowCount}`;
+    }
+    
+    let metaStr = '';
+    if (Object.keys(metadata).length > 0) {
+      metaStr = JSON.stringify(metadata);
+    }
+    return `${timestamp} ${level}: ${message} ${metaStr}`;
+  });
+
+  // Define formats with proper composition
   const sqlFormat = format.combine(
     format.timestamp(),
-    format.printf(({ level, message, sql, params, duration, rowCount, timestamp, ...metadata }) => {
-      if (sql) {
-        // Format SQL queries more cleanly
-        const formattedSql = sql.replace(/\s+/g, ' ').trim();
-        const paramInfo = params ? `[${params.join(', ')}]` : 'no params';
-        return `${timestamp} ${level}: ${message} - SQL: ${formattedSql} - PARAMS: ${paramInfo} - DURATION: ${duration}ms - ROWS: ${rowCount}`;
-      }
-      
-      let metaStr = '';
-      if (Object.keys(metadata).length > 0) {
-        metaStr = JSON.stringify(metadata);
-      }
-      return `${timestamp} ${level}: ${message} ${metaStr}`;
-    })
+    sqlBaseFormat
   );
 
   const consoleFormat = format.combine(
     format.timestamp(),
     format.colorize(),
-    sqlFormat
+    format((info) => {
+      if (info.sql) {
+        // Use SQL format for SQL queries
+        return sqlBaseFormat.transform(info);
+      }
+      // Use default format for non-SQL logs
+      return info;
+    })(),
+    format.printf(({ level, message, timestamp, ...metadata }) => {
+      let metaStr = '';
+      if (Object.keys(metadata).length > 0 && !metadata.sql) {
+        metaStr = JSON.stringify(metadata);
+      }
+      return `${timestamp} ${level}: ${message} ${metaStr}`;
+    })
   );
 
   const jsonFormat = format.combine(
@@ -34,7 +51,7 @@ const createLogger = () => {
     format.json()
   );
 
-  // Define transports
+  // Define transports with correct formats
   const transports = [
     new winston.transports.Console({
       level: process.env.LOG_LEVEL || 'debug',
@@ -75,10 +92,20 @@ const createLogger = () => {
     transports.push(esTransport);
   }
 
-  // Create logger
+  // Create logger with default metadata
   return winston.createLogger({
     level: process.env.LOG_LEVEL || 'info',
-    format: jsonFormat,
+    format: format.combine(
+      format.timestamp(),
+      format.errors({ stack: true }),
+      format((info) => {
+        if (info.sql) {
+          return sqlFormat.transform(info);
+        }
+        return info;
+      })(),
+      format.json()
+    ),
     defaultMeta: {
       service: 'subscription-service',
       environment: process.env.NODE_ENV || 'development'
