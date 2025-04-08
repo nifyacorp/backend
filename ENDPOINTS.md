@@ -27,6 +27,39 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 Note the space between `Bearer` and the token. Missing this space will result in authentication failures.
 
+### Authentication Refresh Token Endpoints
+
+When access tokens expire, they can be refreshed using these endpoints:
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|--------------|
+| POST | `/api/v1/auth/refresh` | Refresh access token (v1 API) | No |
+| POST | `/api/auth/refresh` | Refresh access token (legacy API) | No |
+
+#### POST /api/v1/auth/refresh
+
+Request:
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Response:
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 900,
+  "user": {
+    "id": "user-uuid",
+    "email": "user@example.com",
+    "name": "User Name",
+    "email_verified": true
+  }
+}
+```
+
 ### Common Authentication Errors
 
 | Error Code | Error Message | Description | Solution |

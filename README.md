@@ -306,6 +306,32 @@ npm run migrate:create migration_name
 
 ## 🔍 Recent Updates
 
+### User Preferences and Profile Management Implementation
+
+Recently implemented comprehensive user profile and preferences management:
+
+1. Added support for the following endpoints:
+   - `/api/v1/users/me` - Get and update user profile information
+   - `/api/v1/users/preferences` - Get and update user preferences like language and theme
+   - `/api/v1/me/email-preferences` - Get and update email notification settings
+   - `/api/v1/me/test-email` - Send test emails for notification verification
+
+2. Enhanced Authentication Service with proper refresh token handling:
+   - Added `/api/v1/auth/refresh` endpoint for token refresh
+   - Ensured backward compatibility with legacy `/api/auth/refresh` endpoint
+   - Improved documentation of authentication endpoints
+
+3. User Profile Features:
+   - Profile editing (name, bio, avatar)
+   - Theme preference (light/dark/system)
+   - Language selection (Spanish, English, Catalan)
+   - Email notification preferences:
+     - Enable/disable email notifications
+     - Custom notification email address
+     - Daily digest time configuration
+
+These changes ensure a seamless user experience with proper preferences management and profile customization options. All endpoints are properly documented and follow the established API patterns for consistency.
+
 ### User Synchronization Fix
 
 Recently implemented improved user synchronization between authentication and backend:
