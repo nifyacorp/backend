@@ -1,8 +1,8 @@
-const { z } = require('zod');
-const { BaseSubscriptionSchema, PromptsSchema } = require('./base.schema');
+import { z } from 'zod';
+import { BaseSubscriptionSchema, PromptsSchema } from './base.schema.js';
 
 // Schema for updating a subscription
-const UpdateSubscriptionSchema = BaseSubscriptionSchema
+export const UpdateSubscriptionSchema = BaseSubscriptionSchema
   .partial() // All fields are optional for updates
   .extend({
     prompts: PromptsSchema.optional(),
@@ -11,9 +11,4 @@ const UpdateSubscriptionSchema = BaseSubscriptionSchema
   });
 
 // Request schema
-const UpdateSubscriptionRequestSchema = UpdateSubscriptionSchema;
-
-module.exports = {
-  UpdateSubscriptionSchema,
-  UpdateSubscriptionRequestSchema
-}; 
+export const UpdateSubscriptionRequestSchema = UpdateSubscriptionSchema; 

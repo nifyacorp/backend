@@ -786,85 +786,17 @@ export async function registerCrudRoutes(fastify, options) {
           }
         }
       }
-    },
-    preHandler: [
-      validateZod(idParamSchema, 'params'),
-      validateZod(updateSubscriptionSchema)
-    ]
-  }, async (request, reply) => {
-    // Create context with token info from request if available
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
-    };
-
-    try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-      
-      const subscriptionId = request.params.id;
-      const updateData = request.body;
-      
-      // Log that this is the PUT endpoint being used
-      console.log('PUT endpoint used for update:', { 
-        subscriptionId, 
-        updateFields: Object.keys(updateData)
-      });
-      
-      // Verify that the subscription exists and belongs to the user
-      const existingSubscription = await subscriptionService.getSubscriptionById(
-        request.user.id,
-        subscriptionId,
-        context
-      );
-      
-      if (!existingSubscription) {
-        throw new AppError('NOT_FOUND', 'Subscription not found', 404);
-      }
-      
-      logRequest(context, 'Updating subscription via PUT endpoint', {
-        userId: request.user.id,
-        subscriptionId,
-        updateFields: Object.keys(updateData)
-      });
-      
-      const updatedSubscription = await subscriptionService.updateSubscription(
-        request.user.id,
-        subscriptionId,
-        updateData,
-        context
-      );
-      
-      return {
-        status: 'success',
-        data: {
-          subscription: updatedSubscription
-        }
-      };
-    } catch (error) {
-      logError(context, error);
-      
-      if (error instanceof AppError) {
-        return reply.code(error.status).send({
-          status: 'error',
-          code: error.code,
-          message: error.message
-        });
-      }
-      
-      return reply.code(500).send({
-        status: 'error',
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
-      });
     }
+  }, async (request, reply) => {
+    // Log the redirection for monitoring
+    console.log('PUT endpoint redirecting to PATCH:', { 
+      subscriptionId: request.params.id,
+      body: request.body
+    });
+    
+    // Redirect to PATCH endpoint with 308 status code
+    // 308 Permanent Redirect preserves the request method and body
+    return reply.redirect(308, `/api/v1/subscriptions/${request.params.id}`);
   });
 
   // PATCH /:id/toggle - Toggle subscription active status

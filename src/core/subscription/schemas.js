@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-// Import the standardized schemas
+// Import the standardized schemas using ES Module syntax
+import SubscriptionSchemas from '../../../schemas/subscription/index.js';
+
 const {
   BaseSubscriptionSchema,
   SubscriptionType,
@@ -8,7 +10,7 @@ const {
   PromptsSchema,
   CreateSubscriptionSchema,
   UpdateSubscriptionSchema
-} = require('../../../schemas/subscription');
+} = SubscriptionSchemas;
 
 // Re-export our standardized schemas while maintaining compatibility
 export const subscriptionFrequencySchema = SubscriptionFrequency;

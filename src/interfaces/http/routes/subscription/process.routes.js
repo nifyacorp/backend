@@ -39,14 +39,16 @@ export async function registerProcessRoutes(fastify, options) {
       }
     }
   }, async (request, reply) => {
-    // Reroute to the standard endpoint handler
-    request.params.id = request.params.id;
-    return fastify.inject({
-      method: 'POST',
-      url: `/subscriptions/${request.params.id}/process`,
-      headers: request.headers,
-      payload: request.body
+    // Log the redirect
+    console.log('Redirecting deprecated process endpoint to standard endpoint', {
+      from: `/api/v1/subscriptions/process/${request.params.id}`,
+      to: `/api/v1/subscriptions/${request.params.id}/process`,
+      requestId: request.id
     });
+    
+    // Redirect to standard endpoint with 308 status code
+    // 308 Permanent Redirect preserves the request method and body
+    return reply.redirect(308, `/api/v1/subscriptions/${request.params.id}/process`);
   });
   
   // POST /:id/process - Process a subscription immediately

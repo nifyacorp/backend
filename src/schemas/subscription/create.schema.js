@@ -1,16 +1,11 @@
-const { z } = require('zod');
-const { BaseSubscriptionSchema, PromptsSchema } = require('./base.schema');
+import { z } from 'zod';
+import { BaseSubscriptionSchema, PromptsSchema } from './base.schema.js';
 
 // Schema for creating a subscription
-const CreateSubscriptionSchema = BaseSubscriptionSchema.extend({
+export const CreateSubscriptionSchema = BaseSubscriptionSchema.extend({
   prompts: PromptsSchema,
   metadata: z.record(z.any()).optional(),
 });
 
 // Request schema
-const CreateSubscriptionRequestSchema = CreateSubscriptionSchema;
-
-module.exports = {
-  CreateSubscriptionSchema,
-  CreateSubscriptionRequestSchema
-}; 
+export const CreateSubscriptionRequestSchema = CreateSubscriptionSchema; 

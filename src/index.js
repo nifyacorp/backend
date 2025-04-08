@@ -7,6 +7,7 @@ import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
 import { templateRoutes } from './interfaces/http/routes/template.routes.js';
 import { notificationRoutes } from './interfaces/http/routes/notification.routes.js';
+import { registerSubscriptionProcessingRoutes } from './interfaces/http/routes/subscription-processing.routes.js';
 import diagnosticsRoutes, { expressRouter as diagnosticsExpressRouter } from './interfaces/http/routes/diagnostics.routes.js';
 import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
@@ -46,6 +47,12 @@ async function main() {
     await fastify.register(userRoutes, { prefix: '/api/v1/users' });
     await fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
     await fastify.register(notificationRoutes, { prefix: '/api/v1/notifications' });
+    
+    // Register alternative subscription-processing routes (with authentication)
+    await fastify.register(async (instance) => {
+      instance.addHook('preHandler', authenticate);
+      await instance.register(registerSubscriptionProcessingRoutes);
+    }, { prefix: '/api/v1/subscription-processing' });
 
     // Start the server
     await fastify.listen({ port, host });

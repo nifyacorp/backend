@@ -1,8 +1,8 @@
-const { z } = require('zod');
-const { BaseSubscriptionSchema, PromptsSchema } = require('./base.schema');
+import { z } from 'zod';
+import { BaseSubscriptionSchema, PromptsSchema } from './base.schema.js';
 
 // Schema for subscription data in responses
-const SubscriptionResponseSchema = BaseSubscriptionSchema.extend({
+export const SubscriptionResponseSchema = BaseSubscriptionSchema.extend({
   id: z.string().uuid('Invalid subscription ID format'),
   prompts: PromptsSchema,
   active: z.boolean(),
@@ -12,7 +12,7 @@ const SubscriptionResponseSchema = BaseSubscriptionSchema.extend({
 });
 
 // List response
-const SubscriptionListResponseSchema = z.object({
+export const SubscriptionListResponseSchema = z.object({
   status: z.literal('success'),
   data: z.object({
     subscriptions: z.array(SubscriptionResponseSchema),
@@ -26,7 +26,7 @@ const SubscriptionListResponseSchema = z.object({
 });
 
 // Get single subscription response
-const SubscriptionGetResponseSchema = z.object({
+export const SubscriptionGetResponseSchema = z.object({
   status: z.literal('success'),
   data: z.object({
     subscription: SubscriptionResponseSchema,
@@ -34,22 +34,14 @@ const SubscriptionGetResponseSchema = z.object({
 });
 
 // Create/Update subscription response
-const SubscriptionCreateUpdateResponseSchema = SubscriptionGetResponseSchema;
+export const SubscriptionCreateUpdateResponseSchema = SubscriptionGetResponseSchema;
 
 // Delete subscription response
-const SubscriptionDeleteResponseSchema = z.object({
+export const SubscriptionDeleteResponseSchema = z.object({
   status: z.literal('success'),
   message: z.string(),
   details: z.object({
     id: z.string().uuid(),
     alreadyRemoved: z.boolean().optional(),
   }),
-});
-
-module.exports = {
-  SubscriptionResponseSchema,
-  SubscriptionListResponseSchema,
-  SubscriptionGetResponseSchema,
-  SubscriptionCreateUpdateResponseSchema,
-  SubscriptionDeleteResponseSchema
-}; 
+}); 

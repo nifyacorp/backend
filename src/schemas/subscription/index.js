@@ -1,10 +1,11 @@
-// Export all subscription schemas
-const baseSchemas = require('./base.schema');
-const createSchemas = require('./create.schema');
-const updateSchemas = require('./update.schema');
-const responseSchemas = require('./response.schema');
+// Export all subscription schemas using ES Module syntax
+import * as baseSchemas from './base.schema.js';
+import * as createSchemas from './create.schema.js';
+import * as updateSchemas from './update.schema.js';
+import * as responseSchemas from './response.schema.js';
 
-module.exports = {
+// Export all schemas
+export default {
   ...baseSchemas,
   ...createSchemas,
   ...updateSchemas,
