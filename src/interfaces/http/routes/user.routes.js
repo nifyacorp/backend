@@ -14,6 +14,59 @@ import {
   sendTestEmail,
   markNotificationsAsSent
 } from '../../../core/user/interfaces/http/email-preferences.controller.js';
+import { query } from '../../../infrastructure/database/client.js';
+
+// API key middleware for service-to-service authentication
+const validateApiKey = async (request, reply) => {
+  try {
+    const apiKey = request.headers['x-api-key'];
+    
+    // Get the expected API key from Secret Manager
+    let expectedApiKey = process.env.SERVICE_API_KEY;
+    
+    // If not in env, try to get it from Secret Manager
+    if (!expectedApiKey) {
+      try {
+        // Check if we have access to Secret Manager and the secret exists
+        const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
+        const secretClient = new SecretManagerServiceClient();
+        
+        // Format of the secret name: projects/PROJECT_ID/secrets/SECRET_NAME/versions/VERSION
+        const secretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/SYNC_USERS_API_KEY/versions/latest`;
+        
+        const [version] = await secretClient.accessSecretVersion({ name: secretName });
+        expectedApiKey = version.payload.data.toString();
+      } catch (secretError) {
+        console.warn('Failed to get SYNC_USERS_API_KEY from Secret Manager:', secretError.message);
+        console.warn('API key validation is disabled.');
+        return; // Continue without validation in case of error
+      }
+    }
+    
+    if (!expectedApiKey) {
+      console.warn('Neither SERVICE_API_KEY nor SYNC_USERS_API_KEY in Secret Manager is set. API key validation is disabled.');
+      return;
+    }
+    
+    if (!apiKey || apiKey !== expectedApiKey) {
+      throw new AppError(
+        'UNAUTHORIZED',
+        'Invalid API key',
+        401
+      );
+    }
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    console.error('Error validating API key:', error);
+    throw new AppError(
+      'INTERNAL_ERROR',
+      'Error validating API key',
+      500
+    );
+  }
+};
 
 const userProfileSchema = {
   type: 'object',
@@ -38,6 +91,129 @@ const userProfileSchema = {
 // Using the imported updateProfileSchema from schemas.js
 
 export async function userRoutes(fastify, options) {
+  // User synchronization endpoint (service-to-service)
+  fastify.post('/sync', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string', format: 'uuid' },
+          email: { type: 'string', format: 'email' }
+        },
+        required: ['userId', 'email'],
+        additionalProperties: false
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            userId: { type: 'string', format: 'uuid' }
+          }
+        },
+        400: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' }
+          }
+        }
+      }
+    },
+    preHandler: validateApiKey
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      source: 'auth-service'
+    };
+
+    try {
+      const { userId, email } = request.body;
+      
+      if (!userId || !email) {
+        return reply.code(400).send({
+          error: 'INVALID_REQUEST',
+          message: 'User ID and email are required'
+        });
+      }
+      
+      logRequest(context, 'Processing user sync request', {
+        userId,
+        email
+      });
+      
+      // Check if user already exists
+      const existingUser = await query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
+      );
+      
+      if (existingUser.rows.length > 0) {
+        // User already exists, no need to sync
+        return {
+          success: true,
+          message: 'User already exists',
+          userId
+        };
+      }
+      
+      // Create user with minimal info
+      await query(
+        `INSERT INTO users (
+          id,
+          email,
+          display_name,
+          metadata
+        ) VALUES ($1, $2, $3, $4)
+        ON CONFLICT (id) DO NOTHING`,
+        [
+          userId,
+          email,
+          email.split('@')[0], // Simple display name from email
+          JSON.stringify({
+            emailNotifications: true,
+            emailFrequency: 'immediate',
+            instantNotifications: true,
+            notificationEmail: email
+          })
+        ]
+      );
+      
+      // Confirm user was created
+      const checkUserCreated = await query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
+      );
+      
+      if (checkUserCreated.rows.length === 0) {
+        throw new Error('Failed to create user');
+      }
+      
+      // Log success
+      console.log(`User ${userId} successfully synced to backend database`);
+      
+      return {
+        success: true,
+        message: 'User successfully synced',
+        userId
+      };
+      
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: error.message || 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+  
   fastify.get('/me', {
     schema: {
       response: {
