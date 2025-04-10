@@ -126,56 +126,51 @@ export async function compatibilityRoutes(fastify, options) {
   // Apply authentication middleware to all routes in this plugin
   fastify.addHook('preHandler', authenticate);
 
-  // --- /api/v1/me ---
-  // GET /api/v1/me forwards to user service wrapper
-  fastify.get('/api/v1/me', userServiceWrapper);
+  // --- /api/v1/me Routes ---
+  // Redirect to proper user routes
+  fastify.get('/api/v1/me', async (request, reply) => {
+    return reply.redirect(301, '/api/v1/users/me');
+  });
 
-  // PATCH /api/v1/me uses direct handler
-  fastify.patch('/api/v1/me', {
-    // Schema copied from index.js - consider centralizing schemas
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', minLength: 2, maxLength: 100 },
-          bio: { type: 'string', maxLength: 500 },
-          theme: { type: 'string', enum: ['light', 'dark', 'system'] },
-          language: { type: 'string', enum: ['es', 'en', 'ca'] }
-        },
-        // No required fields means all are optional for PATCH
-        additionalProperties: false
-      },
-      // Response schema omitted for brevity, but should be included
-    }
-  }, updateUserProfileHandler);
+  fastify.patch('/api/v1/me', async (request, reply) => {
+    return reply.redirect(308, '/api/v1/users/me');
+  });
 
-  // --- /api/v1/me/notification-settings ---
-  fastify.patch('/api/v1/me/notification-settings', {
-    // Schema copied from index.js - consider centralizing schemas
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          emailNotifications: { type: 'boolean' },
-          notificationEmail: { type: ['string', 'null'], format: 'email' }, // Allow null
-          emailFrequency: { type: 'string', enum: ['daily'] },
-          instantNotifications: { type: 'boolean' }
-        },
-         additionalProperties: false
-      },
-       // Response schema omitted for brevity
-    }
-  }, updateNotificationSettingsHandler);
+  fastify.patch('/api/v1/me/notification-settings', async (request, reply) => {
+    return reply.redirect(308, '/api/v1/users/me/notification-settings');
+  });
 
   // --- Email Preferences Routes ---
-  fastify.get('/api/v1/me/email-preferences', getEmailPreferences);
-  fastify.patch('/api/v1/me/email-preferences', updateEmailPreferences);
-  fastify.post('/api/v1/me/test-email', sendTestEmail);
+  fastify.get('/api/v1/me/email-preferences', async (request, reply) => {
+    return reply.redirect(301, '/api/v1/users/me/email-preferences');
+  });
+
+  fastify.patch('/api/v1/me/email-preferences', async (request, reply) => {
+    return reply.redirect(308, '/api/v1/users/me/email-preferences');
+  });
+
+  fastify.post('/api/v1/me/test-email', async (request, reply) => {
+    return reply.redirect(308, '/api/v1/users/me/test-email');
+  });
 
   // --- Compatibility for frontend using /v1 instead of /api/v1 ---
-  fastify.get('/v1/me/email-preferences', getEmailPreferences);
-  fastify.patch('/v1/me/email-preferences', updateEmailPreferences);
-  fastify.post('/v1/me/test-email', sendTestEmail);
+  fastify.get('/v1/me', async (request, reply) => {
+    return reply.redirect(301, '/api/v1/users/me');
+  });
+
+  fastify.get('/v1/me/email-preferences', async (request, reply) => {
+    return reply.redirect(301, '/api/v1/users/me/email-preferences');
+  });
+
+  fastify.patch('/v1/me/email-preferences', async (request, reply) => {
+    return reply.redirect(308, '/api/v1/users/me/email-preferences');
+  });
+
+  fastify.post('/v1/me/test-email', async (request, reply) => {
+    return reply.redirect(308, '/api/v1/users/me/test-email');
+  });
+
+  console.log("Compatibility redirects registered successfully.");
 }
 
 // Add '/v1/me' compatibility if needed, pointing to the same handlers
