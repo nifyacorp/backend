@@ -15,8 +15,8 @@ import { logRequest, logError } from '../../shared/logging/logger.js';
 // Get the current module's directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Path to schema file (in supabase directory)
-const SCHEMA_FILE = path.join(__dirname, '../../../supabase/complete-schema.sql');
+// Path to schema file (new consolidated schema file)
+const SCHEMA_FILE = path.join(__dirname, '../../../consolidated-schema.sql');
 
 // Migration error types
 const MIGRATION_ERRORS = {

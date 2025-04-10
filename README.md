@@ -436,6 +436,122 @@ docker run -p 3000:3000 \
   nifya-backend
 ```
 
+## Database Schema
+
+The NIFYA platform uses a PostgreSQL database with a clean, consolidated schema approach:
+
+### Database Architecture
+
+![Database Schema](../docs/images/database-schema.png)
+
+### Core Tables
+
+| Table | Description |
+|-------|-------------|
+| `users` | Stores user accounts and profile information |
+| `subscription_types` | Defines available subscription types (BOE, DOGA, real-estate, etc.) |
+| `subscriptions` | User subscriptions for different data sources |
+| `subscription_processing` | Tracks processing status of subscriptions |
+| `notifications` | Notifications for users based on subscription matches |
+| `user_email_preferences` | User preferences for email notifications |
+
+### Single Schema Approach
+
+We've migrated from using multiple incremental migrations to a single consolidated schema file:
+
+- **Location**: `backend/consolidated-schema.sql`
+- **Version Tracking**: Via `schema_version` table
+- **Initialization**: Automatic during application startup
+
+This approach eliminates dependency conflicts, schema drift, and inconsistencies between environments.
+
+### Schema Details
+
+#### users
+
+The central user table storing profile information:
+
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  display_name VARCHAR(255),
+  first_name VARCHAR(255),
+  last_name VARCHAR(255),
+  avatar_url TEXT,
+  role VARCHAR(50) DEFAULT 'user',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
+);
+```
+
+#### subscription_types
+
+Available sources for subscriptions:
+
+```sql
+CREATE TABLE subscription_types (
+  id VARCHAR(255) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  display_name VARCHAR(255) NOT NULL,
+  description TEXT,
+  icon VARCHAR(50),
+  parser_url VARCHAR(255),
+  logo_url VARCHAR(255),
+  is_system BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
+);
+```
+
+#### subscriptions
+
+User subscriptions to data sources:
+
+```sql
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type_id VARCHAR(255) NOT NULL REFERENCES subscription_types(id),
+  prompts JSONB DEFAULT '[]',
+  frequency VARCHAR(50) NOT NULL,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
+);
+```
+
+### Database Initialization
+
+The database is automatically initialized on application startup:
+
+1. The application reads `consolidated-schema.sql`
+2. It checks if the schema is already applied (via `schema_version` table)
+3. It applies the schema if needed or if it's the first run
+
+No manual migrations or SQL commands are required. This is handled in:
+`src/infrastructure/database/single-schema-migrations.js`
+
+### Handling Schema Changes
+
+To modify the database schema:
+
+1. Edit `backend/consolidated-schema.sql`
+2. Increment the version number at the top of the file
+3. Update the `schema_version` table insert at the bottom
+4. Restart the application or redeploy
+
+### Default Data
+
+The schema includes default data for:
+
+- Subscription types (BOE, DOGA, Real Estate)
+
 ---
 
 Built with ❤️ by the NIFYA Team
