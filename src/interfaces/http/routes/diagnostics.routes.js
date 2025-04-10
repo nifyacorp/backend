@@ -528,9 +528,204 @@ export default async function diagnosticsRoutes(fastify) {
       };
     }
   });
+
+  // Mount Express router if @fastify/express is registered
+  if (fastify.use) {
+    // Mount our Express router for the /api/diagnostics path
+    fastify.use('/api/diagnostics', expressRouter);
+    console.log('Express diagnostics routes registered at /api/diagnostics');
+  } else {
+    console.warn('Cannot register Express diagnostics routes - @fastify/express not available');
+    // Try to register it
+    try {
+      const express = await import('@fastify/express');
+      await fastify.register(express.default);
+      fastify.use('/api/diagnostics', expressRouter);
+      console.log('Registered @fastify/express and mounted diagnostics routes at /api/diagnostics');
+    } catch (err) {
+      console.error('Failed to register @fastify/express:', err.message);
+    }
+  }
 } 
 
 // Express compatible routes for API compatibility
+
+/**
+ * @swagger
+ * /api/diagnostics/auth-debug:
+ *   post:
+ *     summary: Debug authentication and token issues
+ *     description: Analyzes authorization headers and token validation
+ *     tags: [Diagnostics]
+ *     responses:
+ *       200:
+ *         description: Authentication debug information
+ */
+expressRouter.post('/auth-debug', async (req, res) => {
+  try {
+    // Extract headers for analysis
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    const userIdHeader = req.headers['x-user-id'] || req.headers['X-User-ID'];
+    
+    // Log request details
+    console.log('🔍 Auth debug request received:', {
+      hasAuthHeader: !!authHeader,
+      authHeaderPreview: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
+      hasUserIdHeader: !!userIdHeader,
+      userIdHeader,
+      contentType: req.headers['content-type'],
+      method: req.method,
+      path: req.path,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Prepare results object
+    const results = {
+      timestamp: new Date().toISOString(),
+      headers: {
+        auth_header: authHeader ? 'present' : 'missing',
+        user_id_header: userIdHeader || 'missing',
+        format_valid: false
+      },
+      token: {
+        present: false,
+        valid: false,
+        decoded: null,
+        error: null
+      },
+      user: {
+        exists: false,
+        details: null,
+        sync_attempted: false,
+        sync_successful: false
+      }
+    };
+    
+    // Check header format
+    if (authHeader) {
+      results.headers.format_valid = !!authHeader.match(/^bearer\s+.+$/i);
+      
+      // Extract token
+      if (results.headers.format_valid) {
+        const token = authHeader.replace(/^bearer\s+/i, '');
+        results.token.present = true;
+        
+        // Try to decode token without verification
+        try {
+          const decoded = jwt.decode(token, { complete: true });
+          
+          if (decoded) {
+            results.token.decoded = {
+              header: decoded.header,
+              payload: {
+                sub: decoded.payload.sub,
+                email: decoded.payload.email,
+                name: decoded.payload.name,
+                type: decoded.payload.type,
+                iat: decoded.payload.iat,
+                exp: decoded.payload.exp,
+                // Only include other fields if present
+                ...(decoded.payload.email_verified ? { email_verified: decoded.payload.email_verified } : {})
+              }
+            };
+            
+            // Check if userId header matches token sub
+            if (userIdHeader && results.token.decoded.payload.sub) {
+              results.headers.user_id_matches_token = userIdHeader === results.token.decoded.payload.sub;
+            }
+          }
+        } catch (decodeError) {
+          results.token.error = `Decode error: ${decodeError.message}`;
+        }
+        
+        // Try to verify token (if we have the JWT_SECRET)
+        if (process.env.JWT_SECRET) {
+          try {
+            const verified = jwt.verify(token, process.env.JWT_SECRET);
+            results.token.valid = true;
+            
+            // Check if user exists in the database
+            if (verified && verified.sub) {
+              const userId = verified.sub;
+              const userResult = await query(
+                'SELECT id, email, name FROM users WHERE id = $1',
+                [userId]
+              );
+              
+              results.user.exists = userResult.rows.length > 0;
+              
+              if (results.user.exists) {
+                results.user.details = userResult.rows[0];
+              } else {
+                // User doesn't exist, attempt to sync
+                results.user.sync_attempted = true;
+                
+                try {
+                  // Create the user using token information
+                  const email = verified.email || 'unknown@example.com';
+                  const name = verified.name || email.split('@')[0] || 'User';
+                  
+                  const createResult = await query(
+                    `INSERT INTO users (
+                      id,
+                      email,
+                      name,
+                      created_at,
+                      updated_at
+                    ) VALUES ($1, $2, $3, $4, $5)
+                    RETURNING id, email, name`,
+                    [
+                      userId,
+                      email,
+                      name,
+                      new Date(),
+                      new Date()
+                    ]
+                  );
+                  
+                  results.user.sync_successful = createResult.rows.length > 0;
+                  results.user.details = createResult.rows[0] || null;
+                } catch (syncError) {
+                  results.user.sync_error = syncError.message;
+                  results.user.sync_successful = false;
+                }
+              }
+            }
+          } catch (verifyError) {
+            results.token.valid = false;
+            results.token.error = `Verification error: ${verifyError.message}`;
+          }
+        } else {
+          results.token.error = 'JWT_SECRET not available for verification';
+        }
+      }
+    }
+    
+    // Additional help for client
+    results.help = {
+      correct_headers: {
+        'Authorization': 'Bearer YOUR_TOKEN_HERE',
+        'x-user-id': 'USER_ID_MATCHING_TOKEN_SUB'
+      },
+      common_issues: [
+        'Authorization header missing Bearer prefix',
+        'x-user-id header missing',
+        'x-user-id does not match token sub claim',
+        'Token expired or invalid'
+      ]
+    };
+    
+    return res.json(results);
+  } catch (error) {
+    console.error('Error in auth debug endpoint:', error);
+    
+    return res.status(500).json({
+      status: 'error',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
 
 /**
  * @swagger
