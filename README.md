@@ -1,5 +1,27 @@
 # NIFYA Backend Orchestration Service
 
+## Vision
+
+NIFYA's Backend Orchestration Service is designed to be the central nervous system of the NIFYA platform, connecting various AI-powered services to provide intelligent notifications tailored to user interests. The vision is to create a scalable, maintainable, and extensible backend system that:
+
+1. **Seamlessly orchestrates multiple specialized AI models** to process different content types with maximum accuracy and efficiency.
+
+2. **Empowers users with control over their information consumption** through flexible subscription management and personalization options.
+
+3. **Transforms unstructured data into actionable insights** by leveraging advanced natural language processing techniques.
+
+4. **Delivers real-time, relevant notifications** through multiple channels based on user preferences.
+
+5. **Scales effortlessly** to handle growing user bases and expanding content sources without compromising performance.
+
+6. **Maintains strict data isolation and security** to protect user privacy and content integrity.
+
+7. **Adapts to evolving requirements** through a modular architecture that allows for easy extension and modification.
+
+The ultimate goal is to build a robust platform that intelligently filters the noise of information overload, delivering only what truly matters to each user at the right time and in the right format.
+
+For technical specifications and implementation details, please refer to the [TECHNICAL-SPECIFICATION.md](./TECHNICAL-SPECIFICATION.md) file.
+
 A comprehensive API backend designed for LLM-powered notification and subscription management, orchestrating content processing across multiple AI models.
 
 ## 🧠 Key Features
