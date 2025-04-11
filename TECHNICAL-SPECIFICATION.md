@@ -62,22 +62,22 @@ This document provides detailed technical specifications for the NIFYA Backend s
 ### Service Communication Flow
 
 ```
-┌──────────────┐       ┌───────────────┐      ┌───────────────┐
-│ Auth Service │◄─────►│ Backend       │◄────►│ BOE/DOGA      │
-└──────────────┘       │ Service       │      │ Parsers       │
+┌──────────────┐       ┌───────────────┐
+│ Auth Service │◄─────►│ Backend       │
+└──────────────┘       │ Service       │
+                       └───────┬───────┘
+                               │
+                               ▼
+                       ┌───────────────┐      ┌───────────────┐
+                       │ Subscription  │◄────►│ BOE/DOGA      │
+                       │ Worker        │      │ Parsers       │
                        └───────┬───────┘      └───────────────┘
                                │
                                ▼
                        ┌───────────────┐      ┌───────────────┐
-                       │ Subscription  │◄────►│ Notification  │
-                       │ Worker        │      │ Worker        │
+                       │ Notification  │◄────►│ Email         │
+                       │ Worker        │      │ Notification  │
                        └───────────────┘      └───────────────┘
-                                                      │
-                                                      ▼
-                                              ┌───────────────┐
-                                              │ Email         │
-                                              │ Notification  │
-                                              └───────────────┘
 ```
 
 ## Logical Architecture

@@ -16,6 +16,7 @@ import { AppError } from '../../../shared/errors/AppError.js';
 import logger from '../../../shared/logger.js';
 import { AUTH_HEADER, USER_ID_HEADER, TOKEN_PREFIX } from '../../../shared/constants/headers.js';
 import { query } from '../../../infrastructure/database/client.js';
+import jwt from 'jsonwebtoken';
 
 const PUBLIC_PATHS = [
   '/health',
@@ -161,65 +162,98 @@ export async function authenticate(request, reply) {
     // Extract token more reliably (case insensitive and handles extra spaces)
     const token = authHeader.replace(/^bearer\s+/i, '');
     
-    if (!token || !userId) {
+    // Check if we have a user ID - if not, try to extract from token
+    let userIdToUse = userId;
+    if (!userIdToUse) {
+      try {
+        // Try to decode the token to extract the user ID
+        const decoded = jwt.decode(token);
+        if (decoded && decoded.sub) {
+          console.log('Extracted user ID from token:', decoded.sub);
+          userIdToUse = decoded.sub;
+        }
+      } catch (decodeError) {
+        console.error('Error decoding token to extract user ID:', decodeError.message);
+      }
+    }
+    
+    if (!token) {
       throw new AppError(
         AUTH_ERRORS.MISSING_HEADERS.code,
-        AUTH_ERRORS.MISSING_HEADERS.message,
+        'Invalid token format',
         401,
-        { missingToken: !token, missingUserId: !userId }
+        { missingToken: true }
       );
     }
 
-    // logger.logAuth({ requestId: request.id, path: request.url }, 'Token verification attempt', { // Simplified logging
-    //   tokenLength: token?.length,
-    //   hasUserId: !!userId,
-    //   requestId: request.id
-    // });
-
-    const decoded = authService.verifyToken(token);
-    
-    if (decoded.sub !== userId) {
-      throw new AppError(
-        AUTH_ERRORS.USER_MISMATCH.code,
-        AUTH_ERRORS.USER_MISMATCH.message,
-        401,
-        { tokenUserId: decoded.sub, headerUserId: userId }
-      );
-    }
-
-    // Set user info on request
-    request.user = {
-      id: userId,
-      email: decoded.email,
-      name: decoded.name || decoded.email?.split('@')[0] || 'User',
-      token: decoded
-    };
-    
-    // Add token info to userContext for other services to use
-    request.userContext = {
-      token: {
-        sub: decoded.sub,
-        email: decoded.email,
-        name: decoded.name
-      }
-    };
-
-    // Synchronize user to database if necessary
+    // Verify token
     try {
-      await synchronizeUser(userId, 
-        { 
-          email: decoded.email, 
-          name: decoded.name || decoded.email?.split('@')[0] || 'User' 
-        }, 
-        { requestId: request.id, path: request.url }
-      );
-    } catch (syncError) {
-      // Just log the error but don't fail authentication
-      logger.logError({ requestId: request.id, path: request.url }, 
-        `User sync error: ${syncError.message}`, { userId });
-    }
+      const decoded = authService.verifyToken(token);
+      
+      // Set user info on request, using either provided or extracted user ID
+      request.user = {
+        id: decoded.sub,
+        email: decoded.email,
+        name: decoded.name || decoded.email?.split('@')[0] || 'User',
+        token: decoded
+      };
+      
+      // Add token info to userContext for other services to use
+      request.userContext = {
+        token: {
+          sub: decoded.sub,
+          email: decoded.email,
+          name: decoded.name
+        }
+      };
 
-    // logger.logAuth({ requestId: request.id, path: request.url }, 'Authentication successful', { userId, requestId: request.id }); // Simplified logging
+      // Synchronize user to database if necessary
+      try {
+        await synchronizeUser(decoded.sub, 
+          { 
+            email: decoded.email, 
+            name: decoded.name || decoded.email?.split('@')[0] || 'User' 
+          }, 
+          { requestId: request.id, path: request.url }
+        );
+      } catch (syncError) {
+        // Just log the error but don't fail authentication
+        logger.logError({ requestId: request.id, path: request.url }, 
+          `User sync error: ${syncError.message}`, { userId: decoded.sub });
+      }
+      
+      console.log('✅ Authentication successful:', {
+        userId: decoded.sub,
+        requestId: request.id,
+        path: request.url,
+        timestamp: new Date().toISOString()
+      });
+    } catch (verifyError) {
+      // If token verification fails, try to provide a helpful error
+      console.error('❌ Token verification failed:', {
+        error: verifyError.message,
+        code: verifyError.code,
+        requestId: request.id,
+        path: request.url,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (verifyError.code === 'TOKEN_EXPIRED') {
+        throw new AppError(
+          'TOKEN_EXPIRED',
+          'Your session has expired. Please log in again.',
+          401,
+          { originalError: verifyError.message }
+        );
+      }
+      
+      throw new AppError(
+        AUTH_ERRORS.INVALID_TOKEN.code,
+        'Invalid authentication token. Please log in again.',
+        401,
+        { originalError: verifyError.message }
+      );
+    }
   } catch (error) {
     console.error('💥 Error in authentication middleware:', { 
       requestId: request.id,
@@ -230,18 +264,15 @@ export async function authenticate(request, reply) {
       stack: error.stack,
       timestamp: new Date().toISOString()
     });
-    // Distinguish between authentication errors and other server errors
-    if (error instanceof AppError && error.status === 401) {
-      return reply.code(401).send({ error: 'Unauthorized', message: error.message });
-    }
     
-    reply.code(error.status || 401).send(error.toJSON ? error.toJSON() : {
-      error: error.message,
-      code: error.code || 'AUTH_ERROR',
-      status: error.status || 401
-    });
+    // Return error response
+    const errorResponse = {
+      status: 'error',
+      code: error.code || 'UNAUTHORIZED',
+      message: error.message || 'Authentication required'
+    };
     
-    return reply;
+    reply.code(401).send(errorResponse);
   }
 }
 
