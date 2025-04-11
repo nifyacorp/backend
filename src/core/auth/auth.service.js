@@ -5,7 +5,6 @@ import { AUTH_ERRORS } from '../types/auth.types.js';
 import { getFirebaseAuth, verifyFirebaseIdToken, getFirebaseUser } from '../../infrastructure/firebase/admin.js';
 import logger from '../../shared/logger.js';
 import { query } from '../../infrastructure/database/client.js';
-import { logInfo, logError } from '../../shared/logging/logger.js';
 
 class AuthService {
   constructor() {
@@ -20,7 +19,7 @@ class AuthService {
     this.accessTokenExpiration = '15m';  // 15 minutes
     this.refreshTokenExpiration = '7d';  // 7 days
     
-    logger.logInfo({}, 'Initializing auth service with Firebase', {
+    logger.logAuth({}, 'Initializing auth service with Firebase', {
       environment: this.isProduction ? 'production' : 'development',
       project: process.env.GOOGLE_CLOUD_PROJECT,
       firebaseProject: process.env.FIREBASE_PROJECT_ID
@@ -32,7 +31,7 @@ class AuthService {
    * This is a placeholder for backward compatibility
    */
   async initialize() {
-    logInfo({}, 'Auth service initialized with Firebase integration');
+    logger.logAuth({}, 'Auth service initialized with Firebase integration');
     return true;
   }
 
@@ -97,7 +96,7 @@ class AuthService {
         firebase_uid: decodedToken.uid
       };
     } catch (error) {
-      logError({}, 'Token verification failed', {
+      logger.logError({}, 'Token verification failed', {
         error: error.message,
         code: error.code
       });
@@ -191,7 +190,7 @@ class AuthService {
         const auth = getFirebaseAuth();
         const decodedToken = await auth.verifyIdToken(token);
         
-        logger.logInfo({}, 'Firebase token verified successfully', { 
+        logger.logAuth({}, 'Firebase token verified successfully', { 
           uid: decodedToken.uid, 
           email: decodedToken.email
         });
@@ -220,7 +219,7 @@ class AuthService {
         }
         
         // If the error isn't Firebase-specific, fall back to legacy JWT verification
-        logger.logWarning({}, 'Firebase verification failed, falling back to legacy JWT', { 
+        logger.logAuth({}, 'Firebase verification failed, falling back to legacy JWT', { 
           error: firebaseError.message 
         });
         
@@ -300,7 +299,7 @@ class AuthService {
   async initializeLegacy() {
     // For local development, use the JWT_SECRET from environment variables
     if (!this.isProduction) {
-      logger.logInfo({}, 'Using local JWT secrets for development');
+      logger.logAuth({}, 'Using local JWT secrets for development');
       
       if (!process.env.JWT_SECRET) {
         throw new AppError(
@@ -354,7 +353,7 @@ class AuthService {
         this.JWT_REFRESH_SECRET = refreshVersion.payload.data.toString();
       }
       
-      logger.logInfo({}, 'JWT secrets loaded successfully from Secret Manager');
+      logger.logAuth({}, 'JWT secrets loaded successfully from Secret Manager');
     } catch (error) {
       logger.logError({}, 'Failed to load JWT secrets from Secret Manager', { 
         error: error.message

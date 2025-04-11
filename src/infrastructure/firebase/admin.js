@@ -4,8 +4,8 @@
  * Initializes Firebase Admin SDK for server-side authentication
  */
 
-import * as admin from 'firebase-admin';
-import { logInfo, logError } from '../../shared/logging/logger.js';
+import admin from 'firebase-admin';
+import logger from '../../shared/logger.js';
 
 // Singleton instance
 let firebaseApp = null;
@@ -31,9 +31,9 @@ export function initializeFirebaseAdmin() {
         projectId
       });
       
-      logInfo({}, 'Firebase Admin SDK initialized successfully', { projectId });
+      logger.logAuth({}, 'Firebase Admin SDK initialized successfully', { projectId });
     } catch (error) {
-      logError({}, 'Failed to initialize Firebase Admin SDK', { 
+      logger.logError({}, 'Failed to initialize Firebase Admin SDK', { 
         error: error.message,
         stack: error.stack 
       });

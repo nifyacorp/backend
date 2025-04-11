@@ -15,7 +15,6 @@ import { AUTH_ERRORS } from '../../../core/types/auth.types.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import logger from '../../../shared/logger.js';
 import { query } from '../../../infrastructure/database/client.js';
-import { logRequest, logError, logInfo } from '../../../shared/logging/logger.js';
 
 // Define public paths that don't require authentication
 const PUBLIC_PATHS = [
@@ -54,7 +53,7 @@ async function synchronizeUser(uid, userInfo, context) {
     if (emailCheckResult.rows.length > 0) {
       // User exists but doesn't have firebase_uid, update them
       const userId = emailCheckResult.rows[0].id;
-      logger.logInfo(context, 'Updating existing user with Firebase UID', { 
+      logger.logAuth(context, 'Updating existing user with Firebase UID', { 
         userId,
         email: userInfo.email,
         firebaseUid: uid
@@ -69,7 +68,7 @@ async function synchronizeUser(uid, userInfo, context) {
     }
     
     // User doesn't exist, create new user
-    logger.logInfo(context, 'User not found in database, creating from Firebase', { 
+    logger.logAuth(context, 'User not found in database, creating from Firebase', { 
       firebaseUid: uid,
       email: userInfo.email,
     });
@@ -114,7 +113,7 @@ async function synchronizeUser(uid, userInfo, context) {
       ]
     );
     
-    logger.logInfo(context, 'User synchronized to database successfully', { 
+    logger.logAuth(context, 'User synchronized to database successfully', { 
       firebaseUid: uid,
       email
     });
@@ -202,7 +201,7 @@ export async function firebaseAuthenticate(request, reply) {
           `User sync error: ${syncError.message}`, { userId: decodedToken.uid });
       }
       
-      logger.logInfo({ 
+      logger.logAuth({ 
         requestId: request.id, 
         path: request.url 
       }, 'Firebase authentication successful', { userId: decodedToken.uid });
@@ -262,7 +261,7 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
     const requestId = request.id || `req-${Date.now()}`;
     const context = { requestId, path: request.url, method: request.method };
     
-    logRequest(context, 'Processing authentication request');
+    logger.logAuth(context, 'Processing authentication request');
 
     // Check for Authorization header
     const authHeader = request.headers.authorization;
@@ -279,14 +278,14 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
     const token = authHeader.replace('Bearer ', '');
     
     // Verify Firebase token
-    logRequest(context, 'Verifying Firebase token');
+    logger.logAuth(context, 'Verifying Firebase token');
     const auth = getFirebaseAuth();
     const decodedToken = await auth.verifyIdToken(token);
     
     const { uid, email, name, email_verified } = decodedToken;
     
     // Check if user exists in database by Firebase UID
-    logRequest(context, 'Looking up user in database', { firebaseUid: uid });
+    logger.logAuth(context, 'Looking up user in database', { firebaseUid: uid });
     const userResult = await query(
       'SELECT id, email, display_name, role FROM users WHERE firebase_uid = $1',
       [uid]
@@ -296,7 +295,7 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
     
     if (userResult.rowCount === 0) {
       // User doesn't exist in our database, create them
-      logInfo(context, 'User not found in database, creating new user record', { 
+      logger.logAuth(context, 'User not found in database, creating new user record', { 
         firebaseUid: uid, 
         email 
       });
@@ -328,11 +327,11 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
       );
       
       userId = newUserResult.rows[0].id;
-      logInfo(context, 'New user created in database', { userId, firebaseUid: uid });
+      logger.logAuth(context, 'New user created in database', { userId, firebaseUid: uid });
     } else {
       // User exists, use their database ID
       userId = userResult.rows[0].id;
-      logRequest(context, 'User found in database', { userId, firebaseUid: uid });
+      logger.logAuth(context, 'User found in database', { userId, firebaseUid: uid });
       
       // Update user information if needed (optional)
       // This keeps Firebase as source of truth for basic profile info
@@ -341,7 +340,7 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
           'UPDATE users SET display_name = $1, updated_at = NOW() WHERE id = $2',
           [name, userId]
         );
-        logInfo(context, 'Updated user display name', { userId });
+        logger.logAuth(context, 'Updated user display name', { userId });
       }
     }
     
@@ -354,10 +353,10 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
       role: userResult.rows[0]?.role || 'user'
     };
     
-    logRequest(context, 'Authentication successful', { userId });
+    logger.logAuth(context, 'Authentication successful', { userId });
     next();
   } catch (error) {
-    logError({ path: request.url, method: request.method }, 'Authentication error', { 
+    logger.logError({ path: request.url, method: request.method }, 'Authentication error', { 
       error: error.message,
       code: error.code
     });
