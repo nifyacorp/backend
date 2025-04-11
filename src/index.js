@@ -35,7 +35,7 @@ async function main() {
   try {
     // Initialize Firebase Admin SDK
     logger.info('Initializing Firebase Admin SDK...');
-    initializeFirebaseAdmin();
+    await initializeFirebaseAdmin();
     
     // Keep legacy auth initialization for backward compatibility during migration
     logger.info('Initializing legacy authentication service...');

@@ -6,6 +6,7 @@
 
 import admin from 'firebase-admin';
 import logger from '../../shared/logger.js';
+import { getSecret, initialize as initializeSecrets } from '../secrets/manager.js';
 
 // Singleton instance
 let firebaseApp = null;
@@ -16,14 +17,17 @@ let firebaseApp = null;
  * Uses GCP service credentials when deployed to Cloud Run,
  * no explicit credentials needed as it uses Application Default Credentials
  */
-export function initializeFirebaseAdmin() {
+export async function initializeFirebaseAdmin() {
   if (!firebaseApp) {
     try {
-      // Check if Firebase project ID is set
-      const projectId = process.env.FIREBASE_PROJECT_ID;
+      // Initialize secrets manager first
+      await initializeSecrets();
+      
+      // Get Firebase project ID from Secret Manager
+      const projectId = await getSecret('FIREBASE_PROJECT_ID');
       
       if (!projectId) {
-        throw new Error('FIREBASE_PROJECT_ID environment variable is not set');
+        throw new Error('FIREBASE_PROJECT_ID secret is not available');
       }
       
       // Initialize Firebase Admin SDK
@@ -49,8 +53,10 @@ export function initializeFirebaseAdmin() {
  * Get Firebase Auth service
  */
 export function getFirebaseAuth() {
-  const app = initializeFirebaseAdmin();
-  return app.auth();
+  if (!firebaseApp) {
+    throw new Error('Firebase Admin SDK not initialized. Call initializeFirebaseAdmin() first.');
+  }
+  return firebaseApp.auth();
 }
 
 /**

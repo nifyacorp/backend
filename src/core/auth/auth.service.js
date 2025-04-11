@@ -1,19 +1,16 @@
 import jwt from 'jsonwebtoken';
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { AppError } from '../../shared/errors/AppError.js';
 import { AUTH_ERRORS } from '../types/auth.types.js';
 import { getFirebaseAuth, verifyFirebaseIdToken, getFirebaseUser } from '../../infrastructure/firebase/admin.js';
 import logger from '../../shared/logger.js';
 import { query } from '../../infrastructure/database/client.js';
+import { getSecret, initialize as initializeSecrets } from '../../infrastructure/secrets/manager.js';
 
 class AuthService {
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
-    this.secretClient = this.isProduction ? new SecretManagerServiceClient() : null;
     this.JWT_SECRET = null;
     this.JWT_REFRESH_SECRET = null;
-    this.secretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/JWT_SECRET/versions/latest`;
-    this.refreshSecretName = `projects/${process.env.GOOGLE_CLOUD_PROJECT}/secrets/JWT_REFRESH_SECRET/versions/latest`;
     
     // Token expiration settings
     this.accessTokenExpiration = '15m';  // 15 minutes
@@ -28,11 +25,17 @@ class AuthService {
 
   /**
    * Initialize authentication service
-   * This is a placeholder for backward compatibility
    */
   async initialize() {
-    logger.logAuth({}, 'Auth service initialized with Firebase integration');
-    return true;
+    try {
+      // Initialize legacy JWT secrets for backward compatibility
+      await this.initializeLegacy();
+      logger.logAuth({}, 'Auth service initialized with Firebase integration');
+      return true;
+    } catch (error) {
+      logger.logError({}, 'Failed to initialize auth service', { error: error.message });
+      throw error;
+    }
   }
 
   /**
@@ -297,65 +300,24 @@ class AuthService {
    * Only used for backward compatibility during migration
    */
   async initializeLegacy() {
-    // For local development, use the JWT_SECRET from environment variables
-    if (!this.isProduction) {
-      logger.logAuth({}, 'Using local JWT secrets for development');
-      
-      if (!process.env.JWT_SECRET) {
-        throw new AppError(
-          AUTH_ERRORS.SECRET_ERROR.code,
-          'JWT_SECRET environment variable is required in development mode',
-          500
-        );
-      }
-      
-      this.JWT_SECRET = process.env.JWT_SECRET;
-      this.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
-      
-      return;
-    }
-    
     try {
-      if (!this.secretClient) {
-        throw new AppError(
-          AUTH_ERRORS.SECRET_ERROR.code,
-          'Secret Manager client not initialized',
-          500
-        );
-      }
+      // Initialize secrets manager first
+      await initializeSecrets();
       
-      // Access the secret
-      const [version] = await this.secretClient.accessSecretVersion({
-        name: this.secretName,
-      });
+      // Get JWT secrets from Secret Manager
+      this.JWT_SECRET = await getSecret('JWT_SECRET');
       
-      // Get the secret payload
-      if (!version || !version.payload || !version.payload.data) {
-        throw new AppError(
-          AUTH_ERRORS.SECRET_ERROR.code,
-          'Could not retrieve JWT secret from Secret Manager',
-          500
-        );
-      }
-      
-      // Extract the secret value
-      this.JWT_SECRET = version.payload.data.toString();
-      
-      // Get refresh secret
-      const [refreshVersion] = await this.secretClient.accessSecretVersion({
-        name: this.refreshSecretName,
-      });
-      
-      if (!refreshVersion || !refreshVersion.payload || !refreshVersion.payload.data) {
+      try {
+        this.JWT_REFRESH_SECRET = await getSecret('JWT_REFRESH_SECRET');
+      } catch (refreshError) {
         // Fall back to main secret if refresh secret is not available
+        logger.logInfo({}, 'JWT_REFRESH_SECRET not found, falling back to JWT_SECRET');
         this.JWT_REFRESH_SECRET = this.JWT_SECRET;
-      } else {
-        this.JWT_REFRESH_SECRET = refreshVersion.payload.data.toString();
       }
       
-      logger.logAuth({}, 'JWT secrets loaded successfully from Secret Manager');
+      logger.logAuth({}, 'JWT secrets loaded successfully');
     } catch (error) {
-      logger.logError({}, 'Failed to load JWT secrets from Secret Manager', { 
+      logger.logError({}, 'Failed to load JWT secrets', { 
         error: error.message
       });
       throw new AppError(
