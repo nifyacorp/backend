@@ -11,6 +11,7 @@
 
 import { pool, query } from './client.js';
 import { logRequest, logError } from '../../shared/logging/logger.js';
+import { runMigrations as runCustomMigrations } from './migrations/index.js';
 
 // Schema version to track migration
 const CURRENT_SCHEMA_VERSION = '20250402000100';
@@ -704,6 +705,11 @@ export async function migrateDatabase(context) {
       
       // Commit the transaction
       await client.query('COMMIT');
+      
+      // Run custom migrations (including Firebase UID)
+      // These run outside the main transaction as they have their own transaction handling
+      logRequest(migrationContext, 'Running custom migrations');
+      await runCustomMigrations();
       
       logRequest(migrationContext, 'Database schema migration completed successfully');
       return true;

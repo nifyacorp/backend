@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_name VARCHAR(255),
   avatar_url TEXT,
   role VARCHAR(50) DEFAULT 'user',
+  firebase_uid VARCHAR(128) UNIQUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   metadata JSONB DEFAULT '{}'
@@ -113,6 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_subscription_id ON notifications(su
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_user_email_preferences_user_id ON user_email_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

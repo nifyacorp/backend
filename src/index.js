@@ -10,10 +10,11 @@ import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.
 import { notificationRoutes } from './interfaces/http/routes/notification.routes.js';
 import { registerSubscriptionProcessingRoutes } from './interfaces/http/routes/subscription-processing.routes.js';
 import diagnosticsRoutes from './interfaces/http/routes/diagnostics.routes.js';
-import { authenticate } from './interfaces/http/middleware/auth.middleware.js';
+import { firebaseAuthenticate } from './interfaces/http/middleware/firebase-auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 import * as loggerModule from './shared/logging/logger.js';
+import { initializeFirebaseAdmin } from './infrastructure/firebase/admin.js';
 
 // Initialize environment variables
 dotenv.config();
@@ -32,8 +33,12 @@ const logger = {
 
 async function main() {
   try {
-    // Initialize auth service to load JWT secrets
-    logger.info('Initializing authentication service...');
+    // Initialize Firebase Admin SDK
+    logger.info('Initializing Firebase Admin SDK...');
+    initializeFirebaseAdmin();
+    
+    // Keep legacy auth initialization for backward compatibility during migration
+    logger.info('Initializing legacy authentication service...');
     await authService.initialize();
     
     // Initialize database before starting server
@@ -61,9 +66,10 @@ async function main() {
     await fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
     await fastify.register(notificationRoutes, { prefix: '/api/v1/notifications' });
     
-    // Register alternative subscription-processing routes (with authentication)
+    // Register alternative subscription-processing routes (with Firebase authentication)
     await fastify.register(async (instance) => {
-      instance.addHook('preHandler', authenticate);
+      // Use Firebase authentication middleware
+      instance.addHook('preHandler', firebaseAuthenticate);
       await instance.register(registerSubscriptionProcessingRoutes);
     }, { prefix: '/api/v1/subscription-processing' });
 
