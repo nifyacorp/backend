@@ -1,3 +1,15 @@
+/**
+ * Authentication Middleware
+ * 
+ * Consolidated implementation that provides both Fastify hooks (authenticate) 
+ * and Express-style middleware (authMiddleware) for authentication.
+ * 
+ * This middleware handles:
+ * - Token validation
+ * - User identity verification
+ * - User synchronization with database
+ * - Public path exclusions
+ */
 import { authService } from '../../../core/auth/auth.service.js';
 import { AUTH_ERRORS } from '../../../core/types/auth.types.js';
 import { AppError } from '../../../shared/errors/AppError.js';

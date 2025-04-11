@@ -5,7 +5,7 @@ import swaggerUI from '@fastify/swagger-ui';
 import express from '@fastify/express';
 import { ALLOWED_HEADERS } from '../../shared/constants/headers.js';
 import apiDocs from '../../shared/utils/api-docs.js'; // Assuming path is correct
-import logger from '../../../utils/logger.js';
+import { logger } from '../../shared/logging/logger.js';
 
 /**
  * Creates and configures the Fastify server instance.

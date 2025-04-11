@@ -1,0 +1,28 @@
+2025-04-11T11:26:01.063Z info: Database configuration: {"service":"backend-service","environment":"development","host":"localhost","port":"5432","database":"nifya_dev","hasUser":true,"hasPassword":true}
+2025-04-11T11:26:01.324Z info: Metrics service initialized {"service":"backend-service","environment":"development","enabled":false}
+2025-04-11T11:26:01.325Z info: Event emitter service initialized {"service":"backend-service","environment":"development","maxListeners":50,"debugMode":true}
+2025-04-11T11:26:01.325Z debug: Event type registered: user:created {"service":"backend-service","environment":"development","description":"User account created","hasSchema":false}
+2025-04-11T11:26:01.326Z debug: Event type registered: user:updated {"service":"backend-service","environment":"development","description":"User profile updated","hasSchema":false}
+2025-04-11T11:26:01.326Z debug: Event type registered: subscription:created {"service":"backend-service","environment":"development","description":"New subscription created","hasSchema":false}
+2025-04-11T11:26:01.327Z debug: Event type registered: subscription:updated {"service":"backend-service","environment":"development","description":"Subscription updated","hasSchema":false}
+2025-04-11T11:26:01.327Z debug: Event type registered: subscription:deleted {"service":"backend-service","environment":"development","description":"Subscription deleted","hasSchema":false}
+2025-04-11T11:26:01.327Z debug: Event type registered: notification:created {"service":"backend-service","environment":"development","description":"New notification created","hasSchema":false}
+2025-04-11T11:26:01.328Z debug: Event type registered: notification:read {"service":"backend-service","environment":"development","description":"Notification marked as read","hasSchema":false}
+2025-04-11T11:26:01.328Z debug: Event type registered: notification:deleted {"service":"backend-service","environment":"development","description":"Notification deleted","hasSchema":false}
+2025-04-11T11:26:01.328Z info: PubSub client configuration loaded {"service":"backend-service","environment":"development","enabled":false,"developmentMode":true,"hasProjectId":false}
+2025-04-11T11:26:01.338Z info: Fastify instance created with configuration: {"service":"backend-service","environment":"development","port":"8080","host":"0.0.0.0"}
+2025-04-11T11:26:01.339Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}
+2025-04-11T11:27:04.598Z info: Database configuration: {"service":"backend-service","environment":"development","host":"localhost","port":"5432","database":"nifya_dev","hasUser":true,"hasPassword":true}
+2025-04-11T11:27:04.847Z info: Metrics service initialized {"service":"backend-service","environment":"development","enabled":false}
+2025-04-11T11:27:04.848Z info: Event emitter service initialized {"service":"backend-service","environment":"development","maxListeners":50,"debugMode":true}
+2025-04-11T11:27:04.848Z debug: Event type registered: user:created {"service":"backend-service","environment":"development","description":"User account created","hasSchema":false}
+2025-04-11T11:27:04.848Z debug: Event type registered: user:updated {"service":"backend-service","environment":"development","description":"User profile updated","hasSchema":false}
+2025-04-11T11:27:04.849Z debug: Event type registered: subscription:created {"service":"backend-service","environment":"development","description":"New subscription created","hasSchema":false}
+2025-04-11T11:27:04.849Z debug: Event type registered: subscription:updated {"service":"backend-service","environment":"development","description":"Subscription updated","hasSchema":false}
+2025-04-11T11:27:04.849Z debug: Event type registered: subscription:deleted {"service":"backend-service","environment":"development","description":"Subscription deleted","hasSchema":false}
+2025-04-11T11:27:04.850Z debug: Event type registered: notification:created {"service":"backend-service","environment":"development","description":"New notification created","hasSchema":false}
+2025-04-11T11:27:04.850Z debug: Event type registered: notification:read {"service":"backend-service","environment":"development","description":"Notification marked as read","hasSchema":false}
+2025-04-11T11:27:04.850Z debug: Event type registered: notification:deleted {"service":"backend-service","environment":"development","description":"Notification deleted","hasSchema":false}
+2025-04-11T11:27:04.850Z info: PubSub client configuration loaded {"service":"backend-service","environment":"development","enabled":false,"developmentMode":true,"hasProjectId":false}
+2025-04-11T11:27:04.859Z info: Fastify instance created with configuration: {"service":"backend-service","environment":"development","port":"8080","host":"0.0.0.0"}
+2025-04-11T11:27:04.860Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}

@@ -1,0 +1,12 @@
+{"database":"nifya_dev","environment":"development","hasPassword":true,"hasUser":true,"host":"localhost","level":"info","message":"Database configuration:","port":"5432","service":"backend-service","timestamp":"2025-04-11T11:26:01.063Z"}
+{"enabled":false,"environment":"development","level":"info","message":"Metrics service initialized","service":"backend-service","timestamp":"2025-04-11T11:26:01.324Z"}
+{"debugMode":true,"environment":"development","level":"info","maxListeners":50,"message":"Event emitter service initialized","service":"backend-service","timestamp":"2025-04-11T11:26:01.325Z"}
+{"developmentMode":true,"enabled":false,"environment":"development","hasProjectId":false,"level":"info","message":"PubSub client configuration loaded","service":"backend-service","timestamp":"2025-04-11T11:26:01.328Z"}
+{"environment":"development","host":"0.0.0.0","level":"info","message":"Fastify instance created with configuration:","port":"8080","service":"backend-service","timestamp":"2025-04-11T11:26:01.338Z"}
+{"environment":"development","level":"info","message":"Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization","service":"backend-service","timestamp":"2025-04-11T11:26:01.339Z"}
+{"database":"nifya_dev","environment":"development","hasPassword":true,"hasUser":true,"host":"localhost","level":"info","message":"Database configuration:","port":"5432","service":"backend-service","timestamp":"2025-04-11T11:27:04.598Z"}
+{"enabled":false,"environment":"development","level":"info","message":"Metrics service initialized","service":"backend-service","timestamp":"2025-04-11T11:27:04.847Z"}
+{"debugMode":true,"environment":"development","level":"info","maxListeners":50,"message":"Event emitter service initialized","service":"backend-service","timestamp":"2025-04-11T11:27:04.848Z"}
+{"developmentMode":true,"enabled":false,"environment":"development","hasProjectId":false,"level":"info","message":"PubSub client configuration loaded","service":"backend-service","timestamp":"2025-04-11T11:27:04.850Z"}
+{"environment":"development","host":"0.0.0.0","level":"info","message":"Fastify instance created with configuration:","port":"8080","service":"backend-service","timestamp":"2025-04-11T11:27:04.859Z"}
+{"environment":"development","level":"info","message":"Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization","service":"backend-service","timestamp":"2025-04-11T11:27:04.860Z"}

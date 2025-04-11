@@ -5,7 +5,7 @@ import {
   notificationIdParamSchema,
   activityQuerySchema,
   realtimeNotificationSchema
-} from '../../../core/notification/schemas.js';
+} from '../../../schemas/notification/index.js';
 
 /**
  * Notification routes for Fastify

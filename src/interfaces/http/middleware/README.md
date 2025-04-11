@@ -1,12 +1,14 @@
-# Middleware Unification
+# Middleware Consolidation
 
-This directory contains the unified middleware for the backend service. Previously, middleware was split between two directories (`middleware` and `middlewares`), which has now been consolidated into a single location.
+This directory contains the unified middleware for the backend service. The middleware was previously split between two directories (`middleware` and `middlewares`), which has now been consolidated into a single location with a consistent naming convention.
 
 ## Structure
 
 - `auth.middleware.js` - Authentication middleware for both Fastify and Express-style applications
+- `api-documenter.middleware.js` - API documentation and request validation
+- `error-handler.middleware.js` - Global error handling
 
-## Benefits of Unification
+## Benefits of Consolidation
 
 1. **Consistency**: All middleware is now in a single location with a consistent naming convention
 2. **Reduced Confusion**: Eliminates the confusion of having two similar directories
@@ -15,12 +17,12 @@ This directory contains the unified middleware for the backend service. Previous
 
 ## Implementation Notes
 
-The unification preserves all existing functionality while improving the code organization. The main changes are:
+The consolidation preserves all existing functionality while improving the code organization. The main changes are:
 
-1. Merged the functionality from both `middleware/auth.middleware.js` and `middlewares/auth.js`
+1. Retained the comprehensive authentication implementation from `auth.middleware.js`
 2. Standardized on the singular form `middleware` for the directory name
-3. Added better documentation and comments
-4. Ensured backward compatibility by exporting both Fastify and Express-style middleware
+3. Standardized file naming convention with `.middleware.js` suffix
+4. Removed the redundant `/middlewares` directory
 
 ## Usage
 

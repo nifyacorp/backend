@@ -1,41 +1,64 @@
+/**
+ * Subscription validation schemas
+ * This file defines the validation schemas for subscription-related operations
+ */
+
 import { z } from 'zod';
 
-// Import the standardized schemas using ES Module syntax
-import SubscriptionSchemas from '../../schemas/subscription/index.js';
+// Common subscription fields
+const subscriptionBase = {
+  name: z.string().min(1, { message: 'Name is required' }).max(100),
+  description: z.string().max(500).optional(),
+  prompts: z.array(z.string().min(1).max(100)).min(1, { message: 'At least one prompt is required' }),
+  frequency: z.enum(['immediate', 'daily']),
+  active: z.boolean().optional().default(true),
+};
 
-const {
-  BaseSubscriptionSchema,
-  SubscriptionType,
-  SubscriptionFrequency,
-  PromptsSchema,
-  CreateSubscriptionSchema,
-  UpdateSubscriptionSchema
-} = SubscriptionSchemas;
+// Create subscription schema
+export const createSubscriptionSchema = z.object({
+  ...subscriptionBase,
+  typeId: z.string().min(1, { message: 'Subscription type is required' }),
+});
 
-// Re-export our standardized schemas while maintaining compatibility
-export const subscriptionFrequencySchema = SubscriptionFrequency;
-export const subscriptionTypeSchema = SubscriptionType;
+// Update subscription schema
+export const updateSubscriptionSchema = z.object({
+  ...subscriptionBase,
+  typeId: z.string().min(1, { message: 'Subscription type is required' }).optional(),
+}).partial();
 
-// Maintain the old export names but use our new standardized schemas
-export const createSubscriptionSchema = CreateSubscriptionSchema;
-export const updateSubscriptionSchema = UpdateSubscriptionSchema;
-
-// These schemas are not part of our standardization but are still needed
+// Toggle subscription active status schema
 export const toggleSubscriptionSchema = z.object({
-  active: z.boolean({
-    required_error: 'Active status is required',
-    invalid_type_error: 'Active status must be a boolean'
-  })
+  active: z.boolean(),
 });
 
-// Parameter schemas
+// Validate subscription ID parameter
 export const idParamSchema = z.object({
-  id: z.string().uuid({ message: 'Invalid subscription ID format' })
+  id: z.string().uuid({ message: 'Invalid subscription ID format' }),
 });
 
-// Query parameter schemas
+// Subscription query parameters schema
 export const subscriptionQuerySchema = z.object({
-  page: z.coerce.number().int().positive().optional().default(1),
-  limit: z.coerce.number().int().positive().max(100).optional().default(10),
-  type: subscriptionTypeSchema.optional()
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  type: z.string().optional(),
+  active: z.enum(['true', 'false']).optional().transform(val => val === 'true'),
+  search: z.string().optional(),
+  sort: z.enum(['name', 'created', 'updated']).default('created'),
+  order: z.enum(['asc', 'desc']).default('desc'),
 });
+
+// Subscription creation from template
+export const fromTemplateSchema = z.object({
+  templateId: z.string().min(1, { message: 'Template ID is required' }),
+  name: z.string().min(1, { message: 'Name is required' }).max(100).optional(),
+});
+
+// Export validation schemas
+export default {
+  createSubscriptionSchema,
+  updateSubscriptionSchema,
+  toggleSubscriptionSchema,
+  idParamSchema,
+  subscriptionQuerySchema,
+  fromTemplateSchema,
+}; 

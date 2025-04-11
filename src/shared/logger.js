@@ -1,6 +1,24 @@
-// Re-export all logging functions from the logging/logger.js file
-export * from './logging/logger.js';
+/**
+ * Centralized logger adapter
+ * 
+ * This file re-exports the logger functions from the shared/logging/logger.js 
+ * to maintain compatibility with legacy imports
+ */
 
-// Default export for backward compatibility
-import * as loggerFunctions from './logging/logger.js';
-export default loggerFunctions; 
+import { 
+  logger, 
+  logRequest, 
+  logError, 
+  logPubSub, 
+  logProcessing, 
+  logAuth 
+} from './logging/logger.js';
+
+export default {
+  logger,
+  logRequest, 
+  logError, 
+  logPubSub, 
+  logProcessing, 
+  logAuth
+}; 

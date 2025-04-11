@@ -162,7 +162,7 @@ export async function query(text, params) {
 
 ## 🔑 API Endpoints
 
-For a comprehensive list of all available API endpoints, please refer to the [ENDPOINTS.md](./ENDPOINTS.md) file.
+For a comprehensive list of all available API endpoints, please refer to the [API-DOCS.md](./API-DOCS.md) file.
 
 ### Authentication
 
@@ -208,8 +208,6 @@ if (!validationResult.success) {
 }
 ```
 
-For more details, see the [Subscription Schema Documentation](../docs/subscription-schemas.md).
-
 ### Notification Model
 
 ```javascript
@@ -252,18 +250,21 @@ Create a `.env` file with:
 
 ```env
 # Database connection
-DATABASE_URL=postgresql://username:password@localhost:5432/nifya
+DB_NAME=nifya
+DB_USER=nifya
+DB_PASSWORD=your-password-here
 
-# JWT configuration
-JWT_SECRET=your-secret-key
-
-# Server configuration
+# Server Configuration
 PORT=3000
-NODE_ENV=development
+SERVICE_URL=your-cloud-run-url
 
-# PubSub configuration (optional)
-PUBSUB_PROJECT_ID=your-project-id
-PUBSUB_SUBSCRIPTION_TOPIC=subscription-processing
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT=delta-entity-447812-p2
+INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:nifya-db
+JWT_SECRET_NAME=projects/delta-entity-447812-p2/secrets/JWT_SECRET/versions/latest
+
+# Security
+SERVICE_API_KEY=your-secure-api-key-here
 ```
 
 ### Installation
@@ -278,23 +279,11 @@ npm run dev
 
 ### Available Scripts
 
+- `npm run start` - Start production server
 - `npm run dev` - Start development server with hot reloading
-- `npm run build` - Build for production
-- `npm start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm test` - Run tests
-
-### Database Migrations
-
-Database schema is managed through SQL migrations in the `supabase/migrations` directory. To apply migrations:
-
-```bash
-# Apply all migrations
-npm run migrate
-
-# Create a new migration
-npm run migrate:create migration_name
-```
+- `npm run migrations` - Run database migrations
+- `npm run docs:generate` - Generate API documentation
+- `npm run docs:serve` - Serve documentation locally
 
 ## 🔧 Key Files and Their Functions
 
@@ -323,6 +312,49 @@ npm run migrate:create migration_name
 - `src/interfaces/http/middleware/errorHandler.js`: Global error handling
 - `src/interfaces/http/middleware/apiDocumenter.js`: Swagger documentation
 
+## 🔍 Code Organization and Known Issues
+
+The codebase is in a transitional state with some architectural challenges:
+
+### Service Duplication
+
+There is duplication in core services with both legacy and new implementations:
+
+- **Notification Services**: 
+  - `backend/services/notification-service.js`
+  - `backend/src/core/notification/notification-service.js`
+
+- **Subscription Services**:
+  - `backend/services/subscription-service.js`
+  - `backend/src/core/subscription/services/subscription.service.js`
+
+This can cause confusion about which implementation to use. Prefer the implementations in the `src/core` directory.
+
+### RLS Context for Database Queries
+
+Database operations require proper Row-Level Security (RLS) context:
+
+- Use `setRLSContext(userId)` before querying user-specific data
+- Use `withRLSContext(userId, callback)` for operations within a context
+
+```javascript
+// Example using setRLSContext
+await setRLSContext(userId);
+const result = await query('SELECT * FROM notifications WHERE user_id = $1', [userId]);
+
+// Example using withRLSContext
+await withRLSContext(userId, async () => {
+  return await query('SELECT * FROM notifications WHERE user_id = $1', [userId]);
+});
+```
+
+### Authentication Headers
+
+Authentication requires specific header formatting:
+
+- `Authorization` header must include a space after "Bearer": `Bearer <token>`
+- Both `Authorization` and `X-User-ID` headers are required
+
 ## 🔍 Recent Updates
 
 ### User Preferences and Profile Management Implementation
@@ -339,17 +371,6 @@ Recently implemented comprehensive user profile and preferences management:
    - Added `/api/v1/auth/refresh` endpoint for token refresh
    - Ensured backward compatibility with legacy `/api/auth/refresh` endpoint
    - Improved documentation of authentication endpoints
-
-3. User Profile Features:
-   - Profile editing (name, bio, avatar)
-   - Theme preference (light/dark/system)
-   - Language selection (Spanish, English, Catalan)
-   - Email notification preferences:
-     - Enable/disable email notifications
-     - Custom notification email address
-     - Daily digest time configuration
-
-These changes ensure a seamless user experience with proper preferences management and profile customization options. All endpoints are properly documented and follow the established API patterns for consistency.
 
 ### User Synchronization Fix
 
@@ -369,8 +390,6 @@ Recently implemented improved user synchronization between authentication and ba
    - Corrected reference to decoded token
    - Added user synchronization in Express middleware too
    - Improved error handling for synchronization failures
-
-These changes ensure that users who exist in the authentication service but not in the backend database can successfully use features that rely on foreign key relationships.
 
 ## 🐛 Troubleshooting
 
@@ -407,42 +426,66 @@ API documentation is available at `/documentation` when running the server. This
 - Authentication information
 - Test endpoints directly from the browser
 
+For a comprehensive reference, see [API-DOCS.md](./API-DOCS.md).
+
 ## 🚀 Deployment
 
 ### Google Cloud Run
 
-```bash
-# Build the container
-gcloud builds submit --tag gcr.io/PROJECT_ID/nifya-backend
+The service is deployed on Google Cloud Run using the cloudbuild.yaml configuration:
 
-# Deploy to Cloud Run
-gcloud run deploy nifya-backend \
-  --image gcr.io/PROJECT_ID/nifya-backend \
-  --platform managed \
-  --set-env-vars DATABASE_URL=postgresql://...,JWT_SECRET=...,NODE_ENV=production
-```
-
-### Docker Deployment
-
-```bash
-# Build the image
-docker build -t nifya-backend .
-
-# Run the container
-docker run -p 3000:3000 \
-  -e DATABASE_URL=postgresql://... \
-  -e JWT_SECRET=... \
-  -e NODE_ENV=production \
-  nifya-backend
+```yaml
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 
+      'gcr.io/$PROJECT_ID/nifya-orchestration-service', 
+      '--build-arg', 
+      'BUILD_TIMESTAMP=${_BUILD_TIMESTAMP}',
+      '--build-arg',
+      'COMMIT_SHA=$COMMIT_SHA',
+      '--build-arg',
+      'DEPLOYMENT_ID=$BUILD_ID',
+      '.'
+    ]
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/nifya-orchestration-service']
+  
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'nifya-orchestration-service'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/nifya-orchestration-service'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'NODE_ENV=production,BUILD_TIMESTAMP=${_BUILD_TIMESTAMP},COMMIT_SHA=$COMMIT_SHA,DEPLOYMENT_ID=$BUILD_ID'
 ```
 
 ## Database Schema
 
 The NIFYA platform uses a PostgreSQL database with a clean, consolidated schema approach:
 
-### Database Architecture
+### Single Schema Approach
 
-![Database Schema](../docs/images/database-schema.png)
+We've migrated from using multiple incremental migrations to a single consolidated schema file:
+
+- **Location**: `backend/consolidated-schema.sql`
+- **Version Tracking**: Via `schema_version` table
+- **Initialization**: Automatic during application startup
+
+This approach eliminates dependency conflicts, schema drift, and inconsistencies between environments.
 
 ### Core Tables
 
@@ -455,77 +498,6 @@ The NIFYA platform uses a PostgreSQL database with a clean, consolidated schema 
 | `notifications` | Notifications for users based on subscription matches |
 | `user_email_preferences` | User preferences for email notifications |
 
-### Single Schema Approach
-
-We've migrated from using multiple incremental migrations to a single consolidated schema file:
-
-- **Location**: `backend/consolidated-schema.sql`
-- **Version Tracking**: Via `schema_version` table
-- **Initialization**: Automatic during application startup
-
-This approach eliminates dependency conflicts, schema drift, and inconsistencies between environments.
-
-### Schema Details
-
-#### users
-
-The central user table storing profile information:
-
-```sql
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  display_name VARCHAR(255),
-  first_name VARCHAR(255),
-  last_name VARCHAR(255),
-  avatar_url TEXT,
-  role VARCHAR(50) DEFAULT 'user',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  metadata JSONB DEFAULT '{}'
-);
-```
-
-#### subscription_types
-
-Available sources for subscriptions:
-
-```sql
-CREATE TABLE subscription_types (
-  id VARCHAR(255) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  display_name VARCHAR(255) NOT NULL,
-  description TEXT,
-  icon VARCHAR(50),
-  parser_url VARCHAR(255),
-  logo_url VARCHAR(255),
-  is_system BOOLEAN DEFAULT false,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  metadata JSONB DEFAULT '{}'
-);
-```
-
-#### subscriptions
-
-User subscriptions to data sources:
-
-```sql
-CREATE TABLE subscriptions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type_id VARCHAR(255) NOT NULL REFERENCES subscription_types(id),
-  prompts JSONB DEFAULT '[]',
-  frequency VARCHAR(50) NOT NULL,
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  metadata JSONB DEFAULT '{}'
-);
-```
-
 ### Database Initialization
 
 The database is automatically initialized on application startup:
@@ -536,21 +508,6 @@ The database is automatically initialized on application startup:
 
 No manual migrations or SQL commands are required. This is handled in:
 `src/infrastructure/database/single-schema-migrations.js`
-
-### Handling Schema Changes
-
-To modify the database schema:
-
-1. Edit `backend/consolidated-schema.sql`
-2. Increment the version number at the top of the file
-3. Update the `schema_version` table insert at the bottom
-4. Restart the application or redeploy
-
-### Default Data
-
-The schema includes default data for:
-
-- Subscription types (BOE, DOGA, Real Estate)
 
 ---
 

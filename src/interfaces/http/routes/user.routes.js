@@ -5,9 +5,10 @@ import { USER_PREFERENCES } from '../../../core/types/user.types.js';
 import { validateZod } from '../../../shared/utils/validation.js';
 import { 
   updateProfileSchema, 
-  updateNotificationSettingsSchema 
-} from '../../../core/user/schemas.js';
-import { emailPreferencesSchema, testEmailSchema } from '../../../core/user/schemas/email-preferences.schema.js';
+  updateNotificationSettingsSchema,
+  emailPreferencesSchema,
+  testEmailSchema
+} from '../../../schemas/user/index.js';
 import {
   getEmailPreferences,
   updateEmailPreferences,

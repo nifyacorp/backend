@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { errorBuilders } from '../errors/ErrorResponseBuilder.js';
+import { zodToJsonSchema } from '../../schemas/index.js';
 
 /**
  * Validate data against a Zod schema and send appropriate error response if validation fails
@@ -60,6 +61,16 @@ export function validateZod(schema, source = 'body') {
       next();
     }
   };
+}
+
+/**
+ * Convert a Zod schema to a Fastify schema for route validation
+ * 
+ * @param {z.ZodType} zodSchema - Zod schema to convert
+ * @returns {Object} Fastify/JSON Schema compatible object
+ */
+export function zodToFastifySchema(zodSchema) {
+  return zodToJsonSchema(zodSchema);
 }
 
 /**

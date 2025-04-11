@@ -2,8 +2,8 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { AppError } from '../../shared/errors/AppError.js';
 import { validateRequiredEnvVars } from '../../shared/utils/env.js';
-import { sanitizeSqlForLogging, sanitizeParamsForLogging } from '../../../utils/sql-sanitizer.js';
-import logger from '../../../utils/logger.js';
+import { sanitizeSqlForLogging, sanitizeParamsForLogging } from '../../shared/utils/sql-sanitizer.js';
+import { logger } from '../../shared/logging/logger.js';
 
 // Migration system configuration
 // Prioritize startup migration, then fall back to single schema, then traditional migrations
