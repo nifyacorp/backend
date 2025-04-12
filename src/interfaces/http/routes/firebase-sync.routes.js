@@ -64,11 +64,10 @@ export async function firebaseSyncRoutes(fastify, options) {
             profile: {
               type: 'object',
               properties: {
-                id: { type: 'string', format: 'uuid' },
+                id: { type: 'string' },
                 email: { type: 'string', format: 'email' },
                 name: { type: 'string' },
                 avatar: { type: ['string', 'null'] },
-                firebaseUid: { type: 'string' },
                 emailVerified: { type: 'boolean' },
                 lastLogin: { type: 'string', format: 'date-time' },
                 createdAt: { type: 'string', format: 'date-time' },

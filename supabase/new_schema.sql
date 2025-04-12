@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id VARCHAR(128) PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
   display_name VARCHAR(255),
   first_name VARCHAR(255),
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   description TEXT,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id VARCHAR(128) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type_id VARCHAR(255) NOT NULL REFERENCES subscription_types(id),
   prompts JSONB DEFAULT '[]',
   frequency VARCHAR(50) NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS subscription_processing (
 -- Notifications table
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id VARCHAR(128) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   subscription_id UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
   title VARCHAR(255) NOT NULL,
   content TEXT,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- User email preferences
 CREATE TABLE IF NOT EXISTS user_email_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id VARCHAR(128) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   subscription_type VARCHAR(255) REFERENCES subscription_types(id),
   frequency VARCHAR(50) DEFAULT 'immediate',
   enabled BOOLEAN DEFAULT true,

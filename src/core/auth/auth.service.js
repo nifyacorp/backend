@@ -112,12 +112,12 @@ class AuthService {
   
   /**
    * Find user by ID
-   * @param {string} userId - Database user ID
+   * @param {string} userId - User ID
    * @returns {Promise<Object>} User info
    */
   async findUserById(userId) {
     const result = await query(
-      'SELECT id, email, display_name, role, firebase_uid FROM users WHERE id = $1',
+      'SELECT id, email, display_name, role FROM users WHERE id = $1',
       [userId]
     );
     
@@ -138,20 +138,8 @@ class AuthService {
    * @returns {Promise<Object>} User info
    */
   async findUserByFirebaseUid(firebaseUid) {
-    const result = await query(
-      'SELECT id, email, display_name, role, firebase_uid FROM users WHERE firebase_uid = $1',
-      [firebaseUid]
-    );
-    
-    if (result.rowCount === 0) {
-      throw new AppError(
-        'USER_NOT_FOUND',
-        'User not found',
-        404
-      );
-    }
-    
-    return result.rows[0];
+    // In our new schema, firebase UID is directly stored as the primary key (id)
+    return this.findUserById(firebaseUid);
   }
   
   /**
@@ -161,7 +149,7 @@ class AuthService {
    */
   async findUserByEmail(email) {
     const result = await query(
-      'SELECT id, email, display_name, role, firebase_uid FROM users WHERE email = $1',
+      'SELECT id, email, display_name, role FROM users WHERE email = $1',
       [email]
     );
     
@@ -236,7 +224,7 @@ export async function syncFirebaseUser(firebaseUid, context) {
 
     logger.logAuth(context, 'Looking up user in database', { firebaseUid });
 
-    // Check if the user exists in our database - now using firebaseUid as the primary key
+    // Check if the user exists in our database - using firebaseUid as the primary key directly
     const userCheckResult = await query(
       'SELECT id FROM users WHERE id = $1',
       [firebaseUid]

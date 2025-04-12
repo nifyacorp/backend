@@ -33,37 +33,14 @@ const PUBLIC_PATHS = [
  */
 async function synchronizeUser(uid, userInfo, context) {
   try {
-    // Check if user exists in database
+    // Check if user exists in database - using Firebase UID as the primary key
     const userResult = await query(
-      'SELECT id FROM users WHERE firebase_uid = $1',
+      'SELECT id FROM users WHERE id = $1',
       [uid]
     );
     
-    // If user exists with firebase_uid, no need to synchronize
+    // If user exists with Firebase UID as the primary key, no need to synchronize
     if (userResult.rows.length > 0) {
-      return;
-    }
-    
-    // Check if user exists by email
-    const emailCheckResult = await query(
-      'SELECT id FROM users WHERE email = $1',
-      [userInfo.email]
-    );
-    
-    if (emailCheckResult.rows.length > 0) {
-      // User exists but doesn't have firebase_uid, update them
-      const userId = emailCheckResult.rows[0].id;
-      logger.logAuth(context, 'Updating existing user with Firebase UID', { 
-        userId,
-        email: userInfo.email,
-        firebaseUid: uid
-      });
-      
-      await query(
-        'UPDATE users SET firebase_uid = $1 WHERE id = $2',
-        [uid, userId]
-      );
-      
       return;
     }
     
@@ -85,26 +62,24 @@ async function synchronizeUser(uid, userInfo, context) {
       );
     }
     
-    // Create the user with Firebase UID
+    // Create the user with Firebase UID as the primary key
     await query(
       `INSERT INTO users (
         id,
         email,
         display_name,
-        email_verified,
         metadata
-      ) VALUES ($1, $2, $3, $4, $5)
+      ) VALUES ($1, $2, $3, $4)
       ON CONFLICT (id) DO UPDATE SET 
         email = $2,
         display_name = $3,
-        email_verified = $4,
         updated_at = NOW()`,
       [
         uid, // Using Firebase UID directly as the primary key
         email,
         name,
-        userInfo.email_verified || false,
         JSON.stringify({
+          emailVerified: userInfo.email_verified || false,
           emailNotifications: true,
           emailFrequency: 'immediate',
           instantNotifications: true,
@@ -284,10 +259,10 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
     
     const { uid, email, name, email_verified } = decodedToken;
     
-    // Check if user exists in database by Firebase UID
+    // Check if user exists in database by Firebase UID (using it as the primary key)
     logger.logAuth(context, 'Looking up user in database', { firebaseUid: uid });
     const userResult = await query(
-      'SELECT id, email, display_name, role FROM users WHERE firebase_uid = $1',
+      'SELECT id, email, display_name, role FROM users WHERE id = $1',
       [uid]
     );
     
@@ -308,20 +283,20 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
       // Create user in database
       const newUserResult = await query(
         `INSERT INTO users (
+          id,
           email, 
           display_name, 
-          firebase_uid, 
           role,
           metadata
         ) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         [
+          uid, // Using Firebase UID directly as the primary key
           email, 
           displayName, 
-          uid, 
           'user',
           JSON.stringify({ 
             source: 'firebase',
-            email_verified: email_verified || false
+            emailVerified: email_verified || false
           })
         ]
       );
@@ -347,7 +322,6 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
     // Attach user info to request
     request.user = {
       id: userId,
-      firebase_uid: uid,
       email: email,
       display_name: name || userResult.rows[0]?.display_name,
       role: userResult.rows[0]?.role || 'user'
