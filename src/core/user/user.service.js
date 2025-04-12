@@ -17,12 +17,9 @@ class UserService {
           u.metadata->>'bio' as bio,
           u.metadata->>'theme' as theme,
           u.metadata->>'language' as language,
-          u.metadata->>'emailNotifications' as "emailNotifications",
-          u.metadata->>'notificationEmail' as "notificationEmail",
-          u.metadata->>'emailFrequency' as "emailFrequency",
-          u.metadata->>'instantNotifications' as "instantNotifications",
+          u.notification_settings, -- Fetch the whole JSONB object
           u.updated_at as "lastLogin",
-          true as "emailVerified",
+          true as "emailVerified", -- Assuming email is verified via Firebase elsewhere
           (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id) as "subscriptionCount",
           (SELECT COUNT(*) FROM notifications n WHERE n.user_id = u.id) as "notificationCount",
           (SELECT created_at 
@@ -36,83 +33,49 @@ class UserService {
       );
 
       if (result.rows.length === 0) {
-        // User doesn't exist, try to get token info and create them
-        logRequest(context, 'User not found, attempting to create', { userId });
-        
-        // Get user info from token
-        const tokenInfo = context.token || {};
-        const email = tokenInfo.email;
-        const name = tokenInfo.name || email?.split('@')[0] || 'User';
-        
-        if (!email) {
-          throw new AppError(
-            USER_ERRORS.INVALID_TOKEN.code,
-            'Token missing required email claim',
-            401,
-            { userId }
-          );
-        }
-
-        // Create the user
-        const createResult = await query(
-          `INSERT INTO users (
-            id,
-            email,
-            display_name,
-            metadata
-          ) VALUES ($1, $2, $3, $4)
-          RETURNING 
-            id,
-            email,
-            display_name as name,
-            metadata->>'avatar' as avatar,
-            metadata->>'bio' as bio,
-            metadata->>'theme' as theme,
-            metadata->>'language' as language,
-            metadata->>'emailNotifications' as "emailNotifications",
-            metadata->>'notificationEmail' as "notificationEmail",
-            metadata->>'emailFrequency' as "emailFrequency",
-            metadata->>'instantNotifications' as "instantNotifications",
-            updated_at as "lastLogin",
-            true as "emailVerified"`,
-          [
-            userId,
-            email,
-            name,
-            JSON.stringify({
-              emailNotifications: true,
-              emailFrequency: 'immediate',
-              instantNotifications: true,
-              notificationEmail: email
-            })
-          ]
+        // Optionally create user if not found, or throw error
+        // For now, assume user exists via sync
+        throw new AppError(
+          USER_ERRORS.NOT_FOUND.code,
+          USER_ERRORS.NOT_FOUND.message,
+          404
         );
-
-        const newUser = createResult.rows[0];
-        newUser.subscriptionCount = 0;
-        newUser.notificationCount = 0;
-        newUser.lastNotification = null;
-        newUser.emailNotifications = newUser.emailNotifications === 'true';
-        newUser.instantNotifications = newUser.instantNotifications === 'true';
-
-        logRequest(context, 'User created successfully', { 
-          userId,
-          email: newUser.email
-        });
-
-        return newUser;
       }
 
-      // Convert string boolean to actual boolean
-      const profile = result.rows[0];
-      profile.emailNotifications = profile.emailNotifications === 'true';
-      profile.instantNotifications = profile.instantNotifications === 'true';
+      const profileData = result.rows[0];
       
-      logRequest(context, 'User profile retrieved', {
-        userId,
-        hasPreferences: !!profile.preferences,
-        hasNotificationSettings: !!profile.notification_settings
-      });
+      // Ensure notification_settings is an object, providing defaults if null/missing
+      const defaultNotificationSettings = {
+        emailNotifications: true,
+        notificationEmail: profileData.email, // Default to user's main email
+        emailFrequency: 'daily',
+        instantNotifications: false,
+        digestTime: '08:00:00' 
+      };
+      
+      const notificationSettings = {
+         ...defaultNotificationSettings,
+        ...(profileData.notification_settings || {}), // Merge with defaults
+      };
+
+      // Construct the final profile object
+      const profile = {
+        id: profileData.id,
+        email: profileData.email,
+        name: profileData.name,
+        avatar: profileData.avatar,
+        bio: profileData.bio,
+        theme: profileData.theme || 'system', // Default theme
+        language: profileData.language || 'es', // Default language
+        notification_settings: notificationSettings,
+        lastLogin: profileData.lastLogin,
+        emailVerified: profileData.emailVerified,
+        subscriptionCount: parseInt(profileData.subscriptionCount, 10),
+        notificationCount: parseInt(profileData.notificationCount, 10),
+        lastNotification: profileData.lastNotification,
+      };
+
+      logRequest(context, 'User profile retrieved successfully', { userId });
 
       return profile;
     } catch (error) {
@@ -132,111 +95,80 @@ class UserService {
   }
 
   async updateUserProfile(userId, updates, context) {
-    logRequest(context, 'Updating user profile', { 
+    logRequest(context, 'Updating user profile (metadata only)', { 
       userId,
       updateFields: Object.keys(updates)
     });
 
-    try {
-      // Validate theme if provided
-      if (updates.theme && !USER_PREFERENCES.THEMES.includes(updates.theme)) {
-        throw new AppError(
-          USER_ERRORS.INVALID_THEME.code,
-          USER_ERRORS.INVALID_THEME.message,
-          400,
-          { allowedThemes: USER_PREFERENCES.THEMES }
-        );
-      }
+    // Allow updating only specific metadata fields
+    const allowedMetadataUpdates = ['name', 'bio', 'theme', 'language', 'avatar'];
+    const metadataUpdates = {};
+    let displayNameUpdate = null;
 
-      // Prepare preference updates
-      const preferenceUpdates = {};
-      if (updates.bio !== undefined) preferenceUpdates.bio = updates.bio;
-      if (updates.theme !== undefined) preferenceUpdates.theme = updates.theme;
-      if (updates.language !== undefined) preferenceUpdates.language = updates.language;
+    for (const key of Object.keys(updates)) {
+      if (allowedMetadataUpdates.includes(key)) {
+        if (key === 'name') {
+            displayNameUpdate = updates[key];
+        } else {
+            metadataUpdates[key] = updates[key];
+        }
+      } else {
+         console.warn(`Attempted to update disallowed field '${key}' via updateUserProfile`);
+      }
+    }
 
-      // Prepare notification settings updates
-      const notificationUpdates = {};
-      if (updates.emailNotifications !== undefined) {
-        notificationUpdates.emailNotifications = updates.emailNotifications;
-      }
-      if (updates.notificationEmail !== undefined) {
-        notificationUpdates.notificationEmail = updates.notificationEmail;
-      }
-      if (updates.emailFrequency !== undefined) {
-        notificationUpdates.emailFrequency = updates.emailFrequency;
-      }
-      if (updates.instantNotifications !== undefined) {
-        notificationUpdates.instantNotifications = updates.instantNotifications;
-      }
-
-      // Merge all updates into a single metadata update
-      const metadataUpdates = {
-        ...preferenceUpdates,
-        ...notificationUpdates
-      };
-
-      const result = await query(
-        `UPDATE users 
-         SET 
-           display_name = COALESCE($1, display_name),
-           metadata = metadata || $2::jsonb,
-           updated_at = NOW()
-         WHERE id = $3
-         RETURNING 
-           id,
-           email,
-           display_name as name,
-           metadata->>'avatar' as avatar,
-           metadata->>'bio' as bio,
-           metadata->>'theme' as theme,
-           metadata->>'language' as language,
-           metadata->>'emailNotifications' as "emailNotifications",
-           metadata->>'notificationEmail' as "notificationEmail", 
-           metadata->>'emailFrequency' as "emailFrequency",
-           metadata->>'instantNotifications' as "instantNotifications",
-           updated_at as "lastLogin",
-           true as "emailVerified",
-           (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = users.id) as "subscriptionCount",
-           (SELECT COUNT(*) FROM notifications n WHERE n.user_id = users.id) as "notificationCount",
-           (SELECT created_at 
-            FROM notifications 
-            WHERE user_id = users.id 
-            ORDER BY created_at DESC 
-            LIMIT 1) as "lastNotification"`,
-        [
-          updates.name || null,
-          JSON.stringify(metadataUpdates),
-          userId
-        ]
+    // Validate theme if provided
+    if (metadataUpdates.theme && !USER_PREFERENCES.THEMES.includes(metadataUpdates.theme)) {
+      throw new AppError(
+        USER_ERRORS.INVALID_THEME.code,
+        USER_ERRORS.INVALID_THEME.message,
+        400,
+        { allowedThemes: USER_PREFERENCES.THEMES }
       );
+    }
+    // Validate language if provided
+    if (metadataUpdates.language && !USER_PREFERENCES.LANGUAGES.includes(metadataUpdates.language)) {
+      throw new AppError(
+          USER_ERRORS.INVALID_LANGUAGE.code, 
+          USER_ERRORS.INVALID_LANGUAGE.message, 
+          400, 
+          { allowedLanguages: USER_PREFERENCES.LANGUAGES }
+      );
+    }
 
-      if (result.rows.length === 0) {
-        throw new AppError(
-          USER_ERRORS.NOT_FOUND.code,
-          USER_ERRORS.NOT_FOUND.message,
-          404,
-          { userId }
-        );
+    if (Object.keys(metadataUpdates).length === 0 && !displayNameUpdate) {
+      logRequest(context, 'No valid profile fields to update', { userId });
+      // Return current profile if no valid updates provided
+      return this.getUserProfile(userId, context);
+    }
+
+    try {
+       // Build the query conditionally
+      let sqlQuery = 'UPDATE users SET ';
+      const queryParams = [userId];
+      let paramIndex = 2;
+      const setClauses = [];
+
+      if (displayNameUpdate !== null) {
+          setClauses.push(`display_name = $${paramIndex++}`);
+          queryParams.push(displayNameUpdate);
+      }
+      
+      if (Object.keys(metadataUpdates).length > 0) {
+        setClauses.push(`metadata = metadata || $${paramIndex++}::jsonb`);
+        queryParams.push(JSON.stringify(metadataUpdates));
       }
 
-      // Convert string boolean to actual boolean
-      const profile = result.rows[0];
-      profile.emailNotifications = profile.emailNotifications === 'true';
-      profile.instantNotifications = profile.instantNotifications === 'true';
+      sqlQuery += setClauses.join(', ') + ` WHERE id = $1`;
 
-      logRequest(context, 'User profile updated', {
-        userId,
-        updatedFields: Object.keys(updates)
-      });
+      await query(sqlQuery, queryParams);
 
-      return profile;
+      logRequest(context, 'User profile metadata updated successfully', { userId });
+
+      // Return the updated profile
+      return this.getUserProfile(userId, context);
     } catch (error) {
       logError(context, error, { userId });
-      
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
       throw new AppError(
         USER_ERRORS.UPDATE_ERROR.code,
         USER_ERRORS.UPDATE_ERROR.message,
@@ -246,83 +178,39 @@ class UserService {
     }
   }
 
+  // Keep this method as is - it should update the notification_settings JSONB
   async updateNotificationSettings(userId, settings, context) {
     logRequest(context, 'Updating notification settings', { 
       userId,
       updateFields: Object.keys(settings)
     });
 
+    // Validate settings structure (optional, but recommended)
+    // Example: Ensure emailFrequency is 'daily' if provided
+    if (settings.emailFrequency && settings.emailFrequency !== 'daily') {
+         throw new AppError('VALIDATION_ERROR', 'Invalid email frequency', 400);
+    }
+
     try {
-      // Validate settings
-      if (settings.emailFrequency && settings.emailFrequency !== 'daily') {
-        throw new AppError(
-          'INVALID_EMAIL_FREQUENCY',
-          'Invalid email frequency. Supported values: daily',
-          400,
-          { allowedFrequencies: ['daily'] }
-        );
-      }
-
-      // Prepare updates object for metadata
-      const updates = {};
-      if (settings.emailNotifications !== undefined) {
-        updates.emailNotifications = settings.emailNotifications;
-      }
-      if (settings.notificationEmail !== undefined) {
-        updates.notificationEmail = settings.notificationEmail;
-      }
-      if (settings.emailFrequency !== undefined) {
-        updates.emailFrequency = settings.emailFrequency;
-      }
-      if (settings.instantNotifications !== undefined) {
-        updates.instantNotifications = settings.instantNotifications;
-      }
-
-      // Update the user metadata
+      // Merge with existing settings to only update provided fields
       const result = await query(
         `UPDATE users 
-         SET 
-           metadata = metadata || $1::jsonb,
-           updated_at = NOW()
-         WHERE id = $2
-         RETURNING 
-           metadata->>'emailNotifications' as "emailNotifications",
-           metadata->>'notificationEmail' as "notificationEmail",
-           metadata->>'emailFrequency' as "emailFrequency",
-           metadata->>'instantNotifications' as "instantNotifications"`,
-        [
-          JSON.stringify(updates),
-          userId
-        ]
+         SET notification_settings = notification_settings || $2::jsonb 
+         WHERE id = $1
+         RETURNING notification_settings`,
+        [userId, JSON.stringify(settings)]
       );
 
       if (result.rows.length === 0) {
-        throw new AppError(
-          USER_ERRORS.NOT_FOUND.code,
-          USER_ERRORS.NOT_FOUND.message,
-          404,
-          { userId }
-        );
+        throw new AppError(USER_ERRORS.NOT_FOUND.code, USER_ERRORS.NOT_FOUND.message, 404);
       }
 
-      // Convert string booleans to actual booleans
-      const notificationSettings = result.rows[0];
-      notificationSettings.emailNotifications = notificationSettings.emailNotifications === 'true';
-      notificationSettings.instantNotifications = notificationSettings.instantNotifications === 'true';
+      logRequest(context, 'Notification settings updated successfully', { userId });
 
-      logRequest(context, 'Notification settings updated', {
-        userId,
-        updatedFields: Object.keys(settings)
-      });
-
-      return notificationSettings;
+      // Return the full updated settings object
+      return result.rows[0].notification_settings;
     } catch (error) {
       logError(context, error, { userId });
-      
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
       throw new AppError(
         USER_ERRORS.UPDATE_ERROR.code,
         'Failed to update notification settings',
