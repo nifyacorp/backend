@@ -4,7 +4,7 @@
  * This module implements the endpoint for synchronizing Firebase Authentication users
  * with the application's database.
  * 
- * Endpoint: /v1/users/sync
+ * Endpoint: /v1/auth/users/sync
  * Method: POST
  * Authentication: Firebase ID token required
  */
@@ -55,7 +55,7 @@ async function verifyFirebaseToken(request, reply) {
 export async function firebaseSyncRoutes(fastify, options) {
   
   // User synchronization endpoint
-  fastify.post('/users/sync', {
+  fastify.post('/auth/users/sync', {
     schema: {
       response: {
         200: {
