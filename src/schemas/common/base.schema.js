@@ -49,4 +49,13 @@ export const booleanStringSchema = z.union([
   z.literal('true').transform(() => true),
   z.literal('false').transform(() => false),
   z.boolean()
-]); 
+]);
+
+/**
+ * Time string schema for HH:MM format
+ * Used for scheduling preferences
+ */
+export const timeStringSchema = z.string()
+  .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+    message: 'Invalid time format, expected HH:MM (24-hour format)'
+  }); 
