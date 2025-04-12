@@ -23,22 +23,47 @@ export async function initializeFirebaseAdmin() {
       // Initialize secrets manager first
       await initializeSecrets();
       
-      // Get Firebase project ID from Secret Manager
+      // Get all required Firebase secrets from Secret Manager
       const projectId = await getSecret('FIREBASE_PROJECT_ID');
+      const storageBucket = await getSecret('FIREBASE_STORAGE_BUCKET');
       
       if (!projectId) {
         throw new Error('FIREBASE_PROJECT_ID secret is not available');
       }
       
-      // Initialize Firebase Admin SDK
-      firebaseApp = admin.initializeApp({
-        projectId
+      logger.logAuth({}, 'Initializing auth service with Firebase', { 
+        service: 'backend-service',
+        environment: process.env.NODE_ENV || 'development',
+        project: process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || 'unknown',
+        firebaseProject: projectId, 
+        type: 'auth'
       });
       
-      logger.logAuth({}, 'Firebase Admin SDK initialized successfully', { projectId });
+      // Initialize Firebase Admin SDK with all required configuration
+      firebaseApp = admin.initializeApp({
+        projectId,
+        storageBucket: storageBucket || `${projectId}.appspot.com`,
+        // In Cloud Run, credential is automatically obtained from the environment
+        credential: admin.credential.applicationDefault()
+      });
+      
+      logger.logAuth({}, 'Firebase Admin SDK initialized successfully', { 
+        projectId,
+        storageBucket: storageBucket || `${projectId}.appspot.com`
+      });
+
+      // Log the available Firebase services for debugging
+      const availableServices = [];
+      if (firebaseApp.auth) availableServices.push('auth');
+      if (firebaseApp.firestore) availableServices.push('firestore');
+      if (firebaseApp.storage) availableServices.push('storage');
+      
+      logger.logAuth({}, 'Firebase services available', { services: availableServices });
+
     } catch (error) {
       logger.logError({}, error, { 
-        context: 'Failed to initialize Firebase Admin SDK'
+        context: 'Failed to initialize Firebase Admin SDK',
+        projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || 'unknown'
       });
       
       throw error;
