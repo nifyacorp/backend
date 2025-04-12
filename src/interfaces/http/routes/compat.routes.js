@@ -105,17 +105,21 @@ async function updateNotificationSettingsHandler(request, reply) {
 }
 
 // --- Email Preferences Handlers (Imported) ---
-// Assuming these handlers are self-contained and correctly import dependencies
+// Import the handlers from the new location
 let emailPrefHandlers = {};
 try {
-   emailPrefHandlers = await import('../../../core/user/interfaces/http/email-preferences.controller.js'); // Adjust path
+   emailPrefHandlers = await import('../../../core/user/interfaces/http/email-preferences.controller.js');
+   console.log('Successfully imported email preferences controllers');
 } catch (error) {
    console.error("Failed to import email preference controllers:", error);
    // Define dummy handlers to prevent server crash if import fails
    emailPrefHandlers = {
-       getEmailPreferences: async (req, rep) => rep.code(500).send({error: "Email preferences unavailable"}),
-       updateEmailPreferences: async (req, rep) => rep.code(500).send({error: "Email preferences unavailable"}),
-       sendTestEmail: async (req, rep) => rep.code(500).send({error: "Email preferences unavailable"}),
+       getEmailPreferences: async (req, rep) => {
+         console.error('Using fallback email preferences handler');
+         return rep.code(500).send({error: "Email preferences unavailable", details: "Controller import failed"});
+       },
+       updateEmailPreferences: async (req, rep) => rep.code(500).send({error: "Email preferences unavailable", details: "Controller import failed"}),
+       sendTestEmail: async (req, rep) => rep.code(500).send({error: "Email preferences unavailable", details: "Controller import failed"}),
    }
 }
 const { getEmailPreferences, updateEmailPreferences, sendTestEmail } = emailPrefHandlers;

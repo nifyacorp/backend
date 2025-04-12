@@ -184,7 +184,7 @@ async function markNotificationAsRead(notificationId, userId) {
     
     return success;
   } catch (error) {
-    logger.error('Error marking notification as read', { 
+    safeLog('error', 'Error marking notification as read', { 
       error: error.message, 
       stack: error.stack,
       notificationId, 
@@ -215,7 +215,7 @@ async function markAllNotificationsAsRead(userId, subscriptionId) {
       updated: updatedCount
     };
   } catch (error) {
-    logger.error('Error marking all notifications as read', { 
+    safeLog('error', 'Error marking all notifications as read', { 
       error: error.message, 
       stack: error.stack,
       userId, 
@@ -249,7 +249,7 @@ async function deleteNotification(notificationId, userId) {
       id: notificationId
     };
   } catch (error) {
-    logger.error('Error deleting notification', { 
+    safeLog('error', 'Error deleting notification', { 
       error: error.message, 
       stack: error.stack,
       notificationId, 
@@ -280,7 +280,7 @@ async function deleteAllNotifications(userId, subscriptionId) {
       deleted: deletedCount
     };
   } catch (error) {
-    logger.error('Error deleting all notifications', { 
+    safeLog('error', 'Error deleting all notifications', { 
       error: error.message, 
       stack: error.stack,
       userId, 
@@ -303,7 +303,7 @@ async function getNotificationStats(userId) {
     // Use repository to get notification stats
     return await notificationRepository.getNotificationStats(userId);
   } catch (error) {
-    logger.error('Error getting notification stats', { 
+    safeLog('error', 'Error getting notification stats', { 
       error: error.message, 
       stack: error.stack,
       userId 
@@ -366,11 +366,7 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
     // Get email address to use
     const email = userPrefs.notification_email || userPrefs.email;
     if (!email) {
-      if (typeof logger.logError === 'function') {
-        logger.logError({ userId }, 'Cannot send email notification: no email address');
-      } else {
-        console.error('Cannot send email notification: no email address', { userId });
-      }
+      safeLog('error', 'Cannot send email notification: no email address', { userId });
       return;
     }
     
@@ -420,7 +416,7 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
       stack: error.stack,
       userId,
       notificationId,
-      transactionId
+      type
     });
   }
 }
