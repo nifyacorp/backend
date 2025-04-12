@@ -16,41 +16,6 @@ import axios from 'axios';
  * @param {Object} options - Options
  */
 export async function registerProcessRoutes(fastify, options) {
-  // POST /process/:id - Process a subscription immediately (alternative format endpoint)
-  // This endpoint exists to provide compatibility with frontend clients that might use this URL pattern
-  fastify.post('/process/:id', {
-    schema: {
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string' }
-        }
-      },
-      response: {
-        202: {
-          type: 'object',
-          properties: {
-            status: { type: 'string' },
-            message: { type: 'string' },
-            subscription_id: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    // Log the redirect
-    console.log('Redirecting deprecated process endpoint to standard endpoint', {
-      from: `/api/v1/subscriptions/process/${request.params.id}`,
-      to: `/api/v1/subscriptions/${request.params.id}/process`,
-      requestId: request.id
-    });
-    
-    // Redirect to standard endpoint with 308 status code
-    // 308 Permanent Redirect preserves the request method and body
-    return reply.redirect(308, `/api/v1/subscriptions/${request.params.id}/process`);
-  });
-  
   // POST /:id/process - Process a subscription immediately
   fastify.post('/:id/process', {
     schema: {

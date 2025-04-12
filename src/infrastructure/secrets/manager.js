@@ -168,6 +168,112 @@ class SecretsManager {
 // Create singleton instance
 const secretsManager = new SecretsManager();
 
+/**
+ * Preloads and validates all Firebase secrets 
+ * Call this during service startup to ensure all secrets are available
+ */
+export async function validateAllFirebaseSecrets() {
+  console.log('🔍 Validating all Firebase secrets from Secret Manager...');
+  
+  // List of all required Firebase secrets
+  const requiredSecrets = [
+    'FIREBASE_API_KEY',
+    'FIREBASE_APP_ID',
+    'FIREBASE_AUTH_DOMAIN',
+    'FIREBASE_PROJECT_ID',
+    'FIREBASE_STORAGE_BUCKET'
+  ];
+  
+  // List of optional Firebase secrets
+  const optionalSecrets = [
+    'FIREBASE_MESSAGING_SENDER_ID',
+    'FIREBASE_MEASUREMENT_ID'
+  ];
+  
+  // Check required secrets - these must be present
+  const requiredResults = await Promise.all(
+    requiredSecrets.map(async (key) => {
+      const value = await getSecret(key);
+      const status = value ? '✅ LOADED' : '❌ MISSING';
+      console.log(`${status} - ${key}`);
+      return { key, loaded: !!value };
+    })
+  );
+  
+  // Check optional secrets - these can be missing
+  const optionalResults = await Promise.all(
+    optionalSecrets.map(async (key) => {
+      const value = await getSecret(key);
+      const status = value ? '✅ LOADED' : '⚠️ NOT FOUND';
+      console.log(`${status} - ${key} (optional)`);
+      return { key, loaded: !!value };
+    })
+  );
+  
+  // Validate that all required secrets are available
+  const missingRequired = requiredResults.filter(result => !result.loaded);
+  
+  if (missingRequired.length > 0) {
+    const missingKeys = missingRequired.map(result => result.key).join(', ');
+    console.error(`❌ ERROR: Missing required Firebase secrets: ${missingKeys}`);
+    return false;
+  }
+  
+  console.log('✅ All required Firebase secrets validated successfully!');
+  return true;
+}
+
 // Export the functions for use in the application
 export const getSecret = (secretName) => secretsManager.getSecret(secretName);
 export const initialize = () => secretsManager.initialize(); 
+
+/**
+ * Get Firebase configuration from Secret Manager
+ * Centralizes the retrieval of all Firebase configuration parameters
+ */
+export async function getFirebaseConfig() {
+  try {
+    // Initialize config object
+    const config = {};
+    
+    // List of all Firebase config keys
+    const configKeys = [
+      'FIREBASE_API_KEY',
+      'FIREBASE_APP_ID',
+      'FIREBASE_AUTH_DOMAIN',
+      'FIREBASE_MEASUREMENT_ID',
+      'FIREBASE_MESSAGING_SENDER_ID',
+      'FIREBASE_PROJECT_ID',
+      'FIREBASE_STORAGE_BUCKET'
+    ];
+    
+    // Retrieve each config value from Secret Manager
+    for (const key of configKeys) {
+      const value = await getSecret(key);
+      if (value) {
+        config[key] = value;
+      } else if (process.env[key]) {
+        // Fallback to environment variable if Secret Manager fails
+        config[key] = process.env[key];
+      }
+    }
+    
+    // Validate that we have at least the API key
+    if (!config.FIREBASE_API_KEY) {
+      throw new Error('Firebase API key not found in Secret Manager or environment variables');
+    }
+    
+    return config;
+  } catch (error) {
+    console.error('Error getting Firebase configuration:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get Firebase API key from Secret Manager
+ */
+export async function getFirebaseApiKey() {
+  const config = await getFirebaseConfig();
+  return config.FIREBASE_API_KEY;
+} 

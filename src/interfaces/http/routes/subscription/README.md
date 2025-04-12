@@ -1,45 +1,54 @@
-# Subscription Routes Refactoring
+# Subscription Routes
 
-This directory contains the refactored subscription routes, split into logical modules for better maintainability and organization.
+This module contains all the API routes related to subscription management.
 
-## Structure
+## Endpoint Structure
 
-- `index.js` - Main entry point that combines all subscription routes
-- `types.routes.js` - Routes for subscription type operations
-- `crud.routes.js` - Routes for basic CRUD operations on subscriptions
-- `process.routes.js` - Routes for subscription processing
-- `sharing.routes.js` - Routes for subscription sharing
+All endpoints are under the `/api/v1/subscriptions` prefix:
 
-## Benefits of Refactoring
+### Main Endpoints
 
-1. **Improved Maintainability**: Smaller files are easier to understand and maintain
-2. **Better Organization**: Routes are grouped by functionality
-3. **Clearer Responsibilities**: Each file has a specific purpose
-4. **Easier Testing**: Smaller modules are easier to test
-5. **Reduced Merge Conflicts**: Team members working on different features are less likely to conflict
+- `GET /` - List all subscriptions for a user
+- `POST /` - Create a new subscription
+- `GET /:id` - Get subscription details
+- `PUT /:id` - Update a subscription
+- `DELETE /:id` - Delete a subscription
 
-## Implementation Notes
+### Processing
 
-The refactoring preserves all existing functionality while improving the code organization. The main changes are:
+- `POST /:id/process` - Process a subscription immediately
 
-1. Split the large `subscription.routes.js` file into smaller, focused modules
-2. Created a new index file to combine all routes
-3. Updated imports to reflect the new structure
-4. Added better documentation and comments
+### Status
 
-## Usage
+- `GET /:id/status` - Get processing status of a subscription
 
-The refactored routes are used exactly the same way as before:
+### Sharing
 
-```javascript
-import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
+- `POST /:id/share` - Share a subscription
+- `GET /:id/share` - Get sharing information for a subscription
+- `DELETE /:id/share` - Remove sharing for a subscription
 
-// Register routes
-fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
-```
+### Types
 
-## Future Improvements
+- `GET /types` - List all subscription types
+- `GET /types/:type` - Get details about a specific subscription type
 
-- Add unit tests for each route module
-- Consider further splitting large route handlers into controller functions
-- Add OpenAPI documentation for each endpoint 
+### Statistics
+
+- `GET /stats` - Get subscription statistics
+
+## Code Organization
+
+The routes are organized into separate files for better maintainability:
+
+- `index.js` - Main entry point that registers all other route modules
+- `crud.routes.js` - Basic CRUD operations
+- `crud-delete.js` - Enhanced delete endpoint
+- `process.routes.js` - Subscription processing
+- `status.routes.js` - Processing status endpoints
+- `sharing.routes.js` - Subscription sharing
+- `types.routes.js` - Subscription type information
+
+## Authentication
+
+All endpoints require authentication using Firebase Authentication. The authentication middleware is applied at the API level 
