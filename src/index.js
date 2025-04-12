@@ -14,6 +14,7 @@ import { firebaseAuthenticate } from './interfaces/http/middleware/firebase-auth
 import { initializeDatabase } from './infrastructure/database/client.js';
 import { authService } from './core/auth/auth.service.js';
 import * as loggerModule from './shared/logging/logger.js';
+import { logger } from './shared/logging/logger.js';
 import { initializeFirebaseAdmin } from './infrastructure/firebase/admin.js';
 
 // Initialize environment variables
@@ -22,14 +23,6 @@ dotenv.config();
 // Use the server config from the createServer function
 const fastify = createServer();
 const { port, host } = fastify.serverConfig;
-
-// Create a logger object to match the import pattern used elsewhere
-const logger = {
-  info: (...args) => console.log(...args),
-  error: (...args) => console.error(...args),
-  warn: (...args) => console.warn(...args),
-  debug: (...args) => console.debug(...args)
-};
 
 async function main() {
   try {

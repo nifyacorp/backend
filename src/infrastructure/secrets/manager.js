@@ -22,7 +22,7 @@ class SecretsManager {
     if (initialized) return;
     
     if (this.isDevelopment) {
-      logger.logInfo({}, 'Running in development mode, using environment variables instead of Secret Manager');
+      logger.logRequest({}, 'Running in development mode, using environment variables instead of Secret Manager');
       
       // Pre-load environment variables as secrets in development
       this.envSecrets = {
@@ -45,11 +45,10 @@ class SecretsManager {
       try {
         client = new SecretManagerServiceClient();
         initialized = true;
-        logger.logInfo({}, 'Secret Manager client initialized successfully');
+        logger.logRequest({}, 'Secret Manager client initialized successfully');
       } catch (error) {
-        logger.logError({}, 'Failed to initialize Secret Manager client', { 
-          error: error.message,
-          stack: error.stack 
+        logger.logError({}, error, { 
+          context: 'Failed to initialize Secret Manager client'
         });
         throw error;
       }
@@ -60,7 +59,7 @@ class SecretsManager {
     // Use environment variables in development mode
     if (this.isDevelopment) {
       const secretValue = this.envSecrets[secretName];
-      logger.logDebug({}, 'Using development secret', { secretName, valueExists: !!secretValue });
+      logger.logger.debug('Using development secret', { secretName, valueExists: !!secretValue });
       return secretValue;
     }
 
@@ -76,7 +75,7 @@ class SecretsManager {
         throw new Error('GOOGLE_CLOUD_PROJECT or PROJECT_ID environment variable is not set');
       }
       
-      logger.logDebug({}, 'Attempting to retrieve secret', { 
+      logger.logger.debug('Attempting to retrieve secret', { 
         secretName,
         projectId,
         secretPath: `projects/${projectId}/secrets/${secretName}/versions/latest`
@@ -91,13 +90,12 @@ class SecretsManager {
       }
 
       const secretValue = version.payload.data.toString();
-      logger.logDebug({}, 'Secret retrieved successfully', { secretName });
+      logger.logger.debug('Secret retrieved successfully', { secretName });
       
       return secretValue;
     } catch (error) {
-      logger.logError({}, 'Failed to retrieve secret', { 
-        error: error.message,
-        errorStack: error.stack,
+      logger.logError({}, error, { 
+        context: 'Failed to retrieve secret',
         secretName,
         projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID
       });

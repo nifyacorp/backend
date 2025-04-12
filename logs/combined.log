@@ -16,3 +16,12 @@
 {"developmentMode":true,"enabled":false,"environment":"development","hasProjectId":false,"level":"info","message":"PubSub client configuration loaded","service":"backend-service","timestamp":"2025-04-11T11:36:14.438Z"}
 {"environment":"development","host":"0.0.0.0","level":"info","message":"Fastify instance created with configuration:","port":"8080","service":"backend-service","timestamp":"2025-04-11T11:36:14.446Z"}
 {"environment":"development","level":"info","message":"Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization","service":"backend-service","timestamp":"2025-04-11T11:36:14.448Z"}
+{"database":"nifya","environment":"development","hasPassword":true,"hasUser":true,"host":"localhost","level":"info","message":"Database configuration:","port":"5432","service":"backend-service","timestamp":"2025-04-11T23:20:08.357Z"}
+{"environment":"development","firebaseProject":"delta-entity-447812-p2","level":"info","message":"Initializing auth service with Firebase","service":"backend-service","timestamp":"2025-04-11T23:20:08.361Z","type":"auth"}
+{"enabled":false,"environment":"development","level":"info","message":"Metrics service initialized","service":"backend-service","timestamp":"2025-04-11T23:20:08.467Z"}
+{"debugMode":true,"environment":"development","level":"info","maxListeners":50,"message":"Event emitter service initialized","service":"backend-service","timestamp":"2025-04-11T23:20:08.468Z"}
+{"developmentMode":true,"enabled":false,"environment":"development","hasProjectId":false,"level":"info","message":"PubSub client configuration loaded","service":"backend-service","timestamp":"2025-04-11T23:20:08.471Z"}
+{"environment":"development","host":"0.0.0.0","level":"info","message":"Fastify instance created with configuration:","port":"8081","service":"backend-service","timestamp":"2025-04-11T23:20:08.479Z"}
+{"environment":"development","level":"info","message":"Firebase Admin SDK initialized successfully","projectId":"delta-entity-447812-p2","service":"backend-service","timestamp":"2025-04-11T23:20:08.481Z","type":"auth"}
+{"environment":"development","level":"info","message":"Auth service initialized with Firebase integration","service":"backend-service","timestamp":"2025-04-11T23:20:08.482Z","type":"auth"}
+{"environment":"development","level":"info","message":"Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization","service":"backend-service","timestamp":"2025-04-11T23:20:08.482Z"}

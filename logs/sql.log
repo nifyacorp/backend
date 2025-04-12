@@ -40,3 +40,20 @@
 2025-04-11T11:36:14.438Z info: PubSub client configuration loaded {"service":"backend-service","environment":"development","enabled":false,"developmentMode":true,"hasProjectId":false}
 2025-04-11T11:36:14.446Z info: Fastify instance created with configuration: {"service":"backend-service","environment":"development","port":"8080","host":"0.0.0.0"}
 2025-04-11T11:36:14.448Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}
+2025-04-11T23:20:08.357Z info: Database configuration: {"service":"backend-service","environment":"development","host":"localhost","port":"5432","database":"nifya","hasUser":true,"hasPassword":true}
+2025-04-11T23:20:08.361Z info: Initializing auth service with Firebase {"service":"backend-service","environment":"development","firebaseProject":"delta-entity-447812-p2","type":"auth"}
+2025-04-11T23:20:08.467Z info: Metrics service initialized {"service":"backend-service","environment":"development","enabled":false}
+2025-04-11T23:20:08.468Z info: Event emitter service initialized {"service":"backend-service","environment":"development","maxListeners":50,"debugMode":true}
+2025-04-11T23:20:08.468Z debug: Event type registered: user:created {"service":"backend-service","environment":"development","description":"User account created","hasSchema":false}
+2025-04-11T23:20:08.469Z debug: Event type registered: user:updated {"service":"backend-service","environment":"development","description":"User profile updated","hasSchema":false}
+2025-04-11T23:20:08.469Z debug: Event type registered: subscription:created {"service":"backend-service","environment":"development","description":"New subscription created","hasSchema":false}
+2025-04-11T23:20:08.470Z debug: Event type registered: subscription:updated {"service":"backend-service","environment":"development","description":"Subscription updated","hasSchema":false}
+2025-04-11T23:20:08.470Z debug: Event type registered: subscription:deleted {"service":"backend-service","environment":"development","description":"Subscription deleted","hasSchema":false}
+2025-04-11T23:20:08.470Z debug: Event type registered: notification:created {"service":"backend-service","environment":"development","description":"New notification created","hasSchema":false}
+2025-04-11T23:20:08.471Z debug: Event type registered: notification:read {"service":"backend-service","environment":"development","description":"Notification marked as read","hasSchema":false}
+2025-04-11T23:20:08.471Z debug: Event type registered: notification:deleted {"service":"backend-service","environment":"development","description":"Notification deleted","hasSchema":false}
+2025-04-11T23:20:08.471Z info: PubSub client configuration loaded {"service":"backend-service","environment":"development","enabled":false,"developmentMode":true,"hasProjectId":false}
+2025-04-11T23:20:08.479Z info: Fastify instance created with configuration: {"service":"backend-service","environment":"development","port":"8081","host":"0.0.0.0"}
+2025-04-11T23:20:08.481Z info: Firebase Admin SDK initialized successfully {"service":"backend-service","environment":"development","projectId":"delta-entity-447812-p2","type":"auth"}
+2025-04-11T23:20:08.482Z info: Auth service initialized with Firebase integration {"service":"backend-service","environment":"development","type":"auth"}
+2025-04-11T23:20:08.482Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}

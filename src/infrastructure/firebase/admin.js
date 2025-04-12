@@ -5,7 +5,7 @@
  */
 
 import admin from 'firebase-admin';
-import logger from '../../shared/logger.js';
+import * as logger from '../../shared/logger.js';
 import { getSecret, initialize as initializeSecrets } from '../secrets/manager.js';
 
 // Singleton instance
@@ -37,9 +37,8 @@ export async function initializeFirebaseAdmin() {
       
       logger.logAuth({}, 'Firebase Admin SDK initialized successfully', { projectId });
     } catch (error) {
-      logger.logError({}, 'Failed to initialize Firebase Admin SDK', { 
-        error: error.message,
-        stack: error.stack 
+      logger.logError({}, error, { 
+        context: 'Failed to initialize Firebase Admin SDK'
       });
       
       throw error;

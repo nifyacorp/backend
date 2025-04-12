@@ -68,6 +68,223 @@ A comprehensive API backend designed for LLM-powered notification and subscripti
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## 📁 Complete File Structure
+
+```
+backend/
+├── src/
+│   ├── index.js                   # Main application entry point
+│   ├── core/                      # Core business logic
+│   │   ├── auth/                  # Authentication related logic
+│   │   │   └── auth.service.js
+│   │   ├── notification/          # Notification management
+│   │   │   └── service/
+│   │   │       └── notification-service.js
+│   │   ├── subscription/          # Subscription management
+│   │   │   └── services/
+│   │   │       └── subscription.service.js
+│   │   ├── user/                  # User management
+│   │   │   └── user.service.js
+│   │   ├── apiExplorer/           # API documentation generation
+│   │   └── types/                 # TypeScript types and interfaces
+│   ├── infrastructure/            # Infrastructure and external connections
+│   │   ├── database/              # Database connections
+│   │   │   ├── client.js
+│   │   │   └── single-schema-migrations.js
+│   │   ├── firebase/              # Firebase integration
+│   │   ├── pubsub/                # Pub/Sub messaging
+│   │   ├── events/                # Event handling
+│   │   ├── metrics/               # Monitoring and metrics
+│   │   ├── secrets/               # Secret management
+│   │   └── server/                # Server configuration
+│   ├── interfaces/                # Interface adapters
+│   │   ├── http/                  # HTTP interface
+│   │   │   ├── middleware/        # Express middleware
+│   │   │   │   ├── auth.middleware.js
+│   │   │   │   └── errorHandler.js
+│   │   │   └── routes/            # API routes
+│   │   │       ├── subscription/  
+│   │   │       │   ├── crud.routes.js
+│   │   │       │   └── process.routes.js
+│   │   │       ├── notification.routes.js
+│   │   │       └── user.routes.js
+│   │   └── events/                # Event handlers
+│   ├── schemas/                   # Data validation schemas
+│   │   ├── subscription/
+│   │   ├── notification/
+│   │   └── user/
+│   └── shared/                    # Shared utilities
+│       ├── errors/
+│       └── utils/
+├── supabase/                      # Supabase configuration
+├── logs/                          # Log files
+├── node_modules/                  # Dependencies
+├── .env                           # Environment variables
+├── .env.example                   # Example environment file
+├── consolidated-schema.sql        # Database schema
+├── package.json                   # Project configuration
+├── package-lock.json              # Dependency lock file
+├── Dockerfile                     # Container definition
+├── cloudbuild.yaml                # CI/CD configuration
+├── .dockerignore                  # Docker ignore file
+├── .gitignore                     # Git ignore file
+└── README.md                      # Project documentation
+```
+
+## 🧩 Core Classes and Modules
+
+### Authentication System
+
+#### AuthService (`src/core/auth/auth.service.js`)
+Manages authentication logic and JWT handling.
+
+**Key Methods:**
+- `verifyToken(token)`: Verifies JWT token validity
+- `generateToken(payload)`: Generates new JWT token
+- `refreshToken(refreshToken)`: Generates new access token from refresh token
+- `verifyPermissions(userId, resource, action)`: Checks if user has permission
+
+#### AuthMiddleware (`src/interfaces/http/middleware/auth.middleware.js`)
+Provides authentication middleware for HTTP routes.
+
+**Key Methods:**
+- `authenticate(request, reply)`: Authenticates requests using JWT
+- `synchronizeUser(userId, userInfo, context)`: Syncs user data with auth service
+- `requirePermission(resource, action)`: Permission-based middleware
+
+### Subscription System
+
+#### SubscriptionService (`src/core/subscription/services/subscription.service.js`)
+Manages subscription-related business logic.
+
+**Key Methods:**
+- `createSubscription(data, userId)`: Creates new subscription
+- `getSubscriptions(userId, filters)`: Retrieves user subscriptions
+- `getSubscriptionById(id, userId)`: Retrieves specific subscription
+- `updateSubscription(id, data, userId)`: Updates subscription
+- `deleteSubscription(id, userId)`: Deletes subscription
+- `processSubscription(id, userId)`: Initiates subscription processing
+- `validateSubscriptionData(data)`: Validates subscription input
+
+#### SubscriptionRoutes (`src/interfaces/http/routes/subscription/crud.routes.js`)
+HTTP routes for subscription management.
+
+**Key Endpoints:**
+- `GET /api/v1/subscriptions`: List subscriptions
+- `POST /api/v1/subscriptions`: Create subscription
+- `GET /api/v1/subscriptions/:id`: Get subscription
+- `PUT /api/v1/subscriptions/:id`: Update subscription
+- `DELETE /api/v1/subscriptions/:id`: Delete subscription
+- `POST /api/v1/subscriptions/:id/process`: Process subscription
+
+### Notification System
+
+#### NotificationService (`src/core/notification/service/notification-service.js`)
+Manages notification business logic.
+
+**Key Methods:**
+- `getNotifications(query, userId)`: Retrieves user notifications
+- `createNotification(data)`: Creates notification
+- `markAsRead(id, userId)`: Marks notification as read
+- `markAllAsRead(userId)`: Marks all notifications as read
+- `deleteNotification(id, userId)`: Deletes notification
+- `formatNotification(notification)`: Formats notification for client
+
+#### NotificationRoutes (`src/interfaces/http/routes/notification.routes.js`)
+HTTP routes for notification management.
+
+**Key Endpoints:**
+- `GET /api/v1/notifications`: List notifications
+- `POST /api/v1/notifications`: Create notification (internal)
+- `PUT /api/v1/notifications/:id/read`: Mark as read
+- `POST /api/v1/notifications/read-all`: Mark all as read
+- `DELETE /api/v1/notifications/:id`: Delete notification
+
+### User System
+
+#### UserService (`src/core/user/user.service.js`)
+Manages user-related business logic.
+
+**Key Methods:**
+- `getUserById(id)`: Retrieves user by ID
+- `getUserProfile(userId)`: Gets user profile with preferences
+- `updateUserProfile(userId, data)`: Updates user profile
+- `getUserPreferences(userId)`: Gets user preferences
+- `updateUserPreferences(userId, preferences)`: Updates preferences
+- `getEmailPreferences(userId)`: Gets email notification preferences
+- `updateEmailPreferences(userId, preferences)`: Updates email preferences
+- `sendTestEmail(userId)`: Sends test email to verify settings
+
+#### UserRoutes (`src/interfaces/http/routes/user.routes.js`)
+HTTP routes for user management.
+
+**Key Endpoints:**
+- `GET /api/v1/users/me`: Get current user profile
+- `PUT /api/v1/users/me`: Update user profile
+- `GET /api/v1/users/preferences`: Get user preferences
+- `PUT /api/v1/users/preferences`: Update preferences
+- `GET /api/v1/me/email-preferences`: Get email preferences
+- `PUT /api/v1/me/email-preferences`: Update email preferences
+- `POST /api/v1/me/test-email`: Send test email
+
+### Infrastructure Components
+
+#### DatabaseClient (`src/infrastructure/database/client.js`)
+Manages database connections and queries.
+
+**Key Methods:**
+- `query(text, params)`: Executes SQL query
+- `getClient()`: Gets database client from pool
+- `withTransaction(callback)`: Executes callback in transaction
+- `setRLSContext(userId)`: Sets Row-Level Security context
+- `withRLSContext(userId, callback)`: Executes with RLS context
+
+#### SecretManager (`src/infrastructure/secrets/secretManager.js`)
+Manages access to secrets stored in Google Secret Manager.
+
+**Key Methods:**
+- `getSecret(secretName)`: Retrieves secret by name
+- `cacheSecret(secretName, value)`: Caches secret for reuse
+- `clearCache()`: Clears secret cache
+
+#### PubSubClient (`src/infrastructure/pubsub/client.js`)
+Manages Pub/Sub messaging for asynchronous processing.
+
+**Key Methods:**
+- `publishMessage(topicName, data)`: Publishes message to topic
+- `subscribe(subscriptionName, callback)`: Subscribes to topic
+- `createSubscription(topicName, subscriptionName)`: Creates subscription
+
+#### ErrorHandler (`src/interfaces/http/middleware/errorHandler.js`)
+Global error handling middleware.
+
+**Key Methods:**
+- `handleError(error, request, reply)`: Processes errors
+- `formatError(error)`: Formats error for client response
+- `logError(error)`: Logs error with appropriate severity
+
+## 🔄 Class Relationships
+
+1. **Request Flow**:
+   - HTTP Request → AuthMiddleware → Route Handler → Service → Database
+   - AuthMiddleware synchronizes users with UserService
+   - Route handlers use Services to process business logic
+   - Services interact with DatabaseClient for data operations
+
+2. **Subscription Processing Flow**:
+   - SubscriptionService.processSubscription() → PubSubClient.publishMessage()
+   - Specialized Parser Services (BOE Parser, DOGA Parser) → NotificationService.createNotification()
+   - NotificationService → EventEmitter → Socket.IO → Client
+
+3. **Authentication Flow**:
+   - Request → AuthMiddleware.authenticate() → AuthService.verifyToken()
+   - AuthMiddleware.synchronizeUser() → UserService.getUserById() or create
+   - AuthService.refreshToken() → Generate new tokens
+
+4. **Data Flow**:
+   - Client → API Routes → Validation Schemas → Services → DatabaseClient → Database
+   - Database → DatabaseClient → Services → Response Formatting → Client
+
 ## 🚀 Core Components
 
 ### Auth Middleware
