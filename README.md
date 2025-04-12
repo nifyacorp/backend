@@ -409,6 +409,44 @@ All authenticated routes require:
 - `Authorization: Bearer <token>` header
 - `X-User-ID: <user-id>` header
 
+### Firebase Authentication Synchronization
+
+The backend provides an endpoint to synchronize Firebase Authentication users with the application's database:
+
+- **Endpoint:** `/v1/users/sync`
+- **Method:** POST
+- **Authentication:** Firebase ID token required (sent in the Authorization header)
+- **Purpose:** Ensures user data consistency between Firebase Authentication and the application database
+
+**How it works:**
+1. Client authenticates with Firebase Authentication
+2. Client sends a POST request to `/v1/users/sync` with the Firebase ID token
+3. The server verifies the token and extracts user information
+4. The server synchronizes the user with the application database:
+   - If the user exists (by Firebase UID), updates their information
+   - If the user exists by email but without Firebase UID, links their account
+   - If the user doesn't exist, creates a new user record
+5. The server returns the synchronized user profile
+
+**Sample Response:**
+```json
+{
+  "success": true,
+  "profile": {
+    "id": "firebase_uid",
+    "email": "user@example.com",
+    "name": "User Name",
+    "avatar": null,
+    "emailVerified": true,
+    "lastLogin": "2023-06-14T12:34:56Z",
+    "createdAt": "2023-01-01T00:00:00Z",
+    "updatedAt": "2023-06-14T12:34:56Z"
+  }
+}
+```
+
+This synchronization ensures that user data remains consistent across the authentication system and the application database, which is crucial for features like permissions, preferences, and personalized content.
+
 ## 📦 Data Models
 
 ### Subscription Schema

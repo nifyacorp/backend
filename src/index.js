@@ -9,6 +9,7 @@ import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
 import { notificationRoutes } from './interfaces/http/routes/notification.routes.js';
 import { registerSubscriptionProcessingRoutes } from './interfaces/http/routes/subscription-processing.routes.js';
+import { firebaseSyncRoutes } from './interfaces/http/routes/firebase-sync.routes.js';
 import diagnosticsRoutes from './interfaces/http/routes/diagnostics.routes.js';
 import { firebaseAuthenticate } from './interfaces/http/middleware/firebase-auth.middleware.js';
 import { initializeDatabase } from './infrastructure/database/client.js';
@@ -53,6 +54,9 @@ async function main() {
     // These might define absolute paths or need specific root paths
     await fastify.register(legacyRoutes);
     await fastify.register(compatibilityRoutes);
+
+    // Register Firebase sync routes under /v1 (without using the global Firebase authentication middleware)
+    await fastify.register(firebaseSyncRoutes, { prefix: '/v1' });
 
     // Register all authenticated API routes under /api/v1 using Firebase authentication
     await fastify.register(async (instance) => {
