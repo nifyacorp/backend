@@ -20,7 +20,7 @@ import pubsubClient from '../../../infrastructure/pubsub/pubsub-client.js';
  */
 async function createNotification({ userId, type, content, transactionId, subscriptionId }) {
   const correlationId = transactionId || `notification-${Date.now()}`;
-  logger.debug('Creating notification', { userId, type, correlationId });
+  logger.logDebug({ userId, correlationId }, 'Creating notification', { type });
 
   try {
     // Prepare notification data
@@ -87,7 +87,7 @@ async function createNotification({ userId, type, content, transactionId, subscr
  * @returns {Promise<Object>} - Notifications with pagination info
  */
 async function getUserNotifications(userId, options = {}) {
-  logger.debug('Getting user notifications', { userId, options });
+  logger.logDebug({ userId }, 'Getting user notifications', { options });
   
   try {
     // Normalize options for repository
@@ -140,7 +140,7 @@ async function getUserNotifications(userId, options = {}) {
  * @returns {Promise<boolean>} - Whether the operation was successful
  */
 async function markNotificationAsRead(notificationId, userId) {
-  logger.debug('Marking notification as read', { notificationId, userId });
+  logger.logDebug({ userId }, 'Marking notification as read', { notificationId });
   
   try {
     // Use repository to mark notification read
@@ -167,11 +167,11 @@ async function markNotificationAsRead(notificationId, userId) {
 /**
  * Mark all notifications as read for a user
  * @param {string} userId - The user ID
- * @param {string} [subscriptionId] - Optional subscription ID to filter by
- * @returns {Promise<Object>} - Result with count of updated notifications
+ * @param {string} [subscriptionId] - Optional subscription ID to filter
+ * @returns {Promise<Object>} - Result with count of marked notifications
  */
-async function markAllNotificationsAsRead(userId, subscriptionId = null) {
-  logger.debug('Marking all notifications as read', { userId, subscriptionId });
+async function markAllNotificationsAsRead(userId, subscriptionId) {
+  logger.logDebug({ userId }, 'Marking all notifications as read', { subscriptionId });
   
   try {
     // Use repository to mark all notifications read
@@ -202,7 +202,7 @@ async function markAllNotificationsAsRead(userId, subscriptionId = null) {
  * @returns {Promise<Object>} - Result indicating success
  */
 async function deleteNotification(notificationId, userId) {
-  logger.debug('Deleting notification', { notificationId, userId });
+  logger.logDebug({ userId }, 'Deleting notification', { notificationId });
   
   try {
     // Use repository to delete notification
@@ -232,11 +232,11 @@ async function deleteNotification(notificationId, userId) {
 /**
  * Delete all notifications for a user
  * @param {string} userId - The user ID
- * @param {string} [subscriptionId] - Optional subscription ID to filter by
+ * @param {string} [subscriptionId] - Optional subscription ID to filter
  * @returns {Promise<Object>} - Result with count of deleted notifications
  */
-async function deleteAllNotifications(userId, subscriptionId = null) {
-  logger.debug('Deleting all notifications', { userId, subscriptionId });
+async function deleteAllNotifications(userId, subscriptionId) {
+  logger.logDebug({ userId }, 'Deleting all notifications', { subscriptionId });
   
   try {
     // Use repository to delete all notifications
@@ -266,7 +266,7 @@ async function deleteAllNotifications(userId, subscriptionId = null) {
  * @returns {Promise<Object>} - Notification statistics
  */
 async function getNotificationStats(userId) {
-  logger.debug('Getting notification stats', { userId });
+  logger.logDebug({ userId }, 'Getting notification stats');
   
   try {
     // Use repository to get notification stats
@@ -294,7 +294,7 @@ async function getNotificationStats(userId) {
  * @returns {Promise<Object>} - Activity data
  */
 async function getActivityStats(userId, days = 7) {
-  logger.debug('Getting activity stats', { userId, days });
+  logger.logDebug({ userId }, 'Getting activity stats', { days });
   
   try {
     // Use repository to get activity stats
@@ -333,7 +333,7 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
     // Get email address to use
     const email = userPrefs.notification_email || userPrefs.email;
     if (!email) {
-      logger.warn('Cannot send email notification: no email address', { userId });
+      logger.logError({ userId }, 'Cannot send email notification: no email address');
       return;
     }
     
@@ -370,9 +370,8 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
       correlationId: transactionId
     });
     
-    logger.debug('Published email notification to topic', { 
+    logger.logDebug({ userId, correlationId: transactionId }, 'Published email notification to topic', { 
       notificationId, 
-      userId, 
       email, 
       topic: topicName 
     });

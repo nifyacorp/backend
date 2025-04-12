@@ -500,14 +500,14 @@ async function deleteSubscription(id, options = {}) {
             }
           }
           
-          logger.info('Subscription existence and ownership check', { 
+          logger.logInfo({}, 'Subscription existence and ownership check', { 
             subscriptionId: id, 
             exists: subscriptionExists,
             ownershipVerified,
             ownerId: checkResult.rows[0].user_id
           });
         } else {
-          logger.info('Subscription not found', { subscriptionId: id });
+          logger.logInfo({}, 'Subscription not found', { subscriptionId: id });
         }
       } catch (checkError) {
         logger.error('Error checking subscription existence', {
@@ -565,7 +565,7 @@ async function deleteSubscription(id, options = {}) {
               [id]
             );
             
-            logger.info('Deleted related sharing records', { subscriptionId: id });
+            logger.logInfo({}, 'Deleted related sharing records', { subscriptionId: id });
           }
         } catch (sharingError) {
           // Log but continue - don't fail the whole operation
@@ -583,7 +583,7 @@ async function deleteSubscription(id, options = {}) {
             [id]
           );
           
-          logger.info('Deleted related processing records', { subscriptionId: id });
+          logger.logInfo({}, 'Deleted related processing records', { subscriptionId: id });
         } catch (processingError) {
           // Log but continue
           logger.error('Error deleting processing records', {
@@ -609,7 +609,7 @@ async function deleteSubscription(id, options = {}) {
             );
           }
           
-          logger.info('Deleted related notifications', { subscriptionId: id });
+          logger.logInfo({}, 'Deleted related notifications', { subscriptionId: id });
         } catch (notificationError) {
           // Log but continue
           logger.error('Error deleting related notifications', {
@@ -647,18 +647,18 @@ async function deleteSubscription(id, options = {}) {
             if (forcedDeleteResult.rowCount === 0) {
               throw new Error('Failed to delete subscription after multiple attempts');
             } else {
-              logger.info('Subscription deleted on second attempt', { 
+              logger.logInfo({}, 'Subscription deleted on second attempt', { 
                 subscriptionId: id,
                 rowsAffected: forcedDeleteResult.rowCount
               });
             }
           } else {
-            logger.info('No rows affected by deletion, subscription already gone', {
+            logger.logInfo({}, 'No rows affected by deletion, subscription already gone', {
               subscriptionId: id
             });
           }
         } else {
-          logger.info('Subscription deleted successfully', { 
+          logger.logInfo({}, 'Subscription deleted successfully', { 
             subscriptionId: id,
             rowsAffected: deleteResult.rowCount
           });
@@ -1159,7 +1159,7 @@ function formatSubscription(row) {
     }
   } catch (e) {
     // If it's not valid JSON, keep as is
-    logger.warn('Error parsing prompts JSON', {
+    logger.logError({}, 'Error parsing prompts JSON', {
       error: e.message,
       subscriptionId: row.id,
       prompts

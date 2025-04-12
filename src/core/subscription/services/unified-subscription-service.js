@@ -23,7 +23,7 @@ import { publishEvent } from '../../../infrastructure/pubsub/client.js';
  * @returns {Promise<Object>} - Created subscription
  */
 async function createSubscription(data, context = {}) {
-  logger.info('Creating subscription', { ...data, userId: data.userId });
+  logger.logInfo(context, 'Creating subscription', { ...data, userId: data.userId });
   
   try {
     // Validate required fields
@@ -102,7 +102,7 @@ async function createSubscription(data, context = {}) {
  * @returns {Promise<Object>} - Subscription object
  */
 async function getSubscriptionById(userId, subscriptionId, context = {}) {
-  logger.info('Getting subscription by ID', { userId, subscriptionId });
+  logger.logInfo(context, 'Getting subscription by ID', { userId, subscriptionId });
   
   try {
     const subscription = await subscriptionRepository.findById(subscriptionId, {
@@ -157,7 +157,7 @@ async function getSubscriptionById(userId, subscriptionId, context = {}) {
  * @returns {Promise<Object>} - Object with subscriptions array and pagination info
  */
 async function getUserSubscriptions(userId, options = {}, context = {}) {
-  logger.info('Getting user subscriptions', { userId, options });
+  logger.logInfo(context, 'Getting user subscriptions', { userId, options });
   
   try {
     const result = await subscriptionRepository.getUserSubscriptions(userId, options);
@@ -192,7 +192,7 @@ async function getUserSubscriptions(userId, options = {}, context = {}) {
  * @returns {Promise<Object>} - Updated subscription
  */
 async function updateSubscription(userId, subscriptionId, data, context = {}) {
-  logger.info('Updating subscription', { userId, subscriptionId, data });
+  logger.logInfo(context, 'Updating subscription', { userId, subscriptionId, data });
   
   try {
     // Verify subscription exists and user has permission
@@ -254,7 +254,7 @@ async function updateSubscription(userId, subscriptionId, data, context = {}) {
  * @returns {Promise<Object>} - Deletion result
  */
 async function deleteSubscription(userId, subscriptionId, context = {}) {
-  logger.info('Deleting subscription', { userId, subscriptionId });
+  logger.logInfo(context, 'Deleting subscription', { userId, subscriptionId });
   
   try {
     // Verify subscription exists and user has permission
@@ -312,7 +312,7 @@ async function deleteSubscription(userId, subscriptionId, context = {}) {
  * @returns {Promise<Object>} - Statistics object
  */
 async function getSubscriptionStats(userId, context = {}) {
-  logger.info('Getting subscription stats', { userId });
+  logger.logInfo(context, 'Getting subscription stats', { userId });
   
   try {
     return await subscriptionRepository.getSubscriptionStats(userId);
@@ -335,7 +335,7 @@ async function getSubscriptionStats(userId, context = {}) {
 }
 
 /**
- * Toggle subscription active status
+ * Toggle subscription status
  * @param {string} userId - User ID
  * @param {string} subscriptionId - Subscription ID
  * @param {boolean} active - New active status
@@ -343,7 +343,7 @@ async function getSubscriptionStats(userId, context = {}) {
  * @returns {Promise<Object>} - Updated subscription
  */
 async function toggleSubscriptionStatus(userId, subscriptionId, active, context = {}) {
-  logger.info('Toggling subscription status', { userId, subscriptionId, active });
+  logger.logInfo(context, 'Toggling subscription status', { userId, subscriptionId, active });
   
   try {
     // Verify subscription exists and user has permission
@@ -407,7 +407,7 @@ async function toggleSubscriptionStatus(userId, subscriptionId, active, context 
  * @returns {Promise<Object>} - Sharing result
  */
 async function shareSubscription(userId, subscriptionId, targetEmail, message, context = {}) {
-  logger.info('Sharing subscription', { userId, subscriptionId, targetEmail });
+  logger.logInfo(context, 'Sharing subscription', { userId, subscriptionId, targetEmail });
   
   try {
     // Verify subscription exists and user has permission
@@ -471,7 +471,7 @@ async function shareSubscription(userId, subscriptionId, targetEmail, message, c
  * @returns {Promise<Object>} - Result of operation
  */
 async function removeSubscriptionSharing(userId, subscriptionId, targetEmail, context = {}) {
-  logger.info('Removing subscription sharing', { userId, subscriptionId, targetEmail });
+  logger.logInfo(context, 'Removing subscription sharing', { userId, subscriptionId, targetEmail });
   
   try {
     // Verify subscription exists and user has permission
@@ -518,7 +518,7 @@ async function removeSubscriptionSharing(userId, subscriptionId, targetEmail, co
  */
 async function processSubscription(userId, subscriptionId, context = {}) {
   const transactionId = context.transactionId || `sub-process-${Date.now()}`;
-  logger.info('Processing subscription', { userId, subscriptionId, transactionId });
+  logger.logInfo(context, 'Processing subscription', { userId, subscriptionId, transactionId });
   
   try {
     // Verify subscription exists and user has permission

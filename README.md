@@ -547,6 +547,58 @@ For VS Code users, recommended extensions:
 - REST Client
 - PostgreSQL
 
+### Logging System
+
+The backend uses a centralized logging system through the `src/shared/logger.js` module. This provides consistent logging formats and levels across the application.
+
+#### Using the Logger
+
+When using the logger in services, always import it from the shared module:
+
+```javascript
+import logger from '../../../shared/logger.js';
+```
+
+#### Logger Methods
+
+The logger provides the following methods that MUST be used:
+
+- `logger.logDebug(context, message, data)`: For debug-level logging
+- `logger.logInfo(context, message, data)`: For info-level logging
+- `logger.logError(context, message, data)`: For error-level logging
+- `logger.logProcessing(context, message, data)`: For processing operations
+- `logger.logAuth(context, message, data)`: For authentication operations
+
+Do NOT use `logger.debug()`, `logger.info()`, etc. directly as these methods don't exist on the logger object.
+
+#### Correct Usage Examples
+
+```javascript
+// Debug logging - correct way
+logger.logDebug({ userId }, 'Getting user notifications', { options });
+
+// Info logging - correct way
+logger.logInfo(context, 'Creating subscription', { ...data, userId: data.userId });
+
+// Error logging
+logger.error('Error getting user notifications', { 
+  error: error.message, 
+  stack: error.stack,
+  userId, 
+  options 
+});
+```
+
+#### Context Parameter
+
+The first parameter should be a context object containing:
+- `userId`: The user ID if available
+- `requestId`: Request ID for tracing
+- `path`: API path being accessed
+- Any other relevant contextual information
+
+This consistent approach ensures proper structured logging and makes debugging easier.
+
 ### Best Practices
 
 1. **Row-Level Security**: Use `withRLSContext` for database operations
