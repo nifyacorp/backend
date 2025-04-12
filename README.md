@@ -20,10 +20,6 @@ NIFYA's Backend Orchestration Service is designed to be the central nervous syst
 
 The ultimate goal is to build a robust platform that intelligently filters the noise of information overload, delivering only what truly matters to each user at the right time and in the right format.
 
-For technical specifications and implementation details, please refer to the [TECHNICAL-SPECIFICATION.md](./TECHNICAL-SPECIFICATION.md) file.
-
-A comprehensive API backend designed for LLM-powered notification and subscription management, orchestrating content processing across multiple AI models.
-
 ## 🧠 Key Features
 
 - **Multi-Model Orchestration**: Routes processing tasks to specialized LLMs based on content type
@@ -106,8 +102,11 @@ backend/
 │   │   │       ├── subscription/  
 │   │   │       │   ├── crud.routes.js
 │   │   │       │   └── process.routes.js
-│   │   │       ├── notification.routes.js
-│   │   │       └── user.routes.js
+│   │   │       ├── notification/
+│   │   │       │   ├── crud.routes.js
+│   │   │       │   └── index.js
+│   │   │       ├── user.routes.js
+│   │   │       └── index.js
 │   │   └── events/                # Event handlers
 │   ├── schemas/                   # Data validation schemas
 │   │   ├── subscription/
@@ -119,9 +118,6 @@ backend/
 ├── supabase/                      # Supabase configuration
 ├── logs/                          # Log files
 ├── node_modules/                  # Dependencies
-├── .env                           # Environment variables
-├── .env.example                   # Example environment file
-├── consolidated-schema.sql        # Database schema
 ├── package.json                   # Project configuration
 ├── package-lock.json              # Dependency lock file
 ├── Dockerfile                     # Container definition
@@ -190,7 +186,7 @@ Manages notification business logic.
 - `deleteNotification(id, userId)`: Deletes notification
 - `formatNotification(notification)`: Formats notification for client
 
-#### NotificationRoutes (`src/interfaces/http/routes/notification.routes.js`)
+#### NotificationRoutes (`src/interfaces/http/routes/notification/crud.routes.js`)
 HTTP routes for notification management.
 
 **Key Endpoints:**
@@ -399,54 +395,6 @@ export async function query(text, params) {
 }
 ```
 
-## 🔑 API Endpoints
-
-For a comprehensive list of all available API endpoints, please refer to the [API-DOCS.md](./API-DOCS.md) file.
-
-### Authentication
-
-All authenticated routes require:
-- `Authorization: Bearer <token>` header
-- `X-User-ID: <user-id>` header
-
-### Firebase Authentication Synchronization
-
-The backend provides an endpoint to synchronize Firebase Authentication users with the application's database:
-
-- **Endpoint:** `/v1/users/sync`
-- **Method:** POST
-- **Authentication:** Firebase ID token required (sent in the Authorization header)
-- **Purpose:** Ensures user data consistency between Firebase Authentication and the application database
-
-**How it works:**
-1. Client authenticates with Firebase Authentication
-2. Client sends a POST request to `/v1/users/sync` with the Firebase ID token
-3. The server verifies the token and extracts user information
-4. The server synchronizes the user with the application database:
-   - If the user exists (by Firebase UID), updates their information
-   - If the user exists by email but without Firebase UID, links their account
-   - If the user doesn't exist, creates a new user record
-5. The server returns the synchronized user profile
-
-**Sample Response:**
-```json
-{
-  "success": true,
-  "profile": {
-    "id": "firebase_uid",
-    "email": "user@example.com",
-    "name": "User Name",
-    "avatar": null,
-    "emailVerified": true,
-    "lastLogin": "2023-06-14T12:34:56Z",
-    "createdAt": "2023-01-01T00:00:00Z",
-    "updatedAt": "2023-06-14T12:34:56Z"
-  }
-}
-```
-
-This synchronization ensures that user data remains consistent across the authentication system and the application database, which is crucial for features like permissions, preferences, and personalized content.
-
 ## 📦 Data Models
 
 ### Subscription Schema
@@ -519,273 +467,119 @@ if (!validationResult.success) {
  */
 ```
 
-## 🧰 Development Guide
-
-### Environment Setup
-
-Create a `.env` file with:
-
-```env
-# Database connection
-DB_NAME=nifya
-DB_USER=nifya
-DB_PASSWORD=your-password-here
-
-# Server Configuration
-PORT=3000
-SERVICE_URL=your-cloud-run-url
-
-# Google Cloud Configuration
-GOOGLE_CLOUD_PROJECT=delta-entity-447812-p2
-INSTANCE_CONNECTION_NAME=delta-entity-447812-p2:us-central1:nifya-db
-JWT_SECRET_NAME=projects/delta-entity-447812-p2/secrets/JWT_SECRET/versions/latest
-
-# Security
-SERVICE_API_KEY=your-secure-api-key-here
-```
-
-### Installation
-
-```bash
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run dev
-```
-
-### Available Scripts
-
-- `npm run start` - Start production server
-- `npm run dev` - Start development server with hot reloading
-- `npm run migrations` - Run database migrations
-- `npm run docs:generate` - Generate API documentation
-- `npm run docs:serve` - Serve documentation locally
-
-## 🔧 Key Files and Their Functions
-
-### Core Configuration
-
-- `src/index.js`: Main application entry point and server setup
-- `src/infrastructure/database/client.js`: Database connection and query handling
-- `src/core/auth/auth.service.js`: Authentication service and JWT handling
-
-### API Routes
-
-- `src/interfaces/http/routes/subscription/crud.routes.js`: Subscription CRUD routes
-- `src/interfaces/http/routes/subscription/process.routes.js`: Subscription processing routes
-- `src/interfaces/http/routes/notification.routes.js`: Notification routes
-- `src/interfaces/http/routes/user.routes.js`: User profile routes
-
-### Core Services
-
-- `src/core/subscription/services/subscription.service.js`: Subscription business logic
-- `src/core/notification/service/notification-service.js`: Notification business logic
-- `src/core/user/user.service.js`: User management business logic
-
-### Middlewares
-
-- `src/interfaces/http/middleware/auth.middleware.js`: Authentication and user synchronization
-- `src/interfaces/http/middleware/errorHandler.js`: Global error handling
-- `src/interfaces/http/middleware/apiDocumenter.js`: Swagger documentation
-
-## 🔍 Code Organization and Known Issues
-
-The codebase is in a transitional state with some architectural challenges:
-
-### Service Duplication
-
-There is duplication in core services with both legacy and new implementations:
-
-- **Notification Services**: 
-  - `backend/services/notification-service.js`
-  - `backend/src/core/notification/notification-service.js`
-
-- **Subscription Services**:
-  - `backend/services/subscription-service.js`
-  - `backend/src/core/subscription/services/subscription.service.js`
-
-This can cause confusion about which implementation to use. Prefer the implementations in the `src/core` directory.
-
-### RLS Context for Database Queries
-
-Database operations require proper Row-Level Security (RLS) context:
-
-- Use `setRLSContext(userId)` before querying user-specific data
-- Use `withRLSContext(userId, callback)` for operations within a context
-
-```javascript
-// Example using setRLSContext
-await setRLSContext(userId);
-const result = await query('SELECT * FROM notifications WHERE user_id = $1', [userId]);
-
-// Example using withRLSContext
-await withRLSContext(userId, async () => {
-  return await query('SELECT * FROM notifications WHERE user_id = $1', [userId]);
-});
-```
-
-### Authentication Headers
-
-Authentication requires specific header formatting:
-
-- `Authorization` header must include a space after "Bearer": `Bearer <token>`
-- Both `Authorization` and `X-User-ID` headers are required
-
-## 🔍 Recent Updates
-
-### User Preferences and Profile Management Implementation
-
-Recently implemented comprehensive user profile and preferences management:
-
-1. Added support for the following endpoints:
-   - `/api/v1/users/me` - Get and update user profile information
-   - `/api/v1/users/preferences` - Get and update user preferences like language and theme
-   - `/api/v1/me/email-preferences` - Get and update email notification settings
-   - `/api/v1/me/test-email` - Send test emails for notification verification
-
-2. Enhanced Authentication Service with proper refresh token handling:
-   - Added `/api/v1/auth/refresh` endpoint for token refresh
-   - Ensured backward compatibility with legacy `/api/auth/refresh` endpoint
-   - Improved documentation of authentication endpoints
-
-### User Synchronization Fix
-
-Recently implemented improved user synchronization between authentication and backend:
-
-1. Added `synchronizeUser` function in auth middleware that:
-   - Checks if user exists in database upon successful authentication
-   - Creates user record if it doesn't exist, using JWT token information
-   - Sets default preferences and notification settings
-
-2. Enhanced CORS configuration to allow connections from:
-   - Netlify domains
-   - Local development environments
-   - Cloud Run domains
-
-3. Fixed bugs in Express-style auth middleware:
-   - Corrected reference to decoded token
-   - Added user synchronization in Express middleware too
-   - Improved error handling for synchronization failures
-
-## 🐛 Troubleshooting
-
-### Database Connectivity Issues
-
-If experiencing database connection problems:
-- Verify DATABASE_URL is correct
-- Check if database server is running
-- Ensure network connectivity to database server
-- Verify that all required migrations have been applied
-
-### Authentication Failures
-
-If authentication is failing:
-- Verify that JWT_SECRET matches the one used by the authentication service
-- Check that Authorization headers are properly formatted (Bearer token)
-- Ensure user exists in the authentication service
-- Check if user synchronization is working correctly
-
-### API Errors
-
-Common API errors and solutions:
-- 401 Unauthorized: Check JWT token validity and headers
-- 403 Forbidden: Verify user has permission for the resource
-- 400 Bad Request: Check request body format against API schema
-- 404 Not Found: Verify resource IDs are correct
-- 500 Internal Server Error: Check server logs for detailed error information
-
-## 📋 API Documentation
-
-API documentation is available at `/documentation` when running the server. This provides:
-- Interactive API exploration
-- Request/response schema examples
-- Authentication information
-- Test endpoints directly from the browser
-
-For a comprehensive reference, see [API-DOCS.md](./API-DOCS.md).
-
 ## 🚀 Deployment
 
 ### Google Cloud Run
 
-The service is deployed on Google Cloud Run using the cloudbuild.yaml configuration:
+The service is deployed on Google Cloud Run with runtime environment variables for configuration. Instead of using .env files (which don't work on GitHub deployments), the backend uses Secret Manager for sensitive information and runtime environment variables configured in Cloud Run.
 
-```yaml
-steps:
-  # Build the container image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: [
-      'build', 
-      '-t', 
-      'gcr.io/$PROJECT_ID/nifya-orchestration-service', 
-      '--build-arg', 
-      'BUILD_TIMESTAMP=${_BUILD_TIMESTAMP}',
-      '--build-arg',
-      'COMMIT_SHA=$COMMIT_SHA',
-      '--build-arg',
-      'DEPLOYMENT_ID=$BUILD_ID',
-      '.'
-    ]
-  
-  # Push the container image to Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/nifya-orchestration-service']
-  
-  # Deploy container image to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
-    args:
-      - 'run'
-      - 'deploy'
-      - 'nifya-orchestration-service'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/nifya-orchestration-service'
-      - '--region'
-      - 'us-central1'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--set-env-vars'
-      - 'NODE_ENV=production,BUILD_TIMESTAMP=${_BUILD_TIMESTAMP},COMMIT_SHA=$COMMIT_SHA,DEPLOYMENT_ID=$BUILD_ID'
+Runtime environment variables include:
+- `PORT`: Server port
+- `NODE_ENV`: Environment (production/development)
+- `SERVICE_URL`: Public URL of the service
+- `GOOGLE_CLOUD_PROJECT`: Google Cloud project ID
+- `DATABASE_URL`: Connection string for PostgreSQL
+
+Secret Manager is used for sensitive data:
+- `JWT_SECRET`: Used for JWT token signing/verification
+- `SERVICE_API_KEY`: API key for service-to-service authentication
+- Database credentials
+
+The Dockerfile is designed to be built entirely in Cloud Run so secrets can be accessed:
+
+```Dockerfile
+FROM node:18-slim
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --production
+
+COPY . .
+
+# Set build arguments
+ARG BUILD_TIMESTAMP
+ARG COMMIT_SHA
+ARG DEPLOYMENT_ID
+
+# Set environment variables
+ENV BUILD_TIMESTAMP=$BUILD_TIMESTAMP
+ENV COMMIT_SHA=$COMMIT_SHA
+ENV DEPLOYMENT_ID=$DEPLOYMENT_ID
+ENV NODE_ENV=production
+
+EXPOSE 8080
+
+CMD ["npm", "start"]
 ```
 
-## Database Schema
+## 🔍 Code Organization
 
-The NIFYA platform uses a PostgreSQL database with a clean, consolidated schema approach:
+The codebase follows a clear architectural pattern:
 
-### Single Schema Approach
+1. **Core Layer** (`src/core/`): Contains business logic and domain services
+2. **Infrastructure Layer** (`src/infrastructure/`): Handles external communications and infrastructure
+3. **Interface Layer** (`src/interfaces/`): Adapts the core to external interfaces like HTTP
+4. **Shared Layer** (`src/shared/`): Cross-cutting concerns like error handling
 
-We've migrated from using multiple incremental migrations to a single consolidated schema file:
+This separation allows for clear dependencies and easier testing.
 
-- **Location**: `backend/consolidated-schema.sql`
-- **Version Tracking**: Via `schema_version` table
-- **Initialization**: Automatic during application startup
+## 🔑 API Authentication
 
-This approach eliminates dependency conflicts, schema drift, and inconsistencies between environments.
+All API endpoints require JWT authentication with these headers:
+- `Authorization: Bearer <token>` - JWT token from auth service
+- `X-User-ID: <user-id>` - User ID from the token payload
 
-### Core Tables
+The authentication flow is:
+1. User authenticates with the auth service
+2. Auth service provides JWT token
+3. Client includes token in all API requests
+4. Backend verifies token and synchronizes user data
 
-| Table | Description |
-|-------|-------------|
-| `users` | Stores user accounts and profile information |
-| `subscription_types` | Defines available subscription types (BOE, DOGA, real-estate, etc.) |
-| `subscriptions` | User subscriptions for different data sources |
-| `subscription_processing` | Tracks processing status of subscriptions |
-| `notifications` | Notifications for users based on subscription matches |
-| `user_email_preferences` | User preferences for email notifications |
+## 🧰 Development Guide
 
-### Database Initialization
+### Recommended Extensions
 
-The database is automatically initialized on application startup:
+For VS Code users, recommended extensions:
+- ESLint
+- Prettier
+- DotENV
+- REST Client
+- PostgreSQL
 
-1. The application reads `consolidated-schema.sql`
-2. It checks if the schema is already applied (via `schema_version` table)
-3. It applies the schema if needed or if it's the first run
+### Best Practices
 
-No manual migrations or SQL commands are required. This is handled in:
-`src/infrastructure/database/single-schema-migrations.js`
+1. **Row-Level Security**: Use `withRLSContext` for database operations
+2. **Validation**: Use schemas for request validation
+3. **Error Handling**: Use the `AppError` class for structured errors
+4. **Secret Management**: Never hardcode secrets, use Secret Manager
+5. **API Documentation**: Keep Swagger documentation up-to-date
 
----
+## 🚀 Recent Updates
 
-Built with ❤️ by the NIFYA Team
+Recent improvements to the backend include:
+
+1. Enhanced notification system with real-time updates
+2. User preference management for customized experiences
+3. Improved subscription processing with better error handling
+4. Integration with specialized parser services (BOE and DOGA)
+5. Performance optimizations for faster response times
+
+## 🐛 Troubleshooting
+
+Common issues and solutions:
+
+### Authentication Problems
+- Verify JWT token format (must include `Bearer ` prefix)
+- Check that the user exists in the database
+- Ensure Secret Manager has the correct JWT secret
+
+### Database Connection Issues
+- Check database URL and credentials
+- Verify Cloud SQL proxy is running (if using local development)
+- Ensure RLS policies are correctly configured
+
+### Deployment Failures
+- Check Cloud Build logs for detailed error information
+- Verify service account permissions
+- Ensure all required secrets are configured in Secret Manager

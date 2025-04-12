@@ -37,31 +37,39 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 ## API Endpoints
 
+All routes are mounted under `/api/v1/notifications` in the main application.
+
 ### CRUD Operations
 
-- `GET /notification` - Get notifications for authenticated user
-- `GET /notification/:notificationId` - Get notification details
-- `GET /notification/by-entity` - Get notifications by entity type
-- `DELETE /notification/:notificationId` - Delete a notification
-- `DELETE /notification/delete-all` - Delete all notifications
+- `GET /` - Get notifications for authenticated user
+- `GET /:notificationId` - Get notification details
+- `GET /by-entity` - Get notifications by entity type
+- `DELETE /:notificationId` - Delete a notification
+- `DELETE /delete-all` - Delete all notifications
 
 ### Status Management
 
-- `POST /notification/:notificationId/read` - Mark notification as read
-- `POST /notification/:notificationId/unread` - Mark notification as unread
-- `POST /notification/read-all` - Mark all notifications as read
-- `POST /notification/unread-all` - Mark all notifications as unread
+- `POST /:notificationId/read` - Mark notification as read
+- `POST /:notificationId/unread` - Mark notification as unread
+- `POST /read-all` - Mark all notifications as read
+- `POST /unread-all` - Mark all notifications as unread
 
 ### Statistics
 
-- `GET /notification/stats` - Get notification statistics
-- `GET /notification/activity` - Get notification activity statistics
-- `GET /notification/summary` - Get notification summary statistics
+- `GET /stats` - Get notification statistics
+- `GET /activity` - Get notification activity statistics
+- `GET /summary` - Get notification summary statistics
 
 ### Realtime
 
-- `POST /notification/realtime` - Send realtime notification via WebSocket
-- `POST /notification/broadcast` - Broadcast a notification to multiple users
+- `POST /realtime` - Send realtime notification via WebSocket
+- `POST /broadcast` - Broadcast a notification to multiple users
+
+## Full URL Examples
+
+- `https://backend-415554190254.us-central1.run.app/api/v1/notifications` - Get all notifications
+- `https://backend-415554190254.us-central1.run.app/api/v1/notifications/{notification-id}` - Get a specific notification
+- `https://backend-415554190254.us-central1.run.app/api/v1/notifications/stats` - Get notification statistics
 
 ## WebSocket Integration
 
