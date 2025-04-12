@@ -3,7 +3,6 @@ import * as process from 'process';
 import { createServer, registerPlugins } from './infrastructure/server/setup.js';
 import { registerParsers } from './infrastructure/server/parsers.js';
 import { coreRoutes } from './interfaces/http/routes/core.routes.js';
-import { legacyRoutes } from './interfaces/http/routes/legacy.routes.js';
 import { compatibilityRoutes } from './interfaces/http/routes/compat.routes.js';
 import { userRoutes } from './interfaces/http/routes/user.routes.js';
 import { subscriptionRoutes } from './interfaces/http/routes/subscription/index.js';
@@ -72,9 +71,8 @@ async function main() {
     // Note: Removed the duplicate /health check from diagnostics.routes.js previously
     await fastify.register(diagnosticsRoutes, { prefix: '/diagnostics' });
 
-    // Register legacy/compatibility routes - No prefix initially
+    // Register compatibility routes - No prefix initially
     // These might define absolute paths or need specific root paths
-    await fastify.register(legacyRoutes);
     await fastify.register(compatibilityRoutes);
 
     // Register Firebase sync routes and Firebase authentication proxy routes under /v1
