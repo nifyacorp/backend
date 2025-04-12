@@ -171,7 +171,4 @@ export async function compatibilityRoutes(fastify, options) {
   });
 
   console.log("Compatibility redirects registered successfully.");
-}
-
-// Add '/v1/me' compatibility if needed, pointing to the same handlers
-// Example: fastify.get('/v1/me', userServiceWrapper); // Requires careful prefix handling 
+} 

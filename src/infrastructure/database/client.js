@@ -416,11 +416,12 @@ export async function setRLSContext(userId) {
     return;
   }
   
-  // Validate that userId is a valid UUID to prevent SQL injection
+  // Validate that userId is a valid ID format (UUID or Firebase UID) to prevent SQL injection
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(userId)) {
-    logger.error('Invalid UUID format for RLS context', { userId });
-    throw new Error('Invalid UUID format for user ID');
+  const firebaseUidRegex = /^[A-Za-z0-9]{20,28}$/;
+  if (!uuidRegex.test(userId) && !firebaseUidRegex.test(userId)) {
+    logger.error('Invalid ID format for RLS context', { userId });
+    throw new Error('Invalid ID format for user ID');
   }
   
   try {
@@ -457,10 +458,11 @@ export async function withRLSContext(userId, callback) {
     return await callback({ query: async (text, params) => ({ rows: [], rowCount: 0 }) });
   }
   
-  // Validate that userId is a valid UUID to prevent SQL injection
+  // Validate that userId is a valid ID format (UUID or Firebase UID) to prevent SQL injection
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(userId)) {
-    throw new Error('Invalid UUID format for user ID');
+  const firebaseUidRegex = /^[A-Za-z0-9]{20,28}$/;
+  if (!uuidRegex.test(userId) && !firebaseUidRegex.test(userId)) {
+    throw new Error('Invalid ID format for user ID');
   }
   
   const client = await pool.connect();
@@ -508,10 +510,11 @@ export async function withTransaction(userId, callback, options = {}) {
     });
   }
   
-  // Validate that userId is a valid UUID to prevent SQL injection
+  // Validate that userId is a valid ID format (UUID or Firebase UID) to prevent SQL injection
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (userId && !uuidRegex.test(userId)) {
-    throw new Error('Invalid UUID format for user ID');
+  const firebaseUidRegex = /^[A-Za-z0-9]{20,28}$/;
+  if (userId && !uuidRegex.test(userId) && !firebaseUidRegex.test(userId)) {
+    throw new Error('Invalid ID format for user ID');
   }
   
   // Validate isolation level

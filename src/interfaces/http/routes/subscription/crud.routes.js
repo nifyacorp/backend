@@ -53,7 +53,7 @@ export async function registerCrudRoutes(fastify, options) {
         properties: {
           page: { type: 'integer', minimum: 1, default: 1 },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-          sort: { type: 'string', enum: ['created_at', 'updated_at', 'name', 'frequency', 'active'], default: 'created_at' },
+          sort: { type: 'string', enum: ['created_at', 'updated_at', 'name', 'frequency', 'active', 'newest', 'oldest', 'alphabetical', 'recently_updated'], default: 'created_at' },
           order: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
           type: { type: 'string' },
           status: { type: 'string', enum: ['active', 'inactive', 'all'], default: 'all' },
@@ -73,7 +73,25 @@ export async function registerCrudRoutes(fastify, options) {
               properties: {
                 subscriptions: {
                   type: 'array',
-                  items: subscriptionSchema
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                      description: { type: 'string' },
+                      type: { type: 'string' },
+                      typeName: { type: 'string' },
+                      typeIcon: { type: 'string' },
+                      prompts: {
+                        type: 'array',
+                        items: { type: 'string' }
+                      },
+                      frequency: { type: 'string' },
+                      active: { type: 'boolean' },
+                      createdAt: { type: 'string', format: 'date-time' },
+                      updatedAt: { type: 'string', format: 'date-time' }
+                    }
+                  }
                 },
                 pagination: {
                   type: 'object',
@@ -87,15 +105,15 @@ export async function registerCrudRoutes(fastify, options) {
                 filters: {
                   type: 'object',
                   properties: {
-                    type: { type: 'string', nullable: true },
-                    status: { type: 'string', nullable: true },
-                    search: { type: 'string', nullable: true },
-                    frequency: { type: 'string', nullable: true },
+                    type: { type: ['string', 'null'] },
+                    status: { type: 'string' },
+                    search: { type: ['string', 'null'] },
+                    frequency: { type: 'string' },
                     dateRange: {
                       type: 'object',
                       properties: {
-                        from: { type: 'string', format: 'date-time', nullable: true },
-                        to: { type: 'string', format: 'date-time', nullable: true }
+                        from: { type: ['string', 'null'] },
+                        to: { type: ['string', 'null'] }
                       }
                     }
                   }
@@ -103,72 +121,103 @@ export async function registerCrudRoutes(fastify, options) {
               }
             }
           }
+        },
+        400: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            code: { type: 'string' },
+            message: { type: 'string' }
+          }
+        },
+        500: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            code: { type: 'string' },
+            message: { type: 'string' }
+          }
         }
       }
     }
   }, async (request, reply) => {
-    // Create context with token info from request if available
     const context = {
       requestId: request.id,
       path: request.url,
       method: request.method,
-      token: request.userContext?.token || request.user?.token || {
-        sub: request.user?.id,
-        email: request.user?.email,
-        name: request.user?.name
-      }
+      token: request.user?.token
     };
 
     try {
-      if (!request.user?.id) {
-        throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
-      }
-      
-      // Extract all query parameters
       const { 
-        page, 
-        limit, 
-        sort, 
-        order, 
         type, 
-        status,
-        active, // Support both status and active parameters for compatibility
-        search,
+        status = 'all', 
+        search, 
+        limit = 20, 
+        page = 1, 
+        sort = 'created_at', 
+        order = 'desc',
         frequency,
         from,
         to
       } = request.query;
-      
-      // Build filter options
-      const filterOptions = {
-        page, 
-        limit, 
-        sort, 
-        order, 
-        type
+
+      // Map frontend sort values to backend field names
+      const sortMappings = {
+        'newest': 'created_at-desc',
+        'oldest': 'created_at-asc',
+        'alphabetical': 'name-asc',
+        'recently_updated': 'updated_at-desc'
       };
-      
-      // Add status filter if specified
-      if (status && status !== 'all') {
-        filterOptions.active = status === 'active';
-        filterOptions.status = status; // Add status parameter as well
-        console.log('Controller: Setting active filter from status:', { 
-          status, 
-          active: filterOptions.active 
-        });
+
+      // Extract sort field and order
+      let sortField = 'created_at';
+      let sortOrder = 'desc';
+
+      if (sortMappings[sort]) {
+        const [mappedField, mappedOrder] = sortMappings[sort].split('-');
+        sortField = mappedField;
+        sortOrder = mappedOrder;
+      } else if (sort && sort.includes('-')) {
+        // Handle "field-order" format
+        const [field, direction] = sort.split('-');
+        sortField = field;
+        sortOrder = direction;
+      } else if (sort) {
+        // Use provided sort field with order from parameters
+        sortField = sort;
+        sortOrder = order;
       }
-      
-      // Support direct active parameter (true/false) for compatibility
-      if (active !== undefined && active !== null) {
-        // Properly handle various formats of the active parameter
-        const isActive = active === 'true' || active === true || active === 1 || active === '1';
-        filterOptions.active = isActive;
-        filterOptions.status = isActive ? 'active' : 'inactive';
-        console.log('Controller: Setting active filter from active parameter:', { 
-          rawActive: active, 
-          parsedActive: isActive,
-          status: filterOptions.status
-        });
+
+      // Validate sortField is a valid column name to prevent SQL injection
+      const validSortFields = ['created_at', 'updated_at', 'name', 'frequency', 'active'];
+      if (!validSortFields.includes(sortField)) {
+        sortField = 'created_at';
+      }
+
+      // Validate sortOrder
+      if (!['asc', 'desc'].includes(sortOrder.toLowerCase())) {
+        sortOrder = 'desc';
+      }
+
+      // Map status to active
+      const filterOptions = {
+        page,
+        limit,
+        sort: sortField,
+        order: sortOrder
+      };
+
+      // Add active filter based on status
+      if (status === 'active') {
+        filterOptions.active = true;
+      } else if (status === 'inactive') {
+        filterOptions.active = false;
+      }
+
+      // Add type filter if specified
+      if (type) {
+        filterOptions.type = type;
       }
       
       // Ensure we're logging the final filter state

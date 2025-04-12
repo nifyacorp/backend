@@ -79,8 +79,8 @@ async function main() {
 
     // Register Firebase sync routes and Firebase authentication proxy routes under /v1
     // NOTE: These must remain public (without auth middleware) since they're used for initial authentication
-    await fastify.register(firebaseSyncRoutes, { prefix: '/v1' });
-    console.log('🔓 Firebase authentication proxy endpoints registered at /v1/auth/*');
+    await fastify.register(firebaseSyncRoutes, { prefix: '/api/v1' });
+    console.log('🔓 Firebase authentication proxy endpoints registered at /api/v1/auth/*');
 
     // Register all authenticated API routes under /api/v1 using Firebase authentication
     await fastify.register(async (instance) => {

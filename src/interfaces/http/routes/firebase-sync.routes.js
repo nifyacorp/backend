@@ -12,6 +12,7 @@ import { verifyFirebaseIdToken, getFirebaseAuth } from '../../../infrastructure/
 import { syncFirebaseUser } from '../../../core/auth/auth.service.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { logRequest, logError } from '../../../shared/logging/logger.js';
+import { query } from '../../../infrastructure/database/client.js';
 
 /**
  * Middleware to verify Firebase ID token
@@ -113,20 +114,34 @@ export async function firebaseSyncRoutes(fastify, options) {
         firebaseUid: request.user.id
       });
       
-      // Synchronize the Firebase user with our database
-      const result = await syncFirebaseUser(request.user.id, context);
-      
-      return {
-        success: true,
-        profile: result.profile
-      };
-      
+      // Use the centralized syncFirebaseUser function for consistency
+      try {
+        // Let the syncFirebaseUser service handle all aspects of user creation/update
+        const result = await syncFirebaseUser(request.user.id, context);
+        
+        return {
+          success: true,
+          profile: result.profile,
+          isNewUser: result.isNewUser
+        };
+      } catch (syncError) {
+        // Log the detailed error
+        console.error('Error in Firebase user sync:', syncError);
+        logError(context, syncError);
+        
+        return reply.code(syncError.statusCode || 500).send({
+          success: false,
+          message: syncError.message || 'Error synchronizing user data',
+          errorCode: syncError.code || 'SYNC_ERROR'
+        });
+      }
     } catch (error) {
       logError(context, error);
       
       return reply.code(error.statusCode || 500).send({
         success: false,
-        message: error.message || 'Internal server error'
+        message: error.message || 'Internal server error',
+        errorCode: error.code || 'INTERNAL_ERROR'
       });
     }
   });

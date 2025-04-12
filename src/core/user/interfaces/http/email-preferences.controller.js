@@ -10,7 +10,14 @@ import { userEmailPreferencesRepository } from '../../../notification/data/user-
 export async function getEmailPreferences(request, reply) {
   const userId = request.user?.id;
   
+  console.log('📧 Email preferences request received:', {
+    userId,
+    path: request.url,
+    hasUser: !!request.user
+  });
+  
   if (!userId) {
+    console.log('❌ Email preferences auth error: No user ID');
     throw new AppError('UNAUTHORIZED', 'Authentication required', 401);
   }
   
@@ -26,8 +33,11 @@ export async function getEmailPreferences(request, reply) {
     // Use the repository to get email preferences
     const preferences = await userEmailPreferencesRepository.getEmailPreferences(userId);
     
+    console.log('✅ Email preferences retrieved successfully:', preferences);
+    
     return preferences;
   } catch (error) {
+    console.log('❌ Email preferences error:', error.message);
     logError(context, error);
     throw new AppError(
       'DATABASE_ERROR',
