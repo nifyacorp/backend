@@ -828,13 +828,21 @@ export function setupAdditionalDocs(fastify) {
             
             <h4>Authentication Flow</h4>
             <pre><code>
-// Example authentication flow
-const token = await authService.login(email, password);
+// Example authentication flow using Firebase
+// Authenticate with Firebase on the frontend
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { getAuth } from "firebase/auth";
+
+const auth = getAuth();
+const userCredential = await signInWithEmailAndPassword(auth, email, password);
+const user = userCredential.user;
+              
+// Get the ID token to use with the backend API
+const token = await user.getIdToken();
               
 // Use token in future requests
 const headers = {
-  'Authorization': \`Bearer \${token}\`,
-  'x-user-id': userId
+  'Authorization': \`Bearer \${token}\`
 };
               
 // Make authenticated request

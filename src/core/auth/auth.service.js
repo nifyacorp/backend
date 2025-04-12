@@ -1,20 +1,12 @@
-import jwt from 'jsonwebtoken';
 import { AppError } from '../../shared/errors/AppError.js';
 import { AUTH_ERRORS } from '../types/auth.types.js';
-import { getFirebaseAuth, verifyFirebaseIdToken, getFirebaseUser } from '../../infrastructure/firebase/admin.js';
-import logger from '../../shared/logger.js';
+import { getFirebaseAuth, verifyFirebaseIdToken, getFirebaseUser, getFirebaseUserByEmail } from '../../infrastructure/firebase/admin.js';
+import * as logger from '../../shared/logger.js';
 import { query } from '../../infrastructure/database/client.js';
-import { getSecret, initialize as initializeSecrets } from '../../infrastructure/secrets/manager.js';
 
 class AuthService {
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
-    this.JWT_SECRET = null;
-    this.JWT_REFRESH_SECRET = null;
-    
-    // Token expiration settings
-    this.accessTokenExpiration = '15m';  // 15 minutes
-    this.refreshTokenExpiration = '7d';  // 7 days
     
     logger.logAuth({}, 'Initializing auth service with Firebase', {
       environment: this.isProduction ? 'production' : 'development',
@@ -28,18 +20,16 @@ class AuthService {
    */
   async initialize() {
     try {
-      // Initialize legacy JWT secrets for backward compatibility
-      await this.initializeLegacy();
       logger.logAuth({}, 'Auth service initialized with Firebase integration');
       return true;
     } catch (error) {
-      logger.logError({}, 'Failed to initialize auth service', { error: error.message });
+      logger.logError({}, error, { context: 'Failed to initialize auth service' });
       throw error;
     }
   }
 
   /**
-   * Verify user token
+   * Verify Firebase ID token and sync user to database
    * @param {string} token - Firebase ID token
    * @returns {Promise<Object>} User info
    */
@@ -99,13 +89,27 @@ class AuthService {
         firebase_uid: decodedToken.uid
       };
     } catch (error) {
-      logger.logError({}, 'Token verification failed', {
-        error: error.message,
-        code: error.code
-      });
+      logger.logError({}, error, { context: 'Token verification failed' });
+      
+      // Map Firebase error codes to our error types
+      if (error.code === 'auth/id-token-expired') {
+        throw new AppError(
+          AUTH_ERRORS.TOKEN_EXPIRED.code,
+          AUTH_ERRORS.TOKEN_EXPIRED.message,
+          401
+        );
+      }
+      
+      if (error.code === 'auth/id-token-revoked') {
+        throw new AppError(
+          AUTH_ERRORS.TOKEN_REVOKED.code,
+          AUTH_ERRORS.TOKEN_REVOKED.message,
+          401
+        );
+      }
       
       throw new AppError(
-        'AUTHENTICATION_ERROR',
+        AUTH_ERRORS.INVALID_TOKEN.code,
         error.message || 'Invalid authentication token',
         401
       );
@@ -177,156 +181,6 @@ class AuthService {
     
     return result.rows[0];
   }
-
-  /**
-   * Verify a token using Firebase
-   * This is the primary token verification method
-   * 
-   * @param {string} token - The token to verify
-   * @param {boolean} isRefreshToken - Whether this is a refresh token (legacy only)
-   * @returns {Promise<object>} The decoded token payload
-   */
-  async verifyTokenLegacy(token, isRefreshToken = false) {
-    try {
-      // First try to verify with Firebase (primary method)
-      try {
-        const auth = getFirebaseAuth();
-        const decodedToken = await auth.verifyIdToken(token);
-        
-        logger.logAuth({}, 'Firebase token verified successfully', { 
-          uid: decodedToken.uid, 
-          email: decodedToken.email
-        });
-        
-        // Map Firebase token fields to our standard format for compatibility
-        return {
-          sub: decodedToken.uid,
-          email: decodedToken.email,
-          name: decodedToken.name,
-          email_verified: decodedToken.email_verified,
-          type: 'access' // All Firebase tokens are treated as access tokens
-        };
-      } catch (firebaseError) {
-        // If Firebase verification fails with a specific error, throw it directly
-        if (firebaseError.code === 'auth/id-token-expired') {
-          throw new AppError('TOKEN_EXPIRED', 'Token has expired', 401);
-        }
-        
-        // For other Firebase-specific errors, throw as invalid token
-        if (firebaseError.code) {
-          throw new AppError(
-            AUTH_ERRORS.INVALID_TOKEN.code,
-            `Firebase authentication failed: ${firebaseError.message}`,
-            401
-          );
-        }
-        
-        // If the error isn't Firebase-specific, fall back to legacy JWT verification
-        logger.logAuth({}, 'Firebase verification failed, falling back to legacy JWT', { 
-          error: firebaseError.message 
-        });
-        
-        // Continue to legacy verification below
-      }
-      
-      // Legacy JWT verification (will be removed in future)
-      // This is kept for backward compatibility during migration
-      
-      // Get the right secret based on token type
-      const tokenType = isRefreshToken ? 'refresh' : 'access';
-      const secretToUse = isRefreshToken ? this.JWT_REFRESH_SECRET : this.JWT_SECRET;
-      
-      if (!secretToUse) {
-        await this.initialize();
-      }
-      
-      try {
-        // First decode without verification to check structure
-        const decodedHeader = jwt.decode(token, { complete: true });
-        
-        // Verify with the appropriate secret based on token type
-        const decoded = jwt.verify(token, secretToUse);
-        
-        // Additional validation for token type
-        const expectedType = isRefreshToken ? 'refresh' : 'access';
-        if (decoded.type !== expectedType) {
-          throw new AppError(
-            AUTH_ERRORS.INVALID_TOKEN.code,
-            `Invalid token type: Expected ${expectedType} token`,
-            401
-          );
-        }
-        
-        if (!decoded || !decoded.sub) {
-          throw new AppError(
-            AUTH_ERRORS.INVALID_TOKEN.code,
-            'Invalid token format: missing sub claim',
-            401
-          );
-        }
-        
-        return decoded;
-      } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-          throw new AppError('TOKEN_EXPIRED', `${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} token has expired`, 401);
-        }
-        if (error instanceof AppError) {
-          throw error;
-        }
-        throw new AppError(
-          AUTH_ERRORS.INVALID_TOKEN.code,
-          `Invalid ${tokenType} token: ${error.message}`,
-          401,
-          { originalError: error.message, tokenType }
-        );
-      }
-    } catch (error) {
-      // Pass through AppErrors
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      // Wrap other errors
-      throw new AppError(
-        AUTH_ERRORS.INVALID_TOKEN.code,
-        error.message || 'Invalid token',
-        401
-      );
-    }
-  }
-
-  /**
-   * Initialize legacy JWT secrets
-   * Only used for backward compatibility during migration
-   */
-  async initializeLegacy() {
-    try {
-      // Initialize secrets manager first
-      await initializeSecrets();
-      
-      // Get JWT secrets from Secret Manager
-      this.JWT_SECRET = await getSecret('JWT_SECRET');
-      
-      try {
-        this.JWT_REFRESH_SECRET = await getSecret('JWT_REFRESH_SECRET');
-      } catch (refreshError) {
-        // Fall back to main secret if refresh secret is not available
-        logger.logInfo({}, 'JWT_REFRESH_SECRET not found, falling back to JWT_SECRET');
-        this.JWT_REFRESH_SECRET = this.JWT_SECRET;
-      }
-      
-      logger.logAuth({}, 'JWT secrets loaded successfully');
-    } catch (error) {
-      logger.logError({}, 'Failed to load JWT secrets', { 
-        error: error.message
-      });
-      throw new AppError(
-        AUTH_ERRORS.SECRET_ERROR.code,
-        'Authentication service unavailable: Could not load secrets',
-        500
-      );
-    }
-  }
   
   /**
    * Get a Firebase user by ID
@@ -338,10 +192,7 @@ class AuthService {
       const auth = getFirebaseAuth();
       return await auth.getUser(uid);
     } catch (error) {
-      logger.logError({}, 'Error getting user from Firebase', { 
-        uid, 
-        error: error.message 
-      });
+      logger.logError({}, error, { context: 'Error getting user from Firebase' });
       throw new AppError(
         'USER_NOT_FOUND',
         'User not found',
@@ -351,54 +202,19 @@ class AuthService {
   }
   
   /**
-   * Legacy method to generate a new access token using a refresh token
-   * This is kept for backward compatibility during migration
+   * Get a Firebase user by email
+   * @param {string} email - User email
+   * @returns {Promise<Object>} Firebase user information
    */
-  async refreshAccessToken(refreshToken) {
+  async getUserByEmail(email) {
     try {
-      // Verify the refresh token
-      const decoded = await this.verifyTokenLegacy(refreshToken, true);
-      
-      // Generate a new access token
-      const accessToken = jwt.sign(
-        {
-          sub: decoded.sub,
-          email: decoded.email,
-          name: decoded.name,
-          email_verified: decoded.email_verified,
-          type: 'access'
-        },
-        this.JWT_SECRET,
-        { expiresIn: this.accessTokenExpiration }
-      );
-      
-      // Return the new access token
-      return {
-        accessToken,
-        user: {
-          id: decoded.sub,
-          email: decoded.email,
-          name: decoded.name,
-          email_verified: decoded.email_verified
-        }
-      };
+      return await getFirebaseUserByEmail(email);
     } catch (error) {
-      logger.logError({}, 'Error refreshing access token', {
-        error: error.message,
-        name: error.name,
-      });
-      
-      // Re-throw AppErrors
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      // Otherwise, wrap in an AppError
+      logger.logError({}, error, { context: 'Error getting user from Firebase by email' });
       throw new AppError(
-        AUTH_ERRORS.INVALID_TOKEN.code,
-        'Invalid refresh token',
-        401,
-        { originalError: error.message }
+        'USER_NOT_FOUND',
+        'User not found',
+        404
       );
     }
   }

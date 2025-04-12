@@ -14,5 +14,18 @@ export const AUTH_ERRORS = {
   SECRET_ERROR: {
     code: 'SECRET_ERROR',
     message: 'Authentication service unavailable'
+  },
+  // Firebase-specific error codes
+  TOKEN_EXPIRED: {
+    code: 'TOKEN_EXPIRED',
+    message: 'Authentication token has expired'
+  },
+  TOKEN_REVOKED: {
+    code: 'TOKEN_REVOKED',
+    message: 'Authentication token has been revoked'
+  },
+  FIREBASE_ERROR: {
+    code: 'FIREBASE_ERROR',
+    message: 'Firebase authentication error'
   }
 };

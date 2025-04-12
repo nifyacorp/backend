@@ -54,17 +54,17 @@ async function main() {
     await fastify.register(legacyRoutes);
     await fastify.register(compatibilityRoutes);
 
-    // Register authenticated API routes under /api/v1
-    await fastify.register(userRoutes, { prefix: '/api/v1/users' });
-    await fastify.register(subscriptionRoutes, { prefix: '/api/v1/subscriptions' });
-    await fastify.register(notificationRoutes, { prefix: '/api/v1/notifications' });
-    
-    // Register alternative subscription-processing routes (with Firebase authentication)
+    // Register all authenticated API routes under /api/v1 using Firebase authentication
     await fastify.register(async (instance) => {
-      // Use Firebase authentication middleware
+      // Use Firebase authentication middleware for all routes
       instance.addHook('preHandler', firebaseAuthenticate);
-      await instance.register(registerSubscriptionProcessingRoutes);
-    }, { prefix: '/api/v1/subscription-processing' });
+      
+      // Register all authenticated routes
+      await instance.register(userRoutes, { prefix: '/users' });
+      await instance.register(subscriptionRoutes, { prefix: '/subscriptions' });
+      await instance.register(notificationRoutes, { prefix: '/notifications' });
+      await instance.register(registerSubscriptionProcessingRoutes, { prefix: '/subscription-processing' });
+    }, { prefix: '/api/v1' });
 
     // Start the server
     await fastify.listen({ port, host });
