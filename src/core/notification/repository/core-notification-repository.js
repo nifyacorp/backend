@@ -502,8 +502,7 @@ async function getUserEmailPreferences(userId) {
     const sqlQuery = `
       SELECT 
         email,
-        notification_email,
-        email_notifications
+        metadata
       FROM users
       WHERE id = $1
     `;
@@ -514,13 +513,36 @@ async function getUserEmailPreferences(userId) {
       return null;
     }
     
-    return result.rows[0];
+    const user = result.rows[0];
+    const metadata = user.metadata || {};
+    
+    // Extract email preferences from metadata JSONB
+    return {
+      email: user.email,
+      email_notifications: metadata?.notifications?.email?.enabled !== false, // Default to true
+      notification_email: metadata?.notifications?.email?.useCustomEmail ? 
+        metadata?.notifications?.email?.customEmail : null
+    };
   } catch (error) {
-    logger.error('Error getting user email preferences', { 
-      error: error.message, 
-      stack: error.stack,
-      userId 
-    });
+    // Safe logging that works with different logger interfaces
+    if (typeof logger.error === 'function') {
+      logger.error('Error getting user email preferences', { 
+        error: error.message, 
+        stack: error.stack,
+        userId 
+      });
+    } else if (typeof logger.logError === 'function') {
+      logger.logError({ userId }, 'Error getting user email preferences', { 
+        error: error.message, 
+        stack: error.stack
+      });
+    } else {
+      console.error('Error getting user email preferences', { 
+        error: error.message, 
+        stack: error.stack,
+        userId 
+      });
+    }
     throw error;
   }
 }

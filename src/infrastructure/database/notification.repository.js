@@ -177,12 +177,17 @@ export async function countUnreadUserNotifications(userId) {
  * @returns {Promise<object|null>} User email preference data or null if user not found.
  */
 export async function findUserEmailPreferences(userId) {
-    const query = 'SELECT email, email_notifications, notification_email FROM users WHERE id = ?';
+    const query = 'SELECT email FROM users WHERE id = ?';
     try {
         const result = await db.query(query, [userId]);
         if (result && result.length > 0) {
             logger.debug('Found user email preferences', { userId });
-            return result[0];
+            // Add default preferences since we don't store these columns
+            return {
+                ...result[0],
+                email_notifications: true, // Default to true so notifications work
+                notification_email: null   // Default to null, will fall back to primary email
+            };
         }
         logger.warn('User not found when fetching email preferences', { userId });
         return null;

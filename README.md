@@ -397,6 +397,102 @@ export async function query(text, params) {
 
 ## 📦 Data Models
 
+### User Settings and Preferences
+
+The application uses a flexible JSONB structure in the `users.metadata` field to store all user preferences and settings. This approach allows for:
+
+1. **Extensibility**: New preferences can be added without schema changes
+2. **Structured Storage**: Organized in logical sections for different types of settings
+3. **Default Values**: Sensible defaults are provided in the schema
+
+#### Metadata Structure
+
+The `metadata` JSONB field uses the following structure:
+
+```json
+{
+  "profile": {
+    "bio": "Text about the user (500 chars max)",
+    "interests": []
+  },
+  "preferences": {
+    "language": "es", 
+    "theme": "light"
+  },
+  "notifications": {
+    "email": {
+      "enabled": true,
+      "useCustomEmail": false,
+      "customEmail": null,
+      "digestTime": "08:00"
+    }
+  },
+  "security": {
+    "lastPasswordChange": "2023-05-15T10:30:00Z",
+    "lastLogoutAllDevices": null
+  }
+}
+```
+
+#### Sections and Fields
+
+1. **Profile Information**
+   - `profile.bio`: User's self-description (max 500 characters)
+   - `profile.interests`: Array of user interests (optional)
+
+2. **Application Preferences**
+   - `preferences.language`: UI language preference (default: "es")
+   - `preferences.theme`: UI theme preference (default: "light")
+
+3. **Notification Settings**
+   - `notifications.email.enabled`: Master switch for email notifications
+   - `notifications.email.useCustomEmail`: Whether to use an alternate email
+   - `notifications.email.customEmail`: Alternative email address
+   - `notifications.email.digestTime`: Time for daily digest (format: "HH:MM")
+
+4. **Security Settings**
+   - `security.lastPasswordChange`: Timestamp of last password change
+   - `security.lastLogoutAllDevices`: Timestamp of last global logout
+
+These settings complement the `user_email_preferences` table, which stores subscription-specific notification preferences.
+
+#### API Endpoints
+
+For managing user settings, the following endpoints are available:
+
+- `GET /api/v1/users/me`: Get user profile with all settings
+- `PATCH /api/v1/users/me`: Update user profile
+- `PATCH /api/v1/users/me/preferences`: Update application preferences
+- `PATCH /api/v1/users/me/email-preferences`: Update email notification settings
+
+#### Usage in Code
+
+```javascript
+// Example: Updating user profile
+async function updateUserProfile(userId, profileData) {
+  return await db.query(
+    `UPDATE users 
+     SET metadata = jsonb_set(metadata, '{profile}', $1::jsonb),
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING *`,
+    [JSON.stringify(profileData), userId]
+  );
+}
+
+// Example: Getting email preferences
+async function getEmailPreferences(userId) {
+  const { rows } = await db.query(
+    `SELECT metadata->'notifications'->'email' as email_preferences
+     FROM users
+     WHERE id = $1`,
+    [userId]
+  );
+  
+  return rows[0]?.email_preferences || {};
+}
+```
+
 ### Subscription Schema
 
 The backend uses standardized subscription schemas for validation and type safety. These schemas are defined in `src/schemas/subscription/` and include:

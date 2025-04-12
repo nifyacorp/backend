@@ -9,6 +9,30 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 -- Users table
+-- The users table contains a metadata JSONB field that stores all user preferences and settings
+-- with the following structure:
+-- {
+--   "profile": {
+--     "bio": "Text about the user (500 chars max)",
+--     "interests": []
+--   },
+--   "preferences": {
+--     "language": "es", 
+--     "theme": "light"
+--   },
+--   "notifications": {
+--     "email": {
+--       "enabled": true,
+--       "useCustomEmail": false,
+--       "customEmail": null,
+--       "digestTime": "08:00"
+--     }
+--   },
+--   "security": {
+--     "lastPasswordChange": "2023-05-15T10:30:00Z",
+--     "lastLogoutAllDevices": null
+--   }
+-- }
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(128) PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
@@ -19,7 +43,12 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(50) DEFAULT 'user',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  metadata JSONB DEFAULT '{}'
+  metadata JSONB DEFAULT '{
+    "profile": {"bio": "", "interests": []},
+    "preferences": {"language": "es", "theme": "light"},
+    "notifications": {"email": {"enabled": true, "useCustomEmail": false, "customEmail": null, "digestTime": "08:00"}},
+    "security": {"lastPasswordChange": null, "lastLogoutAllDevices": null}
+  }'
 );
 
 -- Subscription types table
@@ -86,6 +115,8 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- User email preferences
+-- This table stores subscription-specific email preferences
+-- For global email settings, use the users.metadata.notifications.email structure
 CREATE TABLE IF NOT EXISTS user_email_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id VARCHAR(128) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -126,6 +157,6 @@ VALUES
 
 -- Mark this migration as applied
 INSERT INTO schema_version (version, description)
-VALUES ('20250500000000', 'Consolidated schema from documentation analysis');
+VALUES ('20250500000001', 'Added user settings/preferences structure to metadata field');
 
 COMMIT;

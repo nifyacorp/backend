@@ -9,6 +9,32 @@ import pubsubClient from '../../../infrastructure/pubsub/pubsub-client.js';
  * for notification functionality in the application.
  */
 
+// Helper function to handle logging safely
+function safeLog(level, message, meta = {}) {
+  try {
+    if (level === 'error' && typeof logger.error === 'function') {
+      logger.error(message, meta);
+    } else if (level === 'error' && typeof logger.logError === 'function') {
+      logger.logError(meta, message);
+    } else if (level === 'debug' && typeof logger.debug === 'function') {
+      logger.debug(message, meta);
+    } else if (level === 'debug' && typeof logger.logDebug === 'function') {
+      logger.logDebug(meta, message);
+    } else if (level === 'warn' && typeof logger.warn === 'function') {
+      logger.warn(message, meta);
+    } else if (level === 'warn' && typeof logger.logWarn === 'function') {
+      logger.logWarn(meta, message);
+    } else if (typeof logger.log === 'function') {
+      logger.log(level, message, meta);
+    } else {
+      console[level === 'debug' ? 'log' : level](message, meta);
+    }
+  } catch (err) {
+    console.error('Error using logger:', err);
+    console[level === 'debug' ? 'log' : level](message, meta);
+  }
+}
+
 /**
  * Create a notification for a user
  * @param {Object} notification - Notification data
@@ -20,9 +46,12 @@ import pubsubClient from '../../../infrastructure/pubsub/pubsub-client.js';
  */
 async function createNotification({ userId, type, content, transactionId, subscriptionId }) {
   const correlationId = transactionId || `notification-${Date.now()}`;
-  logger.logDebug({ userId, correlationId }, 'Creating notification', { type });
-
+  
   try {
+    if (typeof logger.logDebug === 'function') {
+      logger.logDebug({ userId, correlationId }, 'Creating notification', { type });
+    }
+
     // Prepare notification data
     const notificationData = {
       userId,
@@ -66,7 +95,7 @@ async function createNotification({ userId, type, content, transactionId, subscr
       createdAt: notificationData.createdAt
     };
   } catch (error) {
-    logger.error('Error creating notification', { 
+    safeLog('error', 'Error creating notification', { 
       error: error.message, 
       stack: error.stack,
       userId, 
@@ -87,9 +116,11 @@ async function createNotification({ userId, type, content, transactionId, subscr
  * @returns {Promise<Object>} - Notifications with pagination info
  */
 async function getUserNotifications(userId, options = {}) {
-  logger.logDebug({ userId }, 'Getting user notifications', { options });
-  
   try {
+    if (typeof logger.logDebug === 'function') {
+      logger.logDebug({ userId }, 'Getting user notifications', { options });
+    }
+    
     // Normalize options for repository
     const normalizedOptions = {
       limit: parseInt(options.limit) || 20,
@@ -114,7 +145,7 @@ async function getUserNotifications(userId, options = {}) {
       hasMore: notifications.length >= normalizedOptions.limit
     };
   } catch (error) {
-    logger.error('Error getting user notifications', { 
+    safeLog('error', 'Error getting user notifications', { 
       error: error.message, 
       stack: error.stack,
       userId, 
@@ -294,20 +325,22 @@ async function getNotificationStats(userId) {
  * @returns {Promise<Object>} - Activity data
  */
 async function getActivityStats(userId, days = 7) {
-  logger.logDebug({ userId }, 'Getting activity stats', { days });
-  
   try {
-    // Use repository to get activity stats
+    if (typeof logger.logDebug === 'function') {
+      logger.logDebug({ userId }, 'Getting notification activity stats', { days });
+    }
+    
+    // Get activity stats from repository
     return await notificationRepository.getActivityStats(userId, days);
   } catch (error) {
-    logger.error('Error getting activity stats', { 
+    safeLog('error', 'Error getting activity stats', { 
       error: error.message, 
       stack: error.stack,
-      userId,
-      days
+      userId, 
+      days 
     });
     
-    // Return empty activity data instead of throwing
+    // Return empty stats if there's an error
     return {
       activityByDay: [],
       sources: []
@@ -326,14 +359,18 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
     const userPrefs = await notificationRepository.getUserEmailPreferences(userId);
     
     // Skip if user doesn't want email notifications
-    if (!userPrefs || !userPrefs.email_notifications) {
+    if (!userPrefs || userPrefs.email_notifications === false) {
       return;
     }
     
     // Get email address to use
     const email = userPrefs.notification_email || userPrefs.email;
     if (!email) {
-      logger.logError({ userId }, 'Cannot send email notification: no email address');
+      if (typeof logger.logError === 'function') {
+        logger.logError({ userId }, 'Cannot send email notification: no email address');
+      } else {
+        console.error('Cannot send email notification: no email address', { userId });
+      }
       return;
     }
     
@@ -370,23 +407,21 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
       correlationId: transactionId
     });
     
-    logger.logDebug({ userId, correlationId: transactionId }, 'Published email notification to topic', { 
-      notificationId, 
-      email, 
-      topic: topicName 
-    });
-    
-    // Track metrics
-    metrics.increment('notification.email_queued', { type, userId, immediate: isTestUser });
+    if (typeof logger.logDebug === 'function') {
+      logger.logDebug({ userId, correlationId: transactionId }, 'Published email notification to topic', { 
+        notificationId, 
+        email, 
+        topic: topicName 
+      });
+    }
   } catch (error) {
-    logger.error('Error sending email notification', { 
-      error: error.message, 
+    safeLog('error', 'Error sending email notification', {
+      error: error.message,
       stack: error.stack,
-      notificationId, 
-      userId 
+      userId,
+      notificationId,
+      transactionId
     });
-    
-    // Do not rethrow - email notification failure should not break the main flow
   }
 }
 
