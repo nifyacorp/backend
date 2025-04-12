@@ -18,6 +18,17 @@ function formatUptime(uptime) {
 // Plugin to register core health and version routes
 export async function coreRoutes(fastify, options) {
 
+  // Add root path handler to prevent 404 errors
+  fastify.get('/', async (request, reply) => {
+    return {
+      service: process.env.SERVICE_NAME || 'NIFYA Orchestration Service',
+      status: 'running',
+      documentation: '/documentation',
+      health: '/health',
+      version: '/version'
+    };
+  });
+
   fastify.get('/health', async (request, reply) => {
     const packageVersion = process.env.npm_package_version || 'unknown';
     const buildTimestamp = process.env.BUILD_TIMESTAMP || new Date().toISOString();
@@ -68,5 +79,5 @@ export async function coreRoutes(fastify, options) {
     };
   });
 
-  console.log("Core routes (/health, /version) registered.");
+  console.log("Core routes (/, /health, /version) registered.");
 } 

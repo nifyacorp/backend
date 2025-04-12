@@ -7,12 +7,6 @@ import { query } from '../../infrastructure/database/client.js';
 class AuthService {
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
-    
-    logger.logAuth({}, 'Initializing auth service with Firebase', {
-      environment: this.isProduction ? 'production' : 'development',
-      project: process.env.GOOGLE_CLOUD_PROJECT,
-      firebaseProject: process.env.FIREBASE_PROJECT_ID
-    });
   }
 
   /**
@@ -20,10 +14,10 @@ class AuthService {
    */
   async initialize() {
     try {
-      logger.logAuth({}, 'Auth service initialized with Firebase integration');
+      logger.logAuth({}, 'Application auth service initialized and ready');
       return true;
     } catch (error) {
-      logger.logError({}, error, { context: 'Failed to initialize auth service' });
+      logger.logError({}, error, { context: 'Failed to initialize application auth service' });
       throw error;
     }
   }
