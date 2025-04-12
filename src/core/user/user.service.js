@@ -15,9 +15,9 @@ class UserService {
           u.display_name as name,
           u.metadata->>'avatar' as avatar,
           u.metadata->>'bio' as bio,
-          u.metadata->>'theme' as theme,
-          u.metadata->>'language' as language,
-          u.notification_settings, -- Fetch the whole JSONB object
+          u.metadata->'preferences'->>'theme' as theme,
+          u.metadata->'preferences'->>'language' as language,
+          u.metadata->'notifications' as notification_settings,
           u.updated_at as "lastLogin",
           true as "emailVerified", -- Assuming email is verified via Firebase elsewhere
           (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id) as "subscriptionCount",

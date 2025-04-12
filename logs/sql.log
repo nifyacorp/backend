@@ -831,3 +831,56 @@
 2025-04-12T22:45:40.002Z info: Application auth service initialized and ready {"service":"backend-service","environment":"development","type":"auth"}
 2025-04-12T22:45:40.003Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}
 2025-04-12T22:45:40.271Z error: ❌ Failed to start server: listen EADDRINUSE: address already in use 0.0.0.0:8081 {"service":"backend-service","environment":"development","code":"EADDRINUSE","errno":-4091,"syscall":"listen","address":"0.0.0.0","port":8081,"stack":"Error: listen EADDRINUSE: address already in use 0.0.0.0:8081\n    at Server.setupListenHandle [as _listen2] (node:net:1937:16)\n    at listenInCluster (node:net:1994:12)\n    at node:net:2203:7\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)"}
+2025-04-12T22:47:56.216Z info: Database configuration: {"service":"backend-service","environment":"development","host":"localhost","port":"5432","database":"nifya","hasUser":true,"hasPassword":true}
+2025-04-12T22:47:56.344Z info: Metrics service initialized {"service":"backend-service","environment":"development","enabled":false}
+2025-04-12T22:47:56.345Z info: Event emitter service initialized {"service":"backend-service","environment":"development","maxListeners":50,"debugMode":true}
+2025-04-12T22:47:56.345Z debug: Event type registered: user:created {"service":"backend-service","environment":"development","description":"User account created","hasSchema":false}
+2025-04-12T22:47:56.345Z debug: Event type registered: user:updated {"service":"backend-service","environment":"development","description":"User profile updated","hasSchema":false}
+2025-04-12T22:47:56.346Z debug: Event type registered: subscription:created {"service":"backend-service","environment":"development","description":"New subscription created","hasSchema":false}
+2025-04-12T22:47:56.346Z debug: Event type registered: subscription:updated {"service":"backend-service","environment":"development","description":"Subscription updated","hasSchema":false}
+2025-04-12T22:47:56.346Z debug: Event type registered: subscription:deleted {"service":"backend-service","environment":"development","description":"Subscription deleted","hasSchema":false}
+2025-04-12T22:47:56.347Z debug: Event type registered: notification:created {"service":"backend-service","environment":"development","description":"New notification created","hasSchema":false}
+2025-04-12T22:47:56.347Z debug: Event type registered: notification:read {"service":"backend-service","environment":"development","description":"Notification marked as read","hasSchema":false}
+2025-04-12T22:47:56.348Z debug: Event type registered: notification:deleted {"service":"backend-service","environment":"development","description":"Notification deleted","hasSchema":false}
+2025-04-12T22:47:56.348Z info: PubSub client configuration loaded {"service":"backend-service","environment":"development","enabled":false,"developmentMode":true,"hasProjectId":false}
+2025-04-12T22:47:56.356Z info: Fastify instance created with configuration: {"service":"backend-service","environment":"development","port":"8081","host":"0.0.0.0"}
+2025-04-12T22:47:56.358Z info: Running in development mode, using environment variables instead of Secret Manager {"service":"backend-service","environment":"development","type":"request"}
+2025-04-12T22:47:56.359Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_API_KEY","valueExists":true}
+2025-04-12T22:47:56.360Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_APP_ID","valueExists":true}
+2025-04-12T22:47:56.360Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_AUTH_DOMAIN","valueExists":true}
+2025-04-12T22:47:56.360Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_PROJECT_ID","valueExists":true}
+2025-04-12T22:47:56.360Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_STORAGE_BUCKET","valueExists":true}
+2025-04-12T22:47:56.361Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_MESSAGING_SENDER_ID","valueExists":false}
+2025-04-12T22:47:56.361Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_MEASUREMENT_ID","valueExists":true}
+2025-04-12T22:47:56.364Z info: Initializing auth service with Firebase {"service":"backend-service","environment":"development","project":"unknown","firebaseProject":"delta-entity-447812-p2","type":"auth"}
+2025-04-12T22:47:56.365Z info: Firebase Admin SDK initialized successfully {"service":"backend-service","environment":"development","projectId":"delta-entity-447812-p2","storageBucket":"delta-entity-447812-p2.appspot.com","type":"auth"}
+2025-04-12T22:47:56.366Z info: Firebase services available {"service":"backend-service","environment":"development","services":["auth","firestore","storage"],"type":"auth"}
+2025-04-12T22:47:56.367Z info: Application auth service initialized and ready {"service":"backend-service","environment":"development","type":"auth"}
+2025-04-12T22:47:56.368Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}
+2025-04-12T23:02:16.892Z info: Database configuration: {"service":"backend-service","environment":"development","host":"localhost","port":"5432","database":"nifya","hasUser":true,"hasPassword":true}
+2025-04-12T23:02:17.025Z info: Metrics service initialized {"service":"backend-service","environment":"development","enabled":false}
+2025-04-12T23:02:17.026Z info: Event emitter service initialized {"service":"backend-service","environment":"development","maxListeners":50,"debugMode":true}
+2025-04-12T23:02:17.026Z debug: Event type registered: user:created {"service":"backend-service","environment":"development","description":"User account created","hasSchema":false}
+2025-04-12T23:02:17.026Z debug: Event type registered: user:updated {"service":"backend-service","environment":"development","description":"User profile updated","hasSchema":false}
+2025-04-12T23:02:17.027Z debug: Event type registered: subscription:created {"service":"backend-service","environment":"development","description":"New subscription created","hasSchema":false}
+2025-04-12T23:02:17.027Z debug: Event type registered: subscription:updated {"service":"backend-service","environment":"development","description":"Subscription updated","hasSchema":false}
+2025-04-12T23:02:17.027Z debug: Event type registered: subscription:deleted {"service":"backend-service","environment":"development","description":"Subscription deleted","hasSchema":false}
+2025-04-12T23:02:17.027Z debug: Event type registered: notification:created {"service":"backend-service","environment":"development","description":"New notification created","hasSchema":false}
+2025-04-12T23:02:17.028Z debug: Event type registered: notification:read {"service":"backend-service","environment":"development","description":"Notification marked as read","hasSchema":false}
+2025-04-12T23:02:17.028Z debug: Event type registered: notification:deleted {"service":"backend-service","environment":"development","description":"Notification deleted","hasSchema":false}
+2025-04-12T23:02:17.029Z info: PubSub client configuration loaded {"service":"backend-service","environment":"development","enabled":false,"developmentMode":true,"hasProjectId":false}
+2025-04-12T23:02:17.038Z info: Fastify instance created with configuration: {"service":"backend-service","environment":"development","port":"8081","host":"0.0.0.0"}
+2025-04-12T23:02:17.040Z info: Running in development mode, using environment variables instead of Secret Manager {"service":"backend-service","environment":"development","type":"request"}
+2025-04-12T23:02:17.041Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_API_KEY","valueExists":true}
+2025-04-12T23:02:17.041Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_APP_ID","valueExists":true}
+2025-04-12T23:02:17.042Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_AUTH_DOMAIN","valueExists":true}
+2025-04-12T23:02:17.042Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_PROJECT_ID","valueExists":true}
+2025-04-12T23:02:17.042Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_STORAGE_BUCKET","valueExists":true}
+2025-04-12T23:02:17.043Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_MESSAGING_SENDER_ID","valueExists":false}
+2025-04-12T23:02:17.043Z debug: Using development secret {"service":"backend-service","environment":"development","secretName":"FIREBASE_MEASUREMENT_ID","valueExists":true}
+2025-04-12T23:02:17.046Z info: Initializing auth service with Firebase {"service":"backend-service","environment":"development","project":"unknown","firebaseProject":"delta-entity-447812-p2","type":"auth"}
+2025-04-12T23:02:17.048Z info: Firebase Admin SDK initialized successfully {"service":"backend-service","environment":"development","projectId":"delta-entity-447812-p2","storageBucket":"delta-entity-447812-p2.appspot.com","type":"auth"}
+2025-04-12T23:02:17.049Z info: Firebase services available {"service":"backend-service","environment":"development","services":["auth","firestore","storage"],"type":"auth"}
+2025-04-12T23:02:17.050Z info: Application auth service initialized and ready {"service":"backend-service","environment":"development","type":"auth"}
+2025-04-12T23:02:17.051Z info: Running in local development mode with SKIP_DB_VALIDATION - skipping database initialization {"service":"backend-service","environment":"development"}
+2025-04-12T23:03:16.256Z error: Unknown error {"service":"backend-service","environment":"development","errorName":"Error","errorMessage":"Authorization header is required and must be in format: Bearer <token>","errorCode":"MISSING_HEADERS","requestId":"req-5","path":"/api/v1/subscriptions","type":"error"}
