@@ -236,128 +236,89 @@ export async function syncFirebaseUser(firebaseUid, context) {
 
     logger.logAuth(context, 'Looking up user in database', { firebaseUid });
 
-    // Check if user exists in our database by firebase_uid
-    const userResult = await query(
-      'SELECT id FROM users WHERE firebase_uid = $1',
+    // Check if the user exists in our database - now using firebaseUid as the primary key
+    const userCheckResult = await query(
+      'SELECT id FROM users WHERE id = $1',
       [firebaseUid]
     );
     
-    let userId;
+    let userId = null;
     let isNewUser = false;
     
-    if (userResult.rows.length > 0) {
-      // User exists - update details
-      userId = userResult.rows[0].id;
+    if (userCheckResult.rows.length > 0) {
+      // User exists, update their record with any new information
+      userId = userCheckResult.rows[0].id;
       
-      logger.logAuth(context, 'Updating existing user details', { userId, firebaseUid });
+      logger.logAuth(context, 'User found in database', { 
+        userId, 
+        firebaseUid 
+      });
       
+      // Update user information
       await query(
         `UPDATE users SET
           email = $1,
           display_name = $2,
+          updated_at = NOW(),
           metadata = jsonb_set(
             jsonb_set(
-              metadata,
+              coalesce(metadata, '{}'::jsonb),
               '{emailVerified}',
               $3::text::jsonb
             ),
             '{lastLogin}',
             $4::text::jsonb
-          ),
-          updated_at = NOW()
-        WHERE firebase_uid = $5`,
+          )
+        WHERE id = $5`,
         [
           firebaseUser.email,
           firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-          JSON.stringify(firebaseUser.emailVerified),
+          JSON.stringify(firebaseUser.emailVerified || false),
           JSON.stringify(new Date().toISOString()),
           firebaseUid
         ]
       );
+      
+      logger.logAuth(context, 'User updated', { userId, firebaseUid });
     } else {
-      // Check if user exists by email
-      logger.logAuth(context, 'User not found by Firebase UID, checking by email', { 
+      // Create new user in the database using Firebase UID as primary key
+      isNewUser = true;
+      
+      logger.logAuth(context, 'User not found, creating new user record', { 
         firebaseUid, 
         email: firebaseUser.email 
       });
       
-      const emailCheckResult = await query(
-        'SELECT id FROM users WHERE email = $1',
-        [firebaseUser.email]
+      const createResult = await query(
+        `INSERT INTO users (
+          id,
+          email, 
+          display_name, 
+          metadata
+        ) VALUES ($1, $2, $3, $4)
+        RETURNING id`,
+        [
+          firebaseUid, // Using Firebase UID as primary key
+          firebaseUser.email,
+          firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          JSON.stringify({
+            emailVerified: firebaseUser.emailVerified || false,
+            lastLogin: new Date().toISOString(),
+            emailNotifications: true,
+            emailFrequency: 'immediate',
+            instantNotifications: true,
+            notificationEmail: firebaseUser.email,
+            avatar: firebaseUser.photoURL || null
+          })
+        ]
       );
       
-      if (emailCheckResult.rows.length > 0) {
-        // User exists by email but doesn't have firebase_uid, update them
-        userId = emailCheckResult.rows[0].id;
-        
-        logger.logAuth(context, 'User found by email, updating with Firebase UID', { 
-          userId, 
-          firebaseUid 
-        });
-        
-        await query(
-          `UPDATE users SET
-            firebase_uid = $1,
-            display_name = $2,
-            metadata = jsonb_set(
-              jsonb_set(
-                metadata,
-                '{emailVerified}',
-                $3::text::jsonb
-              ),
-              '{lastLogin}',
-              $4::text::jsonb
-            ),
-            updated_at = NOW()
-          WHERE id = $5`,
-          [
-            firebaseUid,
-            firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            JSON.stringify(firebaseUser.emailVerified),
-            JSON.stringify(new Date().toISOString()),
-            userId
-          ]
-        );
-      } else {
-        // Create new user in the database
-        isNewUser = true;
-        
-        logger.logAuth(context, 'User not found, creating new user record', { 
-          firebaseUid, 
-          email: firebaseUser.email 
-        });
-        
-        const createResult = await query(
-          `INSERT INTO users (
-            email, 
-            display_name, 
-            firebase_uid, 
-            metadata
-          ) VALUES ($1, $2, $3, $4)
-          RETURNING id`,
-          [
-            firebaseUser.email,
-            firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            firebaseUid,
-            JSON.stringify({
-              emailVerified: firebaseUser.emailVerified || false,
-              lastLogin: new Date().toISOString(),
-              emailNotifications: true,
-              emailFrequency: 'immediate',
-              instantNotifications: true,
-              notificationEmail: firebaseUser.email,
-              avatar: firebaseUser.photoURL || null
-            })
-          ]
-        );
-        
-        userId = createResult.rows[0].id;
-        
-        logger.logAuth(context, 'New user created successfully', { 
-          userId, 
-          firebaseUid 
-        });
-      }
+      userId = createResult.rows[0].id;
+      
+      logger.logAuth(context, 'New user created successfully', { 
+        userId, 
+        firebaseUid 
+      });
     }
     
     // Get and return the full user profile
@@ -369,7 +330,6 @@ export async function syncFirebaseUser(firebaseUid, context) {
         email,
         display_name as name,
         metadata->>'avatar' as avatar,
-        firebase_uid as "firebaseUid",
         metadata->>'emailVerified' as "emailVerified",
         metadata->>'lastLogin' as "lastLogin",
         created_at as "createdAt",

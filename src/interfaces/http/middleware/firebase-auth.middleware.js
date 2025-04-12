@@ -91,18 +91,18 @@ async function synchronizeUser(uid, userInfo, context) {
         id,
         email,
         display_name,
-        firebase_uid,
         email_verified,
         metadata
-      ) VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)
-      ON CONFLICT (email) DO UPDATE SET 
-        firebase_uid = $3,
+      ) VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO UPDATE SET 
+        email = $2,
+        display_name = $3,
         email_verified = $4,
         updated_at = NOW()`,
       [
+        uid, // Using Firebase UID directly as the primary key
         email,
         name,
-        uid,
         userInfo.email_verified || false,
         JSON.stringify({
           emailNotifications: true,

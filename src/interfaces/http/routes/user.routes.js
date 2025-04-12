@@ -95,14 +95,15 @@ export async function userRoutes(fastify, options) {
   // User synchronization endpoint (service-to-service)
   fastify.post('/sync', {
     schema: {
+      description: 'Synchronize a Firebase user with the backend database',
+      tags: ['Users'],
       body: {
         type: 'object',
         properties: {
-          userId: { type: 'string', format: 'uuid' },
+          userId: { type: 'string' },
           email: { type: 'string', format: 'email' }
         },
-        required: ['userId', 'email'],
-        additionalProperties: false
+        required: ['userId', 'email']
       },
       response: {
         200: {
@@ -110,17 +111,11 @@ export async function userRoutes(fastify, options) {
           properties: {
             success: { type: 'boolean' },
             message: { type: 'string' },
-            userId: { type: 'string', format: 'uuid' }
-          }
-        },
-        400: {
-          type: 'object',
-          properties: {
-            error: { type: 'string' },
-            message: { type: 'string' }
+            userId: { type: 'string' }
           }
         }
-      }
+      },
+      security: [{ apiKey: [] }]
     },
     preHandler: validateApiKey
   }, async (request, reply) => {
@@ -161,7 +156,7 @@ export async function userRoutes(fastify, options) {
         };
       }
       
-      // Create user with minimal info
+      // Create user with Firebase UID as primary key
       await query(
         `INSERT INTO users (
           id,
@@ -171,7 +166,7 @@ export async function userRoutes(fastify, options) {
         ) VALUES ($1, $2, $3, $4)
         ON CONFLICT (id) DO NOTHING`,
         [
-          userId,
+          userId, // Using Firebase UID directly as the primary key
           email,
           email.split('@')[0], // Simple display name from email
           JSON.stringify({
