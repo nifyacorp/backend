@@ -210,8 +210,8 @@ export async function userRoutes(fastify, options) {
     }
   });
   
-  // Add both /me and /profile endpoint for compatibility with frontend
-  fastify.get('/me', {
+  // User profile endpoint
+  fastify.get('/profile', {
     schema: {
       response: {
         200: {
@@ -263,60 +263,8 @@ export async function userRoutes(fastify, options) {
     }
   });
 
-  // Add /profile endpoint for compatibility with frontend - same as /me
-  fastify.get('/profile', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            profile: userProfileSchema
-          }
-        }
-      }
-    }
-  }, async (request, reply) => {
-    const context = {
-      requestId: request.id,
-      path: request.url,
-      method: request.method,
-      token: request.user?.token
-    };
-
-    try {
-      logRequest(context, 'Processing user profile request via /profile endpoint', {
-        hasUser: !!request.user,
-        userId: request.user?.id
-      });
-
-      if (!request.user?.id) {
-        throw new AppError(
-          'UNAUTHORIZED',
-          'No user ID available',
-          401
-        );
-      }
-
-      const profile = await userService.getUserProfile(
-        request.user.id,
-        context
-      );
-      
-      return { profile };
-    } catch (error) {
-      logError(context, error);
-      const response = error instanceof AppError ? error.toJSON() : {
-        error: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred',
-        status: 500,
-        timestamp: new Date().toISOString()
-      };
-      reply.code(response.status).send(response);
-      return reply;
-    }
-  });
-
-  fastify.patch('/me', {
+  // Update user profile endpoint
+  fastify.patch('/profile', {
     schema: {
       body: {
         type: 'object',
@@ -382,8 +330,8 @@ export async function userRoutes(fastify, options) {
     }
   });
   
-  // Add a dedicated endpoint for notification settings
-  fastify.patch('/me/notification-settings', {
+  // Notification settings endpoint
+  fastify.patch('/notification-settings', {
     schema: {
       body: {
         type: 'object',
@@ -457,24 +405,7 @@ export async function userRoutes(fastify, options) {
     }
   });
   
-  // Email notification preferences endpoints
-  // Original paths with /me prefix
-  fastify.get('/me/email-preferences', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            email_notifications: { type: 'boolean' },
-            notification_email: { type: 'string', format: 'email', nullable: true },
-            digest_time: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
-          }
-        }
-      }
-    }
-  }, getEmailPreferences);
-  
-  // New path without /me for frontend compatibility
+  // Email preferences endpoint
   fastify.get('/email-preferences', {
     schema: {
       response: {
@@ -490,38 +421,7 @@ export async function userRoutes(fastify, options) {
     }
   }, getEmailPreferences);
   
-  fastify.patch('/me/email-preferences', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          email_notifications: { type: 'boolean' },
-          notification_email: { type: 'string', format: 'email', nullable: true },
-          digest_time: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
-        },
-        additionalProperties: false
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            preferences: {
-              type: 'object',
-              properties: {
-                email_notifications: { type: 'boolean' },
-                notification_email: { type: 'string', format: 'email', nullable: true },
-                digest_time: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
-              }
-            }
-          }
-        }
-      }
-    },
-    preHandler: validateZod(emailPreferencesSchema)
-  }, updateEmailPreferences);
-  
-  // Add route without /me for frontend compatibility
+  // Update email preferences endpoint
   fastify.patch('/email-preferences', {
     schema: {
       body: {
@@ -554,30 +454,6 @@ export async function userRoutes(fastify, options) {
   }, updateEmailPreferences);
   
   // Test email endpoint
-  fastify.post('/me/test-email', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          email: { type: 'string', format: 'email' }
-        },
-        required: ['email'],
-        additionalProperties: false
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            email: { type: 'string', format: 'email' }
-          }
-        }
-      }
-    },
-    preHandler: validateZod(testEmailSchema)
-  }, sendTestEmail);
-  
-  // Test email endpoint without /me prefix for compatibility
   fastify.post('/test-email', {
     schema: {
       body: {
