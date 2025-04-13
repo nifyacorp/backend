@@ -6,6 +6,7 @@ import express from '@fastify/express';
 import { ALLOWED_HEADERS } from '../../shared/constants/headers.js';
 import apiDocs from '../../shared/utils/api-docs.js'; // Assuming path is correct
 import { logger } from '../../shared/logging/logger.js';
+import { registerCorePlugins } from './plugins.js';
 
 /**
  * Creates and configures the Fastify server instance.
@@ -66,39 +67,9 @@ export function createServer() {
  * @param {import('fastify').FastifyInstance} fastify
  */
 export async function registerPlugins(fastify) {
-  // CORS Configuration
-  await fastify.register(cors, {
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // Allow requests with no origin
-      const allowedDomains = [
-        '.netlify.app',
-        'localhost',
-        '127.0.0.1',
-        '.run.app',
-        'main-page-415554190254.us-central1.run.app' // Example specific domain
-      ];
-      // Improved origin check
-      const hostname = new URL(origin).hostname;
-      const isAllowed = allowedDomains.some(domain => {
-        if (domain.startsWith('.')) {
-           return hostname.endsWith(domain) || hostname === domain.substring(1);
-        } else {
-           return hostname === domain;
-        }
-      });
-
-      if (isAllowed) {
-        return cb(null, true);
-      }
-      console.warn(`CORS blocked origin: ${origin}`);
-      cb(new Error('Not allowed by CORS'), false);
-    },
-    credentials: true,
-    methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ALLOWED_HEADERS,
-    exposedHeaders: ['X-Request-Id'] // Keep if request IDs are used
-  });
-  console.log("CORS plugin registered.");
+  // Register core plugins (CORS and multipart)
+  await registerCorePlugins(fastify);
+  console.log("Core plugins registered (CORS, multipart).");
 
   // Swagger Documentation
   await fastify.register(swagger, {

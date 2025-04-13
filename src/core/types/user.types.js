@@ -22,6 +22,18 @@ export const USER_ERRORS = {
   INVALID_TOKEN: {
     code: 'INVALID_TOKEN',
     message: 'Invalid token format'
+  },
+  PROFILE_PICTURE_ERROR: {
+    code: 'PROFILE_PICTURE_ERROR',
+    message: 'Failed to process profile picture'
+  },
+  INVALID_FILE_TYPE: {
+    code: 'INVALID_FILE_TYPE',
+    message: 'Invalid file type for profile picture'
+  },
+  FILE_TOO_LARGE: {
+    code: 'FILE_TOO_LARGE',
+    message: 'Profile picture file exceeds maximum allowed size'
   }
 };
 

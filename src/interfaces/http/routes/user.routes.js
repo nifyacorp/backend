@@ -400,6 +400,164 @@ export async function userRoutes(fastify, options) {
     }
   }, markNotificationsAsSent);
 
+  // Profile picture upload endpoint
+  fastify.post('/profile/picture', {
+    schema: {
+      description: 'Upload a profile picture',
+      tags: ['Users'],
+      consumes: ['multipart/form-data'],
+      response: {
+        200: {
+          description: 'Successful upload',
+          type: 'object',
+          properties: {
+            profile: { $ref: 'userProfileResponseSchema#' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.user?.token
+    };
+
+    try {
+      logRequest(context, 'Processing profile picture upload', {
+        hasUser: !!request.user,
+        userId: request.user?.id
+      });
+
+      if (!request.user?.id) {
+        throw new AppError(
+          'UNAUTHORIZED',
+          'No user ID available',
+          401
+        );
+      }
+      
+      // Parse the multipart form data
+      const data = await request.file();
+      
+      if (!data) {
+        throw new AppError(
+          'INVALID_REQUEST',
+          'No file uploaded',
+          400
+        );
+      }
+      
+      // Validate file type
+      const contentType = data.mimetype;
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      
+      if (!allowedTypes.includes(contentType)) {
+        throw new AppError(
+          'INVALID_FILE_TYPE',
+          `File type ${contentType} not allowed. Allowed types: ${allowedTypes.join(', ')}`,
+          400
+        );
+      }
+      
+      // Get the file buffer
+      const chunks = [];
+      for await (const chunk of data.file) {
+        chunks.push(chunk);
+      }
+      const fileBuffer = Buffer.concat(chunks);
+      
+      // Validate file size (max 5MB)
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+      if (fileBuffer.length > MAX_FILE_SIZE) {
+        throw new AppError(
+          'FILE_TOO_LARGE',
+          `File size (${fileBuffer.length} bytes) exceeds maximum allowed size (${MAX_FILE_SIZE} bytes)`,
+          400
+        );
+      }
+      
+      // Upload profile picture
+      const profile = await userService.uploadProfilePicture(
+        request.user.id,
+        fileBuffer,
+        data.filename,
+        contentType,
+        context
+      );
+      
+      return { profile };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: error.message || 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+  
+  // Delete profile picture endpoint
+  fastify.delete('/profile/picture', {
+    schema: {
+      description: 'Delete the current profile picture',
+      tags: ['Users'],
+      response: {
+        200: {
+          description: 'Successful deletion',
+          type: 'object',
+          properties: {
+            profile: { $ref: 'userProfileResponseSchema#' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const context = {
+      requestId: request.id,
+      path: request.url,
+      method: request.method,
+      token: request.user?.token
+    };
+
+    try {
+      logRequest(context, 'Processing profile picture deletion', {
+        hasUser: !!request.user,
+        userId: request.user?.id
+      });
+
+      if (!request.user?.id) {
+        throw new AppError(
+          'UNAUTHORIZED',
+          'No user ID available',
+          401
+        );
+      }
+      
+      // Delete profile picture
+      const profile = await userService.deleteProfilePicture(
+        request.user.id,
+        context
+      );
+      
+      return { profile };
+    } catch (error) {
+      logError(context, error);
+      const response = error instanceof AppError ? error.toJSON() : {
+        error: 'INTERNAL_ERROR',
+        message: error.message || 'An unexpected error occurred',
+        status: 500,
+        timestamp: new Date().toISOString()
+      };
+      reply.code(response.status).send(response);
+      return reply;
+    }
+  });
+
   // Register the schemas
   userProfileResponseSchema.$id = 'userProfileResponseSchema';
   fastify.addSchema(updateProfileSchema);

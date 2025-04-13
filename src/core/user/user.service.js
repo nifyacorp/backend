@@ -2,6 +2,7 @@ import { query } from '../../infrastructure/database/client.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { USER_ERRORS, USER_PREFERENCES } from '../types/user.types.js';
 import { logRequest, logError } from '../../shared/logging/logger.js';
+import { uploadProfilePicture, deleteProfilePicture } from '../../infrastructure/storage/index.js';
 
 // Helper function to build jsonb_set paths
 const buildJsonbSetPath = (key, value) => {
@@ -234,6 +235,92 @@ class UserService {
       throw new AppError(
         USER_ERRORS.UPDATE_ERROR.code,
         USER_ERRORS.UPDATE_ERROR.message,
+        500,
+        { originalError: error.message }
+      );
+    }
+  }
+
+  /**
+   * Upload a profile picture for a user
+   * 
+   * @param {string} userId - The user ID
+   * @param {Buffer} fileBuffer - The profile picture file buffer
+   * @param {string} fileName - Original file name
+   * @param {string} contentType - The file content type
+   * @param {Object} context - Request context for logging
+   * @returns {Promise<Object>} - Updated user profile
+   */
+  async uploadProfilePicture(userId, fileBuffer, fileName, contentType, context) {
+    logRequest(context, 'Uploading profile picture', { userId, fileName, contentType });
+
+    try {
+      // Upload the file to Google Cloud Storage
+      const pictureUrl = await uploadProfilePicture(fileBuffer, fileName, userId, contentType);
+      
+      // Update the user's avatar URL in the database
+      await query(
+        `UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`,
+        [pictureUrl, userId]
+      );
+      
+      logRequest(context, 'Profile picture uploaded and user updated', { 
+        userId, 
+        pictureUrl 
+      });
+      
+      // Return the updated user profile
+      return this.getUserProfile(userId, context);
+    } catch (error) {
+      logError(context, error, { userId, fileName });
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        USER_ERRORS.PROFILE_PICTURE_ERROR.code || 'PROFILE_PICTURE_ERROR',
+        error.message || USER_ERRORS.PROFILE_PICTURE_ERROR.message || 'Failed to upload profile picture',
+        500,
+        { originalError: error.message }
+      );
+    }
+  }
+  
+  /**
+   * Delete a user's profile picture
+   * 
+   * @param {string} userId - The user ID
+   * @param {Object} context - Request context for logging
+   * @returns {Promise<Object>} - Updated user profile
+   */
+  async deleteProfilePicture(userId, context) {
+    logRequest(context, 'Deleting profile picture', { userId });
+
+    try {
+      // Delete the file from Google Cloud Storage
+      await deleteProfilePicture(userId);
+      
+      // Clear the user's avatar URL in the database
+      await query(
+        `UPDATE users SET avatar_url = NULL, updated_at = NOW() WHERE id = $1`,
+        [userId]
+      );
+      
+      logRequest(context, 'Profile picture deleted and user updated', { userId });
+      
+      // Return the updated user profile
+      return this.getUserProfile(userId, context);
+    } catch (error) {
+      logError(context, error, { userId });
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        USER_ERRORS.PROFILE_PICTURE_ERROR.code || 'PROFILE_PICTURE_ERROR',
+        error.message || USER_ERRORS.PROFILE_PICTURE_ERROR.message || 'Failed to delete profile picture',
         500,
         { originalError: error.message }
       );

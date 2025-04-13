@@ -13,10 +13,12 @@
   "dependencies": {
     "@fastify/cors": "^9.0.1",
     "@fastify/express": "^2.3.0",
+    "@fastify/multipart": "^8.0.0",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^3.0.0",
     "@google-cloud/pubsub": "^4.1.1",
     "@google-cloud/secret-manager": "^5.0.1",
+    "@google-cloud/storage": "^7.6.0",
     "@octokit/rest": "^21.1.1",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/exporter-zipkin": "^1.21.0",
