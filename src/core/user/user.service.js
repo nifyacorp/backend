@@ -3,6 +3,21 @@ import { AppError } from '../../shared/errors/AppError.js';
 import { USER_ERRORS, USER_PREFERENCES } from '../types/user.types.js';
 import { logRequest, logError } from '../../shared/logging/logger.js';
 
+// Helper function to build jsonb_set paths
+const buildJsonbSetPath = (key, value) => {
+  switch (key) {
+    case 'bio': return `'{profile,bio}', $${value}`; // value is placeholder index
+    case 'language': return `'{preferences,language}', $${value}`; 
+    case 'theme': return `'{preferences,theme}', $${value}`; 
+    case 'emailNotifications': return `'{notifications,email,enabled}', $${value}`; 
+    case 'notificationEmail': return `'{notifications,email,customEmail}', $${value}`; 
+    case 'useCustomEmail': return `'{notifications,email,useCustomEmail}', $${value}`; 
+    case 'digestTime': return `'{notifications,email,digestTime}', $${value}`; 
+    // Add other metadata fields as needed
+    default: return null; // Ignore unknown keys for metadata update
+  }
+};
+
 class UserService {
   async getUserProfile(userId, context) {
     logRequest(context, 'Fetching user profile', { userId });
@@ -13,12 +28,10 @@ class UserService {
           u.id,
           u.email,
           u.display_name as name,
+          u.first_name,
+          u.last_name,
+          u.avatar_url as avatar,
           u.metadata,
-          u.metadata->>'avatar' as avatar,
-          u.metadata->>'bio' as bio,
-          u.metadata->'preferences'->>'theme' as theme,
-          u.metadata->'preferences'->>'language' as language,
-          u.metadata->'notifications' as notification_settings,
           u.updated_at as "lastLogin",
           true as "emailVerified", -- Assuming email is verified via Firebase elsewhere
           (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id) as "subscriptionCount",
@@ -43,86 +56,58 @@ class UserService {
         );
       }
 
-      const profileData = result.rows[0];
-      
-      // Check if metadata is empty or null, and provide default structure if needed
-      if (!profileData.metadata || Object.keys(profileData.metadata).length === 0) {
-        // Apply default metadata
+      const userData = result.rows[0];
+      let metadata = userData.metadata || {};
+
+      // Ensure default metadata structure exists if it's empty
+      if (!metadata.profile || !metadata.preferences || !metadata.notifications || !metadata.security) {
         const defaultMetadata = {
-          profile: {
-            bio: "",
-            interests: []
-          },
-          preferences: {
-            language: "es",
-            theme: "light"
-          },
-          notifications: {
-            email: {
-              enabled: true,
-              useCustomEmail: false,
-              customEmail: null,
-              digestTime: "08:00"
-            }
-          },
-          security: {
-            lastPasswordChange: null,
-            lastLogoutAllDevices: null
-          },
-          // Legacy fields
+          profile: { bio: "", interests: [] },
+          preferences: { language: "es", theme: "light" },
+          notifications: { email: { enabled: true, useCustomEmail: false, customEmail: null, digestTime: "08:00" } },
+          security: { lastPasswordChange: null, lastLogoutAllDevices: null },
+          // Keep legacy fields for potential backward compatibility
           emailNotifications: true,
           emailFrequency: "daily",
           instantNotifications: true,
-          notificationEmail: profileData.email
+          notificationEmail: userData.email
         };
-        
-        // Update the metadata in the database
+
+        // Update the database and use the default for the current response
         await query(
           `UPDATE users SET metadata = $1 WHERE id = $2`,
           [JSON.stringify(defaultMetadata), userId]
         );
-        
-        // Use the default metadata for the current request
-        profileData.metadata = defaultMetadata;
-        profileData.bio = "";
-        profileData.theme = "light";
-        profileData.language = "es";
-        profileData.notification_settings = defaultMetadata.notifications;
+        metadata = defaultMetadata;
       }
-      
-      // Ensure notification_settings is an object, providing defaults if null/missing
-      const defaultNotificationSettings = {
-        emailNotifications: true,
-        notificationEmail: profileData.email, // Default to user's main email
-        emailFrequency: 'daily',
-        instantNotifications: false,
-        digestTime: '08:00:00' 
-      };
-      
-      const notificationSettings = {
-         ...defaultNotificationSettings,
-        ...(profileData.notification_settings || {}), // Merge with defaults
-      };
 
-      // Construct the final profile object
+      // Construct the final profile object from userData and metadata
       const profile = {
-        id: profileData.id,
-        email: profileData.email,
-        name: profileData.name,
-        avatar: profileData.avatar,
-        bio: profileData.bio,
-        theme: profileData.theme || 'system', // Default theme
-        language: profileData.language || 'es', // Default language
-        notification_settings: notificationSettings,
-        lastLogin: profileData.lastLogin,
-        emailVerified: profileData.emailVerified,
-        subscriptionCount: parseInt(profileData.subscriptionCount, 10),
-        notificationCount: parseInt(profileData.notificationCount, 10),
-        lastNotification: profileData.lastNotification,
+        id: userData.id,
+        email: userData.email,
+        name: userData.name, // display_name
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        avatar: userData.avatar, // avatar_url
+        bio: metadata.profile?.bio,
+        theme: metadata.preferences?.theme,
+        language: metadata.preferences?.language,
+        notification_settings: {
+          emailNotifications: metadata.notifications?.email?.enabled,
+          notificationEmail: metadata.notifications?.email?.customEmail,
+          useCustomEmail: metadata.notifications?.email?.useCustomEmail,
+          emailFrequency: metadata.emailFrequency || 'daily', // Use legacy or default
+          instantNotifications: metadata.instantNotifications || false, // Use legacy or default
+          digestTime: metadata.notifications?.email?.digestTime
+        },
+        lastLogin: userData.lastLogin,
+        emailVerified: userData.emailVerified,
+        subscriptionCount: parseInt(userData.subscriptionCount || '0', 10),
+        notificationCount: parseInt(userData.notificationCount || '0', 10),
+        lastNotification: userData.lastNotification,
       };
 
       logRequest(context, 'User profile retrieved successfully', { userId });
-
       return profile;
     } catch (error) {
       logError(context, error, { userId });
@@ -141,75 +126,106 @@ class UserService {
   }
 
   async updateUserProfile(userId, updates, context) {
-    logRequest(context, 'Updating user profile (metadata only)', { 
+    logRequest(context, 'Updating user profile and settings', { 
       userId,
       updateFields: Object.keys(updates)
     });
 
-    // Allow updating only specific metadata fields
-    const allowedMetadataUpdates = ['name', 'bio', 'theme', 'language', 'avatar'];
-    const metadataUpdates = {};
-    let displayNameUpdate = null;
+    const directUpdates = {};
+    const metadataPaths = [];
+    const metadataValues = [];
 
-    for (const key of Object.keys(updates)) {
-      if (allowedMetadataUpdates.includes(key)) {
-        if (key === 'name') {
-            displayNameUpdate = updates[key];
-        } else {
-            metadataUpdates[key] = updates[key];
-        }
-      } else {
-         console.warn(`Attempted to update disallowed field '${key}' via updateUserProfile`);
+    // --- Separate direct column updates from metadata updates --- 
+    if (updates.name !== undefined) directUpdates.display_name = updates.name;
+    if (updates.first_name !== undefined) directUpdates.first_name = updates.first_name;
+    if (updates.last_name !== undefined) directUpdates.last_name = updates.last_name;
+    if (updates.avatar !== undefined) directUpdates.avatar_url = updates.avatar;
+
+    // --- Handle simple metadata fields --- 
+    if (updates.bio !== undefined) {
+      metadataPaths.push(`'{profile,bio}'`);
+      metadataValues.push(updates.bio);
+    }
+    if (updates.theme !== undefined) {
+      if (!USER_PREFERENCES.THEMES.includes(updates.theme)) {
+         throw new AppError(USER_ERRORS.INVALID_THEME.code, USER_ERRORS.INVALID_THEME.message, 400);
       }
+      metadataPaths.push(`'{preferences,theme}'`);
+      metadataValues.push(updates.theme);
+    }
+    if (updates.language !== undefined) {
+       if (!USER_PREFERENCES.LANGUAGES.includes(updates.language)) {
+         throw new AppError(USER_ERRORS.INVALID_LANGUAGE.code, USER_ERRORS.INVALID_LANGUAGE.message, 400);
+       }
+       metadataPaths.push(`'{preferences,language}'`);
+       metadataValues.push(updates.language);
     }
 
-    // Validate theme if provided
-    if (metadataUpdates.theme && !USER_PREFERENCES.THEMES.includes(metadataUpdates.theme)) {
-      throw new AppError(
-        USER_ERRORS.INVALID_THEME.code,
-        USER_ERRORS.INVALID_THEME.message,
-        400,
-        { allowedThemes: USER_PREFERENCES.THEMES }
-      );
-    }
-    // Validate language if provided
-    if (metadataUpdates.language && !USER_PREFERENCES.LANGUAGES.includes(metadataUpdates.language)) {
-      throw new AppError(
-          USER_ERRORS.INVALID_LANGUAGE.code, 
-          USER_ERRORS.INVALID_LANGUAGE.message, 
-          400, 
-          { allowedLanguages: USER_PREFERENCES.LANGUAGES }
-      );
+    // --- Handle nested notification settings --- 
+    if (updates.notification_settings) {
+      const ns = updates.notification_settings;
+      if (ns.emailNotifications !== undefined) {
+        metadataPaths.push(`'{notifications,email,enabled}'`);
+        metadataValues.push(ns.emailNotifications);
+      }
+      if (ns.notificationEmail !== undefined) {
+        metadataPaths.push(`'{notifications,email,customEmail}'`);
+        metadataValues.push(ns.notificationEmail);
+      }
+      if (ns.useCustomEmail !== undefined) {
+        metadataPaths.push(`'{notifications,email,useCustomEmail}'`);
+        metadataValues.push(ns.useCustomEmail);
+      }
+      if (ns.digestTime !== undefined) {
+        metadataPaths.push(`'{notifications,email,digestTime}'`);
+        metadataValues.push(ns.digestTime);
+      }
+      // Handle legacy fields if needed, potentially updating the new structure
+      // Example: if (ns.emailFrequency === 'daily') { /* update digestTime? */ }
     }
 
-    if (Object.keys(metadataUpdates).length === 0 && !displayNameUpdate) {
+    // --- Build and Execute SQL Query --- 
+    if (Object.keys(directUpdates).length === 0 && metadataPaths.length === 0) {
       logRequest(context, 'No valid profile fields to update', { userId });
-      // Return current profile if no valid updates provided
-      return this.getUserProfile(userId, context);
+      return this.getUserProfile(userId, context); // Return current profile if no changes
     }
 
     try {
-       // Build the query conditionally
       let sqlQuery = 'UPDATE users SET ';
-      const queryParams = [userId];
-      let paramIndex = 2;
       const setClauses = [];
+      const queryParams = [];
+      let paramIndex = 1;
 
-      if (displayNameUpdate !== null) {
-          setClauses.push(`display_name = $${paramIndex++}`);
-          queryParams.push(displayNameUpdate);
+      // Add direct updates
+      for (const [key, value] of Object.entries(directUpdates)) {
+        setClauses.push(`${key} = $${paramIndex++}`);
+        queryParams.push(value);
+      }
+
+      // Add metadata updates using jsonb_set
+      if (metadataPaths.length > 0) {
+        let metadataUpdateClause = 'metadata = ';
+        for (let i = 0; i < metadataPaths.length; i++) {
+          // For the first path, set metadata = jsonb_set(metadata, ...)
+          // For subsequent paths, wrap the previous result: jsonb_set( (previous jsonb_set), ...)
+          metadataUpdateClause += `jsonb_set(${i === 0 ? 'metadata' : ''}, ${metadataPaths[i]}, $${paramIndex++}::jsonb, true)`;
+          if (i > 0) metadataUpdateClause += ')'; // Close the parenthesis for nested sets
+          queryParams.push(JSON.stringify(metadataValues[i]));
+        }
+        setClauses.push(metadataUpdateClause);
       }
       
-      if (Object.keys(metadataUpdates).length > 0) {
-        setClauses.push(`metadata = metadata || $${paramIndex++}::jsonb`);
-        queryParams.push(JSON.stringify(metadataUpdates));
-      }
+      // Always update the updated_at timestamp
+      setClauses.push(`updated_at = NOW()`);
 
-      sqlQuery += setClauses.join(', ') + ` WHERE id = $1`;
+      sqlQuery += setClauses.join(', ');
+      sqlQuery += ` WHERE id = $${paramIndex}`; // Add user ID at the end
+      queryParams.push(userId);
 
+      // Execute the query
       await query(sqlQuery, queryParams);
 
-      logRequest(context, 'User profile metadata updated successfully', { userId });
+      logRequest(context, 'User profile and settings updated successfully', { userId });
 
       // Return the updated profile
       return this.getUserProfile(userId, context);
@@ -218,48 +234,6 @@ class UserService {
       throw new AppError(
         USER_ERRORS.UPDATE_ERROR.code,
         USER_ERRORS.UPDATE_ERROR.message,
-        500,
-        { originalError: error.message }
-      );
-    }
-  }
-
-  // Keep this method as is - it should update the notification_settings JSONB
-  async updateNotificationSettings(userId, settings, context) {
-    logRequest(context, 'Updating notification settings', { 
-      userId,
-      updateFields: Object.keys(settings)
-    });
-
-    // Validate settings structure (optional, but recommended)
-    // Example: Ensure emailFrequency is 'daily' if provided
-    if (settings.emailFrequency && settings.emailFrequency !== 'daily') {
-         throw new AppError('VALIDATION_ERROR', 'Invalid email frequency', 400);
-    }
-
-    try {
-      // Merge with existing settings to only update provided fields
-      const result = await query(
-        `UPDATE users 
-         SET notification_settings = notification_settings || $2::jsonb 
-         WHERE id = $1
-         RETURNING notification_settings`,
-        [userId, JSON.stringify(settings)]
-      );
-
-      if (result.rows.length === 0) {
-        throw new AppError(USER_ERRORS.NOT_FOUND.code, USER_ERRORS.NOT_FOUND.message, 404);
-      }
-
-      logRequest(context, 'Notification settings updated successfully', { userId });
-
-      // Return the full updated settings object
-      return result.rows[0].notification_settings;
-    } catch (error) {
-      logError(context, error, { userId });
-      throw new AppError(
-        USER_ERRORS.UPDATE_ERROR.code,
-        'Failed to update notification settings',
         500,
         { originalError: error.message }
       );
