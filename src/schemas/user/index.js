@@ -39,7 +39,7 @@ export const updateProfileSchema = z.object({
     instantNotifications: z.boolean().optional(), // Legacy, might control something else? Adjust as needed.
     digestTime: z.string().regex(/^\d{2}:\d{2}$/).optional() // metadata.notifications.email.digestTime
   }).optional()
-}).deepPartial(); // Allows any subset of fields to be updated
+}); // All fields are already optional, so we don't need deepPartial()
 
 updateProfileSchema.$id = 'updateProfileSchema'; // Add ID for Fastify schema registration
 
