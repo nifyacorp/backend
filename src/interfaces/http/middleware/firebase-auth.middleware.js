@@ -79,9 +79,30 @@ async function synchronizeUser(uid, userInfo, context) {
         email,
         name,
         JSON.stringify({
+          profile: {
+            bio: "",
+            interests: []
+          },
+          preferences: {
+            language: "es",
+            theme: "light"
+          },
+          notifications: {
+            email: {
+              enabled: true,
+              useCustomEmail: false,
+              customEmail: null,
+              digestTime: "08:00"
+            }
+          },
+          security: {
+            lastPasswordChange: null,
+            lastLogoutAllDevices: null
+          },
+          // Keep these fields for backward compatibility
           emailVerified: userInfo.email_verified || false,
           emailNotifications: true,
-          emailFrequency: 'immediate',
+          emailFrequency: "daily",
           instantNotifications: true,
           notificationEmail: email
         })
@@ -295,8 +316,33 @@ export const firebaseAuthMiddleware = async (request, response, next) => {
           displayName, 
           'user',
           JSON.stringify({ 
+            profile: {
+              bio: "",
+              interests: []
+            },
+            preferences: {
+              language: "es",
+              theme: "light"
+            },
+            notifications: {
+              email: {
+                enabled: true,
+                useCustomEmail: false,
+                customEmail: null,
+                digestTime: "08:00"
+              }
+            },
+            security: {
+              lastPasswordChange: null,
+              lastLogoutAllDevices: null
+            },
+            // Keep these fields for backward compatibility
             source: 'firebase',
-            emailVerified: email_verified || false
+            emailVerified: email_verified || false,
+            emailNotifications: true,
+            emailFrequency: "daily",
+            instantNotifications: true,
+            notificationEmail: email
           })
         ]
       );

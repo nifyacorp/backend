@@ -13,6 +13,7 @@ class UserService {
           u.id,
           u.email,
           u.display_name as name,
+          u.metadata,
           u.metadata->>'avatar' as avatar,
           u.metadata->>'bio' as bio,
           u.metadata->'preferences'->>'theme' as theme,
@@ -43,6 +44,51 @@ class UserService {
       }
 
       const profileData = result.rows[0];
+      
+      // Check if metadata is empty or null, and provide default structure if needed
+      if (!profileData.metadata || Object.keys(profileData.metadata).length === 0) {
+        // Apply default metadata
+        const defaultMetadata = {
+          profile: {
+            bio: "",
+            interests: []
+          },
+          preferences: {
+            language: "es",
+            theme: "light"
+          },
+          notifications: {
+            email: {
+              enabled: true,
+              useCustomEmail: false,
+              customEmail: null,
+              digestTime: "08:00"
+            }
+          },
+          security: {
+            lastPasswordChange: null,
+            lastLogoutAllDevices: null
+          },
+          // Legacy fields
+          emailNotifications: true,
+          emailFrequency: "daily",
+          instantNotifications: true,
+          notificationEmail: profileData.email
+        };
+        
+        // Update the metadata in the database
+        await query(
+          `UPDATE users SET metadata = $1 WHERE id = $2`,
+          [JSON.stringify(defaultMetadata), userId]
+        );
+        
+        // Use the default metadata for the current request
+        profileData.metadata = defaultMetadata;
+        profileData.bio = "";
+        profileData.theme = "light";
+        profileData.language = "es";
+        profileData.notification_settings = defaultMetadata.notifications;
+      }
       
       // Ensure notification_settings is an object, providing defaults if null/missing
       const defaultNotificationSettings = {

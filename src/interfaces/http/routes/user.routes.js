@@ -170,8 +170,29 @@ export async function userRoutes(fastify, options) {
           email,
           email.split('@')[0], // Simple display name from email
           JSON.stringify({
+            profile: {
+              bio: "",
+              interests: []
+            },
+            preferences: {
+              language: "es",
+              theme: "light"
+            },
+            notifications: {
+              email: {
+                enabled: true,
+                useCustomEmail: false,
+                customEmail: null,
+                digestTime: "08:00"
+              }
+            },
+            security: {
+              lastPasswordChange: null,
+              lastLogoutAllDevices: null
+            },
+            // Keep these fields for backward compatibility
             emailNotifications: true,
-            emailFrequency: 'immediate',
+            emailFrequency: "daily",
             instantNotifications: true,
             notificationEmail: email
           })
