@@ -41,7 +41,7 @@ export const updateProfileSchema = z.object({
   }).optional()
 }).deepPartial(); // Allows any subset of fields to be updated
 
-updateProfileSchema.id = 'updateProfileSchema'; // Add ID for Fastify schema registration
+updateProfileSchema.$id = 'updateProfileSchema'; // Add ID for Fastify schema registration
 
 // Schema for updating just notification settings (kept for reference, but removed from routes)
 /*

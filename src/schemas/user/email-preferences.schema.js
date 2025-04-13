@@ -24,6 +24,9 @@ export const emailPreferencesSchema = z.object({
     .describe('Time of day for daily digest emails (format: HH:MM)')
 }).strict();
 
+// Add $id property for Fastify schema registration
+emailPreferencesSchema.$id = 'emailPreferencesSchema';
+
 /**
  * Schema for test email requests
  */
@@ -33,4 +36,7 @@ export const testEmailSchema = z.object({
     .email('Please provide a valid email address')
     .optional()
     .describe('Optional email address to override user settings for the test')
-}).strict(); 
+}).strict();
+
+// Add $id property for Fastify schema registration
+testEmailSchema.$id = 'testEmailSchema'; 
