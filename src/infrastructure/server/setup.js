@@ -19,7 +19,22 @@ export function createServer() {
     ignoreTrailingSlash: true,
     onProtoPoisoning: 'error', // More secure default
     onConstructorPoisoning: 'error', // More secure default
-    trustProxy: true
+    trustProxy: true,
+    // Add custom ajv options to be more permissive with validation
+    ajv: {
+      customOptions: {
+        strict: false,           // Turn off strict mode
+        strictSchema: false,     // Don't be strict about schema
+        strictTypes: false,      // Don't be strict about types
+        strictRequired: false,   // Don't be strict about required
+        allErrors: true,         // Show all errors, not just the first
+        removeAdditional: false, // Don't remove additional properties
+        useDefaults: true,       // Use defaults for missing properties
+        coerceTypes: true,       // Try to coerce types when possible
+        // Allow custom keywords (don't fail on unknown keywords)
+        keywords: ['spa']
+      }
+    }
     // Add request ID generation if not using a custom logger that provides it
     // requestIdHeader: 'x-request-id',
     // genReqId: function (req) { return require('crypto').randomUUID() }

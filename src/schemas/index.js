@@ -3,6 +3,9 @@
  * Main entry point for all schemas in the application
  */
 
+// Import the professional library for Zod to JSON Schema conversion
+import zodToJsonSchemaLib from 'zod-to-json-schema';
+
 // Common schemas used across the application
 export * as common from './common/index.js';
 
@@ -24,67 +27,10 @@ export * as subscription from './subscription/index.js';
  * @returns {Object} JSON Schema compatible with Fastify
  */
 export function zodToJsonSchema(schema) {
-  // Simple conversion - in production you'd want to use a library like zod-to-json-schema
-  // or implement a more complete conversion
-  return schema.constructor.name === 'ZodObject' 
-    ? {
-        type: 'object',
-        properties: Object.fromEntries(
-          Object.entries(schema.shape).map(([key, value]) => {
-            // Handle different Zod types for basic conversion
-            let prop;
-            if (value.constructor.name === 'ZodString') {
-              prop = { type: 'string' };
-              if (value._def.checks) {
-                for (const check of value._def.checks) {
-                  if (check.kind === 'email') prop.format = 'email';
-                  if (check.kind === 'uuid') prop.format = 'uuid';
-                  if (check.kind === 'url') prop.format = 'uri';
-                  if (check.kind === 'min') prop.minLength = check.value;
-                  if (check.kind === 'max') prop.maxLength = check.value;
-                }
-              }
-            } else if (value.constructor.name === 'ZodNumber') {
-              prop = { type: 'number' };
-              if (value._def.checks) {
-                for (const check of value._def.checks) {
-                  if (check.kind === 'int') prop.type = 'integer';
-                  if (check.kind === 'min') prop.minimum = check.value;
-                  if (check.kind === 'max') prop.maximum = check.value;
-                }
-              }
-            } else if (value.constructor.name === 'ZodBoolean') {
-              prop = { type: 'boolean' };
-            } else if (value.constructor.name === 'ZodEnum') {
-              prop = { 
-                type: 'string', 
-                enum: value._def.values 
-              };
-            } else if (value.constructor.name === 'ZodArray') {
-              prop = { 
-                type: 'array',
-                items: { type: 'string' }  // Simplified - would need recursion for nested schemas
-              };
-            } else if (value.constructor.name === 'ZodObject') {
-              // Recursive call for nested objects
-              prop = zodToJsonSchema(value);
-            } else {
-              // Default fallback
-              prop = { type: 'string' };
-            }
-            
-            // Handle optional and nullable
-            if (value.isOptional?.()) {
-              // For optional fields
-            } else if (schema.required?.[key]) {
-              // Mark as required if not optional
-            }
-            
-            return [key, prop];
-          })
-        ),
-        // Allow additional properties by default to prevent "unknown keyword: spa" errors
-        additionalProperties: true
-      }
-    : { type: 'object' }; // Default fallback
+  // Use the professional library with configuration for Fastify compatibility
+  return zodToJsonSchemaLib(schema, {
+    $refStrategy: 'none', // Don't use $ref in the output
+    strictMode: false,    // Don't be strict about additional properties
+    errorMessages: true,  // Include error messages
+  });
 } 

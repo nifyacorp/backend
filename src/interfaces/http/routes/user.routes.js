@@ -289,7 +289,31 @@ export async function userRoutes(fastify, options) {
     schema: {
       description: 'Update user profile, preferences, and notification settings',
       tags: ['Users'],
-      body: { $ref: 'updateProfileSchema#' }, // Reference the updated schema
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 2, maxLength: 100 },
+          first_name: { type: 'string', maxLength: 255 },
+          last_name: { type: 'string', maxLength: 255 },
+          avatar: { type: 'string', format: 'uri', nullable: true },
+          bio: { type: 'string', maxLength: 500 },
+          theme: { type: 'string', enum: USER_PREFERENCES.THEMES },
+          language: { type: 'string', enum: USER_PREFERENCES.LANGUAGES },
+          notification_settings: {
+            type: 'object',
+            properties: {
+              emailNotifications: { type: 'boolean' },
+              notificationEmail: { type: 'string', format: 'email', nullable: true },
+              useCustomEmail: { type: 'boolean' },
+              emailFrequency: { type: 'string', enum: ['daily'] },
+              instantNotifications: { type: 'boolean' },
+              digestTime: { type: 'string', pattern: '^\\d{2}:\\d{2}$' }
+            },
+            additionalProperties: true
+          }
+        },
+        additionalProperties: true
+      },
       response: {
         200: {
           description: 'Successful update',
@@ -300,7 +324,6 @@ export async function userRoutes(fastify, options) {
         }
       }
     },
-    // The preHandler will use the updated updateProfileSchema
   }, async (request, reply) => {
     const context = {
       requestId: request.id,
