@@ -6,7 +6,8 @@ import { validateZod } from '../../../shared/utils/validation.js';
 import { 
   updateProfileSchema, 
   emailPreferencesSchema,
-  testEmailSchema
+  testEmailSchema,
+  userProfileResponseSchema
 } from '../../../schemas/user/index.js';
 import {
   getEmailPreferences,
@@ -237,7 +238,7 @@ export async function userRoutes(fastify, options) {
         200: {
           type: 'object',
           properties: {
-            profile: userProfileSchema
+            profile: { $ref: 'userProfileResponseSchema#' }
           }
         }
       }
@@ -294,7 +295,7 @@ export async function userRoutes(fastify, options) {
           description: 'Successful update',
           type: 'object',
           properties: {
-            profile: userProfileSchema // Assuming userProfileSchema reflects the full user object
+            profile: { $ref: 'userProfileResponseSchema#' }
           }
         }
       }
@@ -377,6 +378,8 @@ export async function userRoutes(fastify, options) {
     }
   }, markNotificationsAsSent);
 
-  // Register the schema
+  // Register the schemas
+  userProfileResponseSchema.$id = 'userProfileResponseSchema';
   fastify.addSchema(updateProfileSchema);
+  fastify.addSchema(userProfileResponseSchema);
 }
