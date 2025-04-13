@@ -149,11 +149,11 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_email_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Insert default subscription types
-INSERT INTO subscription_types (id, name, display_name, description, icon, parser_url, is_system)
+INSERT INTO subscription_types (id, name, display_name, description, icon, parser_url, logo_url, is_system)
 VALUES 
-  ('boe', 'boe', 'BOE', 'Boletín Oficial del Estado', 'FileText', 'https://boe-parser-415554190254.us-central1.run.app', true),
-  ('doga', 'doga', 'DOGA', 'Diario Oficial de Galicia', 'FileText', 'https://doga-parser-415554190254.us-central1.run.app', true),
-  ('real-estate', 'real-estate', 'Real Estate', 'Real estate listings and alerts', 'Home', null, true);
+  ('boe', 'boe', 'BOE', 'Boletín Oficial del Estado', 'FileText', 'https://boe-parser-415554190254.us-central1.run.app', 'https://storage.googleapis.com/nifya-assets/WebPage/Subs_types_logo/LOGO-BOE-min.png', true),
+  ('doga', 'doga', 'DOGA', 'Diario Oficial de Galicia', 'FileText', 'https://doga-parser-415554190254.us-central1.run.app', 'https://storage.googleapis.com/nifya-assets/WebPage/Subs_types_logo/doga.jpg', true),
+  ('real-estate', 'real-estate', 'Real Estate', 'Real estate listings and alerts', 'Home', null, null, true);
 
 -- Mark this migration as applied
 INSERT INTO schema_version (version, description)
