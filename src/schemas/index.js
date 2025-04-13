@@ -82,7 +82,9 @@ export function zodToJsonSchema(schema) {
             
             return [key, prop];
           })
-        )
+        ),
+        // Allow additional properties by default to prevent "unknown keyword: spa" errors
+        additionalProperties: true
       }
     : { type: 'object' }; // Default fallback
 } 
