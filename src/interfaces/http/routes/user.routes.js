@@ -301,7 +301,6 @@ export async function userRoutes(fastify, options) {
       }
     },
     // The preHandler will use the updated updateProfileSchema
-    preHandler: validateZod(updateProfileSchema) 
   }, async (request, reply) => {
     const context = {
       requestId: request.id,
