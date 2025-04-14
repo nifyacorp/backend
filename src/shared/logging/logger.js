@@ -110,6 +110,30 @@ const createWinstonLogger = () => {
 const winstonLogger = createWinstonLogger();
 
 /**
+ * Log general info with emoji formatting
+ * @param {Object} context - Request context (requestId, path)
+ * @param {string} message - Log message
+ * @param {Object} data - Additional data to log
+ */
+export function logInfo(context = {}, message, data = {}) {
+  // Format with emoji for console
+  console.log(`ℹ️ ${message}:`, {
+    ...data,
+    requestId: context.requestId || 'unknown',
+    path: context.path || 'unknown',
+    timestamp: new Date().toISOString()
+  });
+
+  // Also log with Winston
+  winstonLogger.info(message, {
+    ...data,
+    requestId: context.requestId,
+    path: context.path,
+    type: 'info'
+  });
+}
+
+/**
  * Log a request with emoji formatting
  * @param {Object} context - Request context (requestId, path)
  * @param {string} message - Log message
