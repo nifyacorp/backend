@@ -121,38 +121,6 @@ export function registerDeleteEndpoint(fastify) {
           timestamp: new Date().toISOString()
         });
         
-        // Verify the subscription is actually gone before returning success
-        try {
-          const { pool } = await import('../../../../infrastructure/database/client.js');
-          const client = await pool.connect();
-          
-          try {
-            const verifyResult = await client.query(
-              'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1) as exists',
-              [subscriptionId]
-            );
-            
-            const stillExists = verifyResult.rows[0].exists;
-            
-            logRequest(context, '[DEBUG] Final verification after deletion in endpoint', {
-              subscription_id: subscriptionId,
-              still_exists: stillExists,
-              timestamp: new Date().toISOString()
-            });
-            
-            if (stillExists) {
-              logRequest(context, '[DEBUG] WARNING: Subscription still exists after successful deletion', {
-                subscription_id: subscriptionId,
-                timestamp: new Date().toISOString()
-              });
-            }
-          } finally {
-            client.release();
-          }
-        } catch (verifyError) {
-          logError(context, verifyError, '[DEBUG] Error during final verification');
-        }
-        
         const response = {
           status: 'success',
           message: result.message || (result.alreadyRemoved 
