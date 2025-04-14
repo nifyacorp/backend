@@ -81,7 +81,7 @@ export async function query(text, params) {
   const start = Date.now();
   let client;
   
-  logger.logInfo({}, '[DB CLIENT] Attempting query execution', {
+  logger.info('[DB CLIENT] Attempting query execution', {
     sql: sanitizeSqlForLogging(text),
     params: sanitizeParamsForLogging(params),
     timestamp: new Date().toISOString()
@@ -89,16 +89,16 @@ export async function query(text, params) {
   
   try {
     // Get client from pool
-    logger.logInfo({}, '[DB CLIENT] Connecting to pool...', {
+    logger.info('[DB CLIENT] Connecting to pool...', {
       timestamp: new Date().toISOString()
     });
     client = await pool.connect();
-    logger.logInfo({}, '[DB CLIENT] Connected to pool successfully', {
+    logger.info('[DB CLIENT] Connected to pool successfully', {
       timestamp: new Date().toISOString()
     });
     
     // Execute query
-    logger.logInfo({}, '[DB CLIENT] Executing query...', {
+    logger.info('[DB CLIENT] Executing query...', {
       sql: sanitizeSqlForLogging(text),
       params: sanitizeParamsForLogging(params),
       timestamp: new Date().toISOString()
@@ -107,7 +107,7 @@ export async function query(text, params) {
     const duration = Date.now() - start;
     
     // Log query execution with sanitized data
-    logger.logInfo({}, '[DB CLIENT] Query executed successfully', { 
+    logger.info('[DB CLIENT] Query executed successfully', { 
       sql: sanitizeSqlForLogging(text),
       params: sanitizeParamsForLogging(params),
       duration,
@@ -130,11 +130,11 @@ export async function query(text, params) {
         detail: error.detail,
         hint: error.hint,
         position: error.position,
-        stack: error.stack, // Include stack trace
-        errno: error.errno, // System error number
-        syscall: error.syscall // System call that failed
+        stack: error.stack,
+        errno: error.errno,
+        syscall: error.syscall
       },
-      fullErrorObject: error, // Log the full error object if possible
+      fullErrorObject: error,
       timestamp: new Date().toISOString()
     });
     
@@ -150,12 +150,12 @@ export async function query(text, params) {
     );
   } finally {
     if (client) {
-      logger.logInfo({}, '[DB CLIENT] Releasing client...', {
+      logger.info('[DB CLIENT] Releasing client...', {
         timestamp: new Date().toISOString()
       });
       try {
         client.release();
-        logger.logInfo({}, '[DB CLIENT] Client released successfully', {
+        logger.info('[DB CLIENT] Client released successfully', {
           timestamp: new Date().toISOString()
         });
       } catch (releaseError) {
@@ -165,7 +165,7 @@ export async function query(text, params) {
         });
       }
     } else {
-      logger.logInfo({}, '[DB CLIENT] No client to release.', {
+      logger.info('[DB CLIENT] No client to release.', {
         timestamp: new Date().toISOString()
       });
     }
