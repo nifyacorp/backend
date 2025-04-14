@@ -52,46 +52,108 @@ export function registerDeleteEndpoint(fastify) {
       }
     };
 
+    logRequest(context, '[DEBUG] DELETE subscription endpoint called', {
+      subscription_id: request.params.id,
+      user_id: request.user?.id,
+      request_headers: { 
+        ...request.headers,
+        authorization: request.headers.authorization ? 'REDACTED' : undefined 
+      },
+      query_params: request.query,
+      timestamp: new Date().toISOString()
+    });
+
     try {
       // Verify authentication
       if (!request.user?.id) {
+        logRequest(context, '[DEBUG] Unauthorized delete attempt - no user ID', {
+          timestamp: new Date().toISOString()
+        });
         throw new AppError('UNAUTHORIZED', 'No user ID available', 401);
       }
       
       const subscriptionId = request.params.id;
       const userId = request.user.id;
       
-      logRequest(context, 'Delete subscription request', {
+      logRequest(context, '[DEBUG] Delete subscription request details', {
         subscription_id: subscriptionId,
-        user_id: userId
+        user_id: userId,
+        timestamp: new Date().toISOString()
       });
       
       // Check if force parameter is specified
       const forceDelete = request.query.force === 'true';
       
       if (forceDelete) {
-        logRequest(context, 'Force delete requested', {
+        logRequest(context, '[DEBUG] Force delete requested', {
           subscription_id: subscriptionId,
-          user_id: userId
+          user_id: userId,
+          timestamp: new Date().toISOString()
         });
       }
       
-      // Use the service layer for deletion (now with improved transactional support)
+      // Use the service layer for deletion
       try {
+        logRequest(context, '[DEBUG] Calling subscription service deleteSubscription', {
+          subscription_id: subscriptionId,
+          user_id: userId,
+          timestamp: new Date().toISOString()
+        });
+        
         const result = await subscriptionService.deleteSubscription(
           userId,
           subscriptionId,
           context
         );
         
-        // Translate service response to API response
-        logRequest(context, 'Subscription deletion completed', {
+        logRequest(context, '[DEBUG] Subscription service returned result', {
           subscription_id: subscriptionId,
-          already_removed: result.alreadyRemoved,
-          actually_deleted: !result.alreadyRemoved, // If not already removed, it was deleted
+          result: JSON.stringify(result),
+          timestamp: new Date().toISOString()
         });
         
-        return reply.code(200).send({
+        // Translate service response to API response
+        logRequest(context, '[DEBUG] Subscription deletion completed', {
+          subscription_id: subscriptionId,
+          already_removed: result.alreadyRemoved,
+          actually_deleted: !result.alreadyRemoved,
+          result_details: result,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Verify the subscription is actually gone before returning success
+        try {
+          const { pool } = await import('../../../../infrastructure/database/client.js');
+          const client = await pool.connect();
+          
+          try {
+            const verifyResult = await client.query(
+              'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1) as exists',
+              [subscriptionId]
+            );
+            
+            const stillExists = verifyResult.rows[0].exists;
+            
+            logRequest(context, '[DEBUG] Final verification after deletion in endpoint', {
+              subscription_id: subscriptionId,
+              still_exists: stillExists,
+              timestamp: new Date().toISOString()
+            });
+            
+            if (stillExists) {
+              logRequest(context, '[DEBUG] WARNING: Subscription still exists after successful deletion', {
+                subscription_id: subscriptionId,
+                timestamp: new Date().toISOString()
+              });
+            }
+          } finally {
+            client.release();
+          }
+        } catch (verifyError) {
+          logError(context, verifyError, '[DEBUG] Error during final verification');
+        }
+        
+        const response = {
           status: 'success',
           message: result.message || (result.alreadyRemoved 
             ? 'Subscription has been removed' 
@@ -101,16 +163,27 @@ export function registerDeleteEndpoint(fastify) {
             alreadyRemoved: result.alreadyRemoved,
             actuallyDeleted: !result.alreadyRemoved // Add this flag to indicate deletion actually happened
           }
+        };
+        
+        logRequest(context, '[DEBUG] Sending response to client', {
+          subscription_id: subscriptionId,
+          response: JSON.stringify(response),
+          timestamp: new Date().toISOString()
         });
+        
+        return reply.code(200).send(response);
       } catch (serviceError) {
+        logError(context, serviceError, '[DEBUG] Service error during deletion');
+        
         // Handle permission errors
         if (serviceError instanceof AppError && serviceError.status === 403) {
-          logError(context, serviceError, 'Permission error during deletion');
+          logError(context, serviceError, '[DEBUG] Permission error during deletion');
           
           // If force parameter is set, try again with admin privileges
           if (forceDelete) {
-            logRequest(context, 'Permission error but force=true, retrying with admin privileges', {
-              subscription_id: subscriptionId
+            logRequest(context, '[DEBUG] Permission error but force=true, retrying with admin privileges', {
+              subscription_id: subscriptionId,
+              timestamp: new Date().toISOString()
             });
             
             try {
@@ -121,8 +194,9 @@ export function registerDeleteEndpoint(fastify) {
                 context
               });
               
-              logRequest(context, 'Force deletion succeeded', {
-                subscription_id: subscriptionId
+              logRequest(context, '[DEBUG] Force deletion succeeded', {
+                subscription_id: subscriptionId,
+                timestamp: new Date().toISOString()
               });
               
               return reply.code(200).send({
@@ -136,7 +210,7 @@ export function registerDeleteEndpoint(fastify) {
                 }
               });
             } catch (forceError) {
-              logError(context, forceError, 'Force deletion also failed');
+              logError(context, forceError, '[DEBUG] Force deletion also failed');
               
               // Return success but with additional details indicating actual DB operation status
               return reply.code(200).send({
@@ -162,12 +236,12 @@ export function registerDeleteEndpoint(fastify) {
         }
         
         // Return proper error status and message
-        logError(context, serviceError, 'Error during subscription deletion');
+        logError(context, serviceError, '[DEBUG] Error during subscription deletion');
         
         // Determine appropriate error status code
         const errorStatusCode = serviceError.status || 
-                               (serviceError.code === 'NOT_FOUND' ? 404 : 
-                               (serviceError.code === 'DATABASE_ERROR' ? 500 : 400));
+                              (serviceError.code === 'NOT_FOUND' ? 404 : 
+                              (serviceError.code === 'DATABASE_ERROR' ? 500 : 400));
         
         // Get stack trace for debugging in development
         const stack = process.env.NODE_ENV !== 'production' ? serviceError.stack : undefined;
@@ -189,12 +263,13 @@ export function registerDeleteEndpoint(fastify) {
         });
       }
     } catch (error) {
-      logError(context, error);
+      logError(context, error, '[DEBUG] Unexpected error in DELETE endpoint');
       
       // Special handling for 404 errors
       if (error.code === 'NOT_FOUND' || error.code === 'SUBSCRIPTION_NOT_FOUND' || error.status === 404) {
-        logRequest(context, 'Subscription not found, treating as already removed', {
-          subscription_id: request.params.id
+        logRequest(context, '[DEBUG] Subscription not found, treating as already removed', {
+          subscription_id: request.params.id,
+          timestamp: new Date().toISOString()
         });
         
         return reply.code(200).send({
@@ -209,15 +284,15 @@ export function registerDeleteEndpoint(fastify) {
       }
       
       // Return proper error for unexpected errors
-      logError(context, error, 'Unexpected error during subscription deletion');
+      logError(context, error, '[DEBUG] Unexpected error during subscription deletion');
       
       // Get stack trace for debugging in development
       const stack = process.env.NODE_ENV !== 'production' ? error.stack : undefined;
       
       // Determine appropriate status code
       const errorStatusCode = error.status || 
-                             (error.code === 'NOT_FOUND' ? 404 : 
-                             (error.code === 'DATABASE_ERROR' ? 500 : 500));
+                            (error.code === 'NOT_FOUND' ? 404 : 
+                            (error.code === 'DATABASE_ERROR' ? 500 : 500));
       
       return reply.code(errorStatusCode).send({
         status: 'error',

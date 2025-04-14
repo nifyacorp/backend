@@ -181,7 +181,11 @@ async function findById(id, options = {}) {
  */
 async function getUserSubscriptions(userId, options = {}) {
   const context = options.context || {};
-  logger.logInfo(context, 'Repository: Getting user subscriptions', { userId, options });
+  logger.logInfo(context, '[DEBUG] Repository: Getting user subscriptions', { 
+    userId, 
+    options,
+    timestamp: new Date().toISOString() 
+  });
   
   try {
     // Normalize options
@@ -254,17 +258,55 @@ async function getUserSubscriptions(userId, options = {}) {
     params.push(limit, offset);
     
     // Log the query for debugging
-    logger.logInfo(context, 'Repository: Executing subscription query', {
+    logger.logInfo(context, '[DEBUG] Repository: Executing subscription query', {
       query: text.replace(/\s+/g, ' ').trim(),
-      params: JSON.stringify(params)
+      params: JSON.stringify(params),
+      timestamp: new Date().toISOString()
     });
     
     // Execute the query
     const result = await query(text, params);
-    logger.logInfo(context, 'Repository: Query results', {
+    logger.logInfo(context, '[DEBUG] Repository: Query results', {
       rowCount: result.rowCount,
-      sampleIds: result.rows.slice(0, 5).map(row => row.id)
+      sampleIds: result.rows.slice(0, 5).map(row => row.id),
+      allIds: result.rows.map(row => row.id),
+      timestamp: new Date().toISOString()
     });
+    
+    // Direct DB check for recently deleted subscriptions
+    // This will help identify why deleted subscriptions still appear in results
+    if (result.rowCount > 0) {
+      try {
+        const ids = result.rows.map(row => row.id);
+        const verifyQuery = `
+          SELECT id, created_at, updated_at FROM subscriptions 
+          WHERE id = ANY($1::uuid[])
+        `;
+        const verifyResult = await query(verifyQuery, [ids]);
+        
+        logger.logInfo(context, '[DEBUG] Repository: Verification of subscriptions', {
+          requestedIds: ids,
+          foundIds: verifyResult.rows.map(row => row.id),
+          missingIds: ids.filter(id => !verifyResult.rows.some(row => row.id === id)),
+          timestamp: new Date().toISOString()
+        });
+        
+        // Check if any returned subscriptions don't actually exist in DB
+        const missingIds = ids.filter(id => !verifyResult.rows.some(row => row.id === id));
+        if (missingIds.length > 0) {
+          logger.logInfo(context, '[DEBUG] Repository: Found phantom subscriptions', {
+            phantomIds: missingIds,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (verifyError) {
+        logger.error(context, '[DEBUG] Repository: Error verifying subscriptions', {
+          error: verifyError.message,
+          stack: verifyError.stack,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
     
     // Get total count for pagination
     const countText = `
@@ -287,17 +329,28 @@ async function getUserSubscriptions(userId, options = {}) {
     if (search) countParams.push(`%${search}%`);
     
     // Log the count query
-    logger.logInfo(context, 'Repository: Executing count query', {
+    logger.logInfo(context, '[DEBUG] Repository: Executing count query', {
       query: countText.replace(/\s+/g, ' ').trim(),
-      params: JSON.stringify(countParams)
+      params: JSON.stringify(countParams),
+      timestamp: new Date().toISOString()
     });
     
     const countResult = await query(countText, countParams);
     const total = parseInt(countResult.rows[0].total);
-    logger.logInfo(context, 'Repository: Count result', { total });
+    logger.logInfo(context, '[DEBUG] Repository: Count result', { 
+      total,
+      timestamp: new Date().toISOString() 
+    });
     
     // Format subscriptions
     const subscriptions = result.rows.map(formatSubscription);
+    
+    // Log the final result
+    logger.logInfo(context, '[DEBUG] Repository: Final formatted subscriptions', {
+      formattedCount: subscriptions.length,
+      sampleFormattedIds: subscriptions.slice(0, 3).map(s => s.id),
+      timestamp: new Date().toISOString()
+    });
     
     return {
       subscriptions,
@@ -309,11 +362,12 @@ async function getUserSubscriptions(userId, options = {}) {
       }
     };
   } catch (error) {
-    logger.error(context, 'Error in getUserSubscriptions', { 
+    logger.error(context, '[DEBUG] Repository: Error in getUserSubscriptions', { 
       error: error.message, 
       stack: error.stack, 
       userId, 
-      options 
+      options,
+      timestamp: new Date().toISOString()
     });
     
     // Return empty results instead of throwing
@@ -473,18 +527,49 @@ async function updateSubscription(id, data, options = {}) {
 async function deleteSubscription(id, options = {}) {
   const { userId, force = false, context } = options;
   
-  logger.logInfo(context, 'Starting subscription deletion process', { subscriptionId: id, userId });
+  logger.logInfo(context, '[DEBUG] Starting subscription deletion process', { 
+    subscriptionId: id, 
+    userId,
+    force,
+    timestamp: new Date().toISOString() 
+  });
   
   try {
     return await withTransaction(userId, async (client) => {
-      // Step 1: Check if subscription exists and user has permission
+      // STEP 1: Debug the transaction state
+      try {
+        const txnStatus = await client.query('SELECT pg_current_xact_id_if_assigned() as txn_id');
+        logger.logInfo(context, '[DEBUG] Transaction state', {
+          subscriptionId: id,
+          txn_id: txnStatus.rows[0]?.txn_id || 'No transaction ID assigned',
+          timestamp: new Date().toISOString()
+        });
+      } catch (txnErr) {
+        logger.logInfo(context, '[DEBUG] Failed to get transaction ID', {
+          subscriptionId: id,
+          error: txnErr.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Step 2: Check if subscription exists and user has permission
       const existsCheck = await client.query(
         'SELECT id, user_id FROM subscriptions WHERE id = $1',
         [id]
       );
       
+      logger.logInfo(context, '[DEBUG] Existence check query results', {
+        subscriptionId: id,
+        rowCount: existsCheck.rowCount,
+        row: existsCheck.rowCount > 0 ? existsCheck.rows[0] : null,
+        timestamp: new Date().toISOString()
+      });
+      
       if (existsCheck.rowCount === 0) {
-        logger.logInfo(context, 'Subscription not found for deletion', { subscriptionId: id });
+        logger.logInfo(context, '[DEBUG] Subscription not found for deletion', { 
+          subscriptionId: id,
+          timestamp: new Date().toISOString()
+        });
         return {
           alreadyRemoved: true,
           message: 'Subscription not found'
@@ -495,12 +580,13 @@ async function deleteSubscription(id, options = {}) {
       
       // Verify ownership if userId is provided and force is not true
       if (userId && !force && subscription.user_id !== userId) {
-        logger.logInfo(context, 'Subscription existence and ownership check', {
+        logger.logInfo(context, '[DEBUG] Permission check failed', {
           subscriptionId: id,
           exists: true,
           ownershipVerified: false,
           ownerId: subscription.user_id,
-          requesterId: userId
+          requesterId: userId,
+          timestamp: new Date().toISOString()
         });
         
         throw new AppError(
@@ -510,30 +596,34 @@ async function deleteSubscription(id, options = {}) {
         );
       }
       
-      logger.logInfo(context, 'Subscription existence and ownership check', {
+      logger.logInfo(context, '[DEBUG] Permission check passed', {
         subscriptionId: id,
         exists: true,
         ownershipVerified: true,
-        ownerId: subscription.user_id
+        ownerId: subscription.user_id,
+        timestamp: new Date().toISOString()
       });
       
       // Delete related processing records 
       try {
         const processingResult = await client.query(
-          'DELETE FROM subscription_processing WHERE subscription_id = $1',
+          'DELETE FROM subscription_processing WHERE subscription_id = $1 RETURNING id',
           [id]
         );
         
-        logger.logInfo(context, 'Deleted related processing records', { 
+        logger.logInfo(context, '[DEBUG] Deleted related processing records', { 
           subscriptionId: id,
-          recordsDeleted: processingResult.rowCount 
+          recordsDeleted: processingResult.rowCount,
+          idsDeleted: processingResult.rows.map(row => row.id),
+          timestamp: new Date().toISOString()
         });
       } catch (processingError) {
         // Log but continue
-        logger.error('Error deleting processing records', {
+        logger.error(context, '[DEBUG] Error deleting processing records', {
           error: processingError.message,
           stack: processingError.stack,
-          subscriptionId: id
+          subscriptionId: id,
+          timestamp: new Date().toISOString()
         });
       }
       
@@ -543,39 +633,64 @@ async function deleteSubscription(id, options = {}) {
         let notificationResult;
         try {
           notificationResult = await client.query(
-            'DELETE FROM notifications WHERE subscription_id = $1',
+            'DELETE FROM notifications WHERE subscription_id = $1 RETURNING id',
             [id]
           );
+          
+          logger.logInfo(context, '[DEBUG] Deleted related notifications (direct column)', { 
+            subscriptionId: id,
+            recordsDeleted: notificationResult.rowCount,
+            idsDeleted: notificationResult.rows.map(row => row.id),
+            timestamp: new Date().toISOString()
+          });
         } catch (e) {
           // Try JSONB structure
+          logger.logInfo(context, '[DEBUG] Direct column deletion failed, trying JSONB path', {
+            subscriptionId: id,
+            error: e.message,
+            timestamp: new Date().toISOString()
+          });
+          
           notificationResult = await client.query(
-            "DELETE FROM notifications WHERE data->>'subscription_id' = $1",
+            "DELETE FROM notifications WHERE data->>'subscription_id' = $1 RETURNING id",
             [id]
           );
+          
+          logger.logInfo(context, '[DEBUG] Deleted related notifications (JSONB)', { 
+            subscriptionId: id,
+            recordsDeleted: notificationResult.rowCount,
+            idsDeleted: notificationResult.rows.map(row => row.id),
+            timestamp: new Date().toISOString()
+          });
         }
-        
-        logger.logInfo(context, 'Deleted related notifications', { 
-          subscriptionId: id,
-          recordsDeleted: notificationResult?.rowCount || 0 
-        });
       } catch (notificationError) {
         // Log but continue
-        logger.error('Error deleting related notifications', {
+        logger.error(context, '[DEBUG] Error deleting related notifications', {
           error: notificationError.message,
           stack: notificationError.stack,
-          subscriptionId: id
+          subscriptionId: id,
+          timestamp: new Date().toISOString()
         });
       }
       
       // Delete the subscription itself
+      logger.logInfo(context, '[DEBUG] About to execute main subscription DELETE', {
+        subscriptionId: id,
+        sql: 'DELETE FROM subscriptions WHERE id = $1 RETURNING id, user_id, name',
+        params: [id],
+        timestamp: new Date().toISOString()
+      });
+      
       const deleteResult = await client.query(
-        'DELETE FROM subscriptions WHERE id = $1 RETURNING id',
+        'DELETE FROM subscriptions WHERE id = $1 RETURNING id, user_id, name',
         [id]
       );
       
-      logger.logInfo(context, 'Subscription deleted successfully', { 
+      logger.logInfo(context, '[DEBUG] Subscription deletion query results', { 
         subscriptionId: id,
-        rowsAffected: deleteResult.rowCount
+        rowCount: deleteResult.rowCount,
+        deletedRecords: deleteResult.rows,
+        timestamp: new Date().toISOString()
       });
       
       // Final verification that the subscription no longer exists
@@ -584,23 +699,85 @@ async function deleteSubscription(id, options = {}) {
         [id]
       );
       
-      logger.logInfo(context, 'Deletion verification', {
+      logger.logInfo(context, '[DEBUG] Deletion verification', {
         subscriptionId: id,
-        stillExists: verifyResult.rowCount > 0
+        stillExists: verifyResult.rowCount > 0,
+        verifyRowCount: verifyResult.rowCount,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Verify there are no RLS policies or triggers that could be preventing deletion
+      try {
+        const rlsCheck = await client.query(`
+          SELECT tablename, rowsecurity FROM pg_tables WHERE tablename = 'subscriptions'
+        `);
+        
+        logger.logInfo(context, '[DEBUG] RLS settings for subscriptions table', {
+          subscriptionId: id,
+          rlsInfo: rlsCheck.rows[0],
+          timestamp: new Date().toISOString()
+        });
+        
+        // Check triggers
+        const triggerCheck = await client.query(`
+          SELECT tgname, tgenabled FROM pg_trigger 
+          JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
+          WHERE relname = 'subscriptions'
+        `);
+        
+        logger.logInfo(context, '[DEBUG] Triggers on subscriptions table', {
+          subscriptionId: id,
+          triggers: triggerCheck.rows,
+          timestamp: new Date().toISOString()
+        });
+      } catch (metaErr) {
+        logger.logInfo(context, '[DEBUG] Error checking table metadata', {
+          subscriptionId: id,
+          error: metaErr.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Check if the transaction is still active
+      try {
+        const txnCheckAfter = await client.query('SELECT pg_current_xact_id_if_assigned() as txn_id');
+        logger.logInfo(context, '[DEBUG] Transaction state before commit', {
+          subscriptionId: id,
+          txn_id: txnCheckAfter.rows[0]?.txn_id || 'No transaction ID assigned',
+          timestamp: new Date().toISOString()
+        });
+      } catch (txnErr) {
+        logger.logInfo(context, '[DEBUG] Failed to get transaction ID before commit', {
+          subscriptionId: id,
+          error: txnErr.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // This is the last step in the transaction before it commits
+      logger.logInfo(context, '[DEBUG] About to return from transaction callback', {
+        subscriptionId: id,
+        timestamp: new Date().toISOString()
       });
       
       return {
         deleted: true,
         id: id,
-        rowCount: deleteResult.rowCount
+        rowCount: deleteResult.rowCount,
+        timestamp: new Date().toISOString()
       };
+    }, { 
+      isolationLevel: 'SERIALIZABLE', // Use highest isolation level
+      logger: logger,
+      context: context
     });
   } catch (error) {
-    logger.logInfo(context, 'Error in deleteSubscription transaction', {
+    logger.logInfo(context, '[DEBUG] Error in deleteSubscription transaction', {
       error: error.message,
       stack: error.stack,
       subscriptionId: id,
-      userId
+      userId,
+      timestamp: new Date().toISOString()
     });
     
     if (error instanceof AppError) {
@@ -612,6 +789,32 @@ async function deleteSubscription(id, options = {}) {
       `Error deleting subscription: ${error.message}`,
       500
     );
+  } finally {
+    // Add additional verification outside the transaction
+    try {
+      logger.logInfo(context, '[DEBUG] Final verification after transaction', {
+        subscriptionId: id,
+        timestamp: new Date().toISOString()
+      });
+      
+      const finalCheck = await query(
+        'SELECT id, user_id FROM subscriptions WHERE id = $1',
+        [id]
+      );
+      
+      logger.logInfo(context, '[DEBUG] Subscription state after transaction', {
+        subscriptionId: id,
+        stillExists: finalCheck.rowCount > 0,
+        rowDetails: finalCheck.rows[0],
+        timestamp: new Date().toISOString()
+      });
+    } catch (finalErr) {
+      logger.logInfo(context, '[DEBUG] Error in final verification', {
+        subscriptionId: id,
+        error: finalErr.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 }
 
