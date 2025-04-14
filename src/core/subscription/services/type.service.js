@@ -176,7 +176,7 @@ class TypeService {
   
   // Create database tables for subscription types if they don't exist
   async _ensureTypesTableExists(context) {
-    logRequest(context, 'Ensuring subscription_types table exists');
+    logRequest(context, 'Checking if subscription_types table exists');
     
     try {
       // Check if subscription_types table exists
@@ -190,87 +190,51 @@ class TypeService {
       const tableExists = checkTableExists.rows[0].exists;
       
       if (!tableExists) {
-        logRequest(context, 'Creating subscription_types table');
-        
-        // Create the table
-        await query(`
-          CREATE TABLE IF NOT EXISTS subscription_types (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name VARCHAR(100) NOT NULL,
-            description TEXT,
-            icon VARCHAR(50),
-            logo_url VARCHAR(255),
-            is_system BOOLEAN DEFAULT FALSE,
-            created_by UUID,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            display_name VARCHAR(100)
+        logRequest(context, 'Warning: subscription_types table does not exist', {
+          severity: 'warning'
+        });
+        return false;
+      }
+      
+      // Check if display_name column exists
+      try {
+        const checkColumnExists = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = 'subscription_types' AND column_name = 'display_name'
           );
         `);
         
-        // Create index on name
-        await query(`
-          CREATE INDEX IF NOT EXISTS idx_subscription_types_name 
-          ON subscription_types(name);
+        const columnExists = checkColumnExists.rows[0].exists;
+        
+        if (!columnExists) {
+          logRequest(context, 'Warning: display_name column does not exist in subscription_types table', {
+            severity: 'warning'
+          });
+        }
+        
+        // Check if logo_url column exists
+        const checkLogoColumnExists = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = 'subscription_types' AND column_name = 'logo_url'
+          );
         `);
         
-        // Insert default types
-        for (const type of this.defaultTypes) {
-          await query(`
-            INSERT INTO subscription_types (
-              id, name, description, icon, logo_url, is_system, created_at, updated_at, display_name
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ON CONFLICT (id) DO NOTHING;
-          `, [
-            type.id, 
-            type.name, 
-            type.description, 
-            type.icon,
-            type.logo_url, 
-            type.isSystem || true, 
-            new Date(), 
-            new Date(),
-            type.name
-          ]);
-        }
+        const logoColumnExists = checkLogoColumnExists.rows[0].exists;
         
-        logRequest(context, 'Subscription types table created and populated with defaults');
-      } else {
-        // Check if display_name column exists
-        try {
-          const checkColumnExists = await query(`
-            SELECT EXISTS (
-              SELECT FROM information_schema.columns 
-              WHERE table_name = 'subscription_types' AND column_name = 'display_name'
-            );
-          `);
-          
-          const columnExists = checkColumnExists.rows[0].exists;
-          
-          if (!columnExists) {
-            // Add display_name column
-            await query(`
-              ALTER TABLE subscription_types 
-              ADD COLUMN display_name VARCHAR(100);
-            `);
-            
-            // Update display_name based on name
-            await query(`
-              UPDATE subscription_types
-              SET display_name = name
-              WHERE display_name IS NULL;
-            `);
-            
-            logRequest(context, 'Added display_name column to subscription_types table');
-          }
-        } catch (columnError) {
-          logError(context, columnError, 'Error checking/adding display_name column');
+        if (!logoColumnExists) {
+          logRequest(context, 'Warning: logo_url column does not exist in subscription_types table', {
+            severity: 'warning'
+          });
         }
+      } catch (columnError) {
+        logError(context, columnError, 'Error checking columns in subscription_types table');
       }
       
-      return true;
+      return tableExists;
     } catch (error) {
-      logError(context, error, 'Error ensuring subscription_types table exists');
+      logError(context, error, 'Error checking if subscription_types table exists');
       return false;
     }
   }

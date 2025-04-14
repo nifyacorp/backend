@@ -2,7 +2,6 @@ import logger from '../../../shared/logger.js';
 import subscriptionRepository from '../repository/core-subscription-repository.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { SUBSCRIPTION_ERRORS } from '../types/subscription.types.js';
-import { publishEvent } from '../../../infrastructure/pubsub/client.js';
 
 /**
  * Unified subscription service that will be the single source of truth
@@ -54,26 +53,9 @@ async function createSubscription(data, context = {}) {
     // Create the subscription
     const subscription = await subscriptionRepository.createSubscription(data);
     
-    // Publish event that subscription was created
-    try {
-      await publishEvent('subscription.created', {
-        subscriptionId: subscription.id,
-        userId: data.userId,
-        type: subscription.type,
-        name: subscription.name
-      });
-    } catch (eventError) {
-      // Log but don't fail the operation
-      logger.error('Failed to publish subscription created event', {
-        error: eventError.message,
-        stack: eventError.stack,
-        subscriptionId: subscription.id
-      });
-    }
-    
     return subscription;
   } catch (error) {
-    logger.error('Error creating subscription', {
+    logger.logInfo(context, 'Error creating subscription', {
       error: error.message,
       stack: error.stack,
       data
@@ -122,7 +104,7 @@ async function getSubscriptionById(userId, subscriptionId, context = {}) {
     
     return subscription;
   } catch (error) {
-    logger.error('Error getting subscription by ID', {
+    logger.logInfo(context, 'Error getting subscription by ID', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -163,7 +145,7 @@ async function getUserSubscriptions(userId, options = {}, context = {}) {
     const result = await subscriptionRepository.getUserSubscriptions(userId, options);
     return result;
   } catch (error) {
-    logger.error('Error getting user subscriptions', {
+    logger.logInfo(context, 'Error getting user subscriptions', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -205,25 +187,9 @@ async function updateSubscription(userId, subscriptionId, data, context = {}) {
       { userId, context }
     );
     
-    // Publish event that subscription was updated
-    try {
-      await publishEvent('subscription.updated', {
-        subscriptionId,
-        userId,
-        changes: Object.keys(data)
-      });
-    } catch (eventError) {
-      // Log but don't fail the operation
-      logger.error('Failed to publish subscription updated event', {
-        error: eventError.message,
-        stack: eventError.stack,
-        subscriptionId
-      });
-    }
-    
     return updatedSubscription;
   } catch (error) {
-    logger.error('Error updating subscription', {
+    logger.logInfo(context, 'Error updating subscription', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -266,24 +232,9 @@ async function deleteSubscription(userId, subscriptionId, context = {}) {
       { userId, context }
     );
     
-    // Publish event that subscription was deleted
-    try {
-      await publishEvent('subscription.deleted', {
-        subscriptionId,
-        userId
-      });
-    } catch (eventError) {
-      // Log but don't fail the operation
-      logger.error('Failed to publish subscription deleted event', {
-        error: eventError.message,
-        stack: eventError.stack,
-        subscriptionId
-      });
-    }
-    
     return result;
   } catch (error) {
-    logger.error('Error deleting subscription', {
+    logger.logInfo(context, 'Error deleting subscription', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -317,7 +268,7 @@ async function getSubscriptionStats(userId, context = {}) {
   try {
     return await subscriptionRepository.getSubscriptionStats(userId);
   } catch (error) {
-    logger.error('Error getting subscription stats', {
+    logger.logInfo(context, 'Error getting subscription stats', {
       error: error.message,
       stack: error.stack,
       userId
@@ -356,25 +307,9 @@ async function toggleSubscriptionStatus(userId, subscriptionId, active, context 
       { userId, context }
     );
     
-    // Publish event that subscription status was changed
-    try {
-      await publishEvent('subscription.status_changed', {
-        subscriptionId,
-        userId,
-        active
-      });
-    } catch (eventError) {
-      // Log but don't fail the operation
-      logger.error('Failed to publish subscription status changed event', {
-        error: eventError.message,
-        stack: eventError.stack,
-        subscriptionId
-      });
-    }
-    
     return updatedSubscription;
   } catch (error) {
-    logger.error('Error toggling subscription status', {
+    logger.logInfo(context, 'Error toggling subscription status', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -421,25 +356,9 @@ async function shareSubscription(userId, subscriptionId, targetEmail, message, c
       message
     );
     
-    // Publish event that subscription was shared
-    try {
-      await publishEvent('subscription.shared', {
-        subscriptionId,
-        ownerUserId: userId,
-        targetEmail
-      });
-    } catch (eventError) {
-      // Log but don't fail the operation
-      logger.error('Failed to publish subscription shared event', {
-        error: eventError.message,
-        stack: eventError.stack,
-        subscriptionId
-      });
-    }
-    
     return result;
   } catch (error) {
-    logger.error('Error sharing subscription', {
+    logger.logInfo(context, 'Error sharing subscription', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -486,7 +405,7 @@ async function removeSubscriptionSharing(userId, subscriptionId, targetEmail, co
     
     return result;
   } catch (error) {
-    logger.error('Error removing subscription sharing', {
+    logger.logInfo(context, 'Error removing subscription sharing', {
       error: error.message,
       stack: error.stack,
       userId,
@@ -532,7 +451,7 @@ async function processSubscription(userId, subscriptionId, context = {}) {
     
     return result;
   } catch (error) {
-    logger.error('Error processing subscription', {
+    logger.logInfo(context, 'Error processing subscription', {
       error: error.message,
       stack: error.stack,
       userId,
