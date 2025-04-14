@@ -16,6 +16,7 @@ const subscriptionTypeSchema = {
     description: { type: 'string' },
     icon: { type: 'string', maxLength: 50 },
     logo: { type: 'string', format: 'uri', nullable: true },
+    logo_url: { type: 'string', format: 'uri', nullable: true },
     isSystem: { type: 'boolean' },
     createdBy: { type: 'string', format: 'uuid', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },

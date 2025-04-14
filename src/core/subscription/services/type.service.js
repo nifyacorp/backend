@@ -17,6 +17,7 @@ class TypeService {
         name: 'BOE',
         description: 'Boletín Oficial del Estado',
         icon: 'FileText',
+        logo_url: 'https://storage.googleapis.com/nifya-assets/WebPage/Subs_types_logo/LOGO-BOE-min.png',
         isSystem: true,
         createdBy: null,
         createdAt: new Date().toISOString(),
@@ -27,6 +28,7 @@ class TypeService {
         name: 'DOGA',
         description: 'Diario Oficial de Galicia',
         icon: 'FileText',
+        logo_url: 'https://storage.googleapis.com/nifya-assets/WebPage/Subs_types_logo/doga.jpg',
         isSystem: true,
         createdBy: null,
         createdAt: new Date().toISOString(),
@@ -37,6 +39,7 @@ class TypeService {
         name: 'Inmobiliaria',
         description: 'Búsquedas inmobiliarias',
         icon: 'Home',
+        logo_url: 'https://storage.googleapis.com/nifya-assets/WebPage/Subs_types_logo/house-key.png',
         isSystem: true,
         createdBy: null,
         createdAt: new Date().toISOString(),
@@ -60,6 +63,7 @@ class TypeService {
             name,
             description,
             icon,
+            logo_url,
             is_system as "isSystem",
             created_by as "createdBy",
             created_at as "createdAt",
@@ -76,7 +80,16 @@ class TypeService {
             count: result.rows.length
           });
           
-          return result.rows;
+          // Map fields for frontend compatibility
+          const mappedTypes = result.rows.map(type => ({
+            ...type,
+            // Ensure logo_url is available
+            logo_url: type.logo_url || null,
+            // Ensure display_name is used properly
+            display_name: type.displayName || type.name
+          }));
+          
+          return mappedTypes;
         }
         
         // If no results from database, try to create default types
@@ -86,14 +99,15 @@ class TypeService {
         for (const defaultType of this.defaultTypes) {
           try {
             await query(
-              `INSERT INTO subscription_types (id, name, description, icon, is_system, display_name)
-               VALUES ($1, $2, $3, $4, $5, $6)
+              `INSERT INTO subscription_types (id, name, description, icon, logo_url, is_system, display_name)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
                ON CONFLICT (id) DO NOTHING`,
               [
                 defaultType.id, 
                 defaultType.name, 
                 defaultType.description, 
-                defaultType.icon, 
+                defaultType.icon,
+                defaultType.logo_url, 
                 defaultType.isSystem || true,
                 defaultType.name
               ]
@@ -111,6 +125,7 @@ class TypeService {
             name,
             description,
             icon,
+            logo_url,
             is_system as "isSystem",
             created_by as "createdBy",
             created_at as "createdAt",
@@ -126,7 +141,16 @@ class TypeService {
             count: retryResult.rows.length
           });
           
-          return retryResult.rows;
+          // Map fields for frontend compatibility
+          const mappedTypes = retryResult.rows.map(type => ({
+            ...type,
+            // Ensure logo_url is available
+            logo_url: type.logo_url || null,
+            // Ensure display_name is used properly
+            display_name: type.displayName || type.name
+          }));
+          
+          return mappedTypes;
         }
       } catch (dbError) {
         // Log the database error but don't fail - we'll use default types
@@ -175,6 +199,7 @@ class TypeService {
             name VARCHAR(100) NOT NULL,
             description TEXT,
             icon VARCHAR(50),
+            logo_url VARCHAR(255),
             is_system BOOLEAN DEFAULT FALSE,
             created_by UUID,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -193,14 +218,15 @@ class TypeService {
         for (const type of this.defaultTypes) {
           await query(`
             INSERT INTO subscription_types (
-              id, name, description, icon, is_system, created_at, updated_at, display_name
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+              id, name, description, icon, logo_url, is_system, created_at, updated_at, display_name
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (id) DO NOTHING;
           `, [
             type.id, 
             type.name, 
             type.description, 
-            type.icon, 
+            type.icon,
+            type.logo_url, 
             type.isSystem || true, 
             new Date(), 
             new Date(),
@@ -267,18 +293,20 @@ class TypeService {
           name,
           description,
           icon,
+          logo_url,
           created_by
-        ) VALUES ($1, $2, $3, $4)
+        ) VALUES ($1, $2, $3, $4, $5)
         RETURNING 
           id,
           name,
           description,
           icon,
+          logo_url,
           is_system as "isSystem",
           created_by as "createdBy",
           created_at as "createdAt",
           updated_at as "updatedAt"`,
-        [data.name, data.description, data.icon, userId]
+        [data.name, data.description, data.icon, data.logo_url, userId]
       );
 
       return result.rows[0];
