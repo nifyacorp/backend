@@ -143,6 +143,15 @@ async function getUserSubscriptions(userId, options = {}, context = {}) {
   
   try {
     const result = await subscriptionRepository.getUserSubscriptions(userId, options);
+    
+    // Log the raw results for debugging
+    logger.logInfo(context, 'Subscription retrieval result', {
+      userId,
+      count: result.subscriptions.length,
+      ids: result.subscriptions.map(s => s.id),
+      total: result.pagination.total
+    });
+    
     return result;
   } catch (error) {
     logger.logInfo(context, 'Error getting user subscriptions', {

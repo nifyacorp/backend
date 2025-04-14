@@ -180,6 +180,9 @@ async function findById(id, options = {}) {
  * @returns {Promise<Object>} - Object with subscriptions array and pagination info
  */
 async function getUserSubscriptions(userId, options = {}) {
+  const context = options.context || {};
+  logger.logInfo(context, 'Repository: Getting user subscriptions', { userId, options });
+  
   try {
     // Normalize options
     const {
@@ -250,8 +253,18 @@ async function getUserSubscriptions(userId, options = {}) {
     text += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
     
+    // Log the query for debugging
+    logger.logInfo(context, 'Repository: Executing subscription query', {
+      query: text.replace(/\s+/g, ' ').trim(),
+      params: JSON.stringify(params)
+    });
+    
     // Execute the query
     const result = await query(text, params);
+    logger.logInfo(context, 'Repository: Query results', {
+      rowCount: result.rowCount,
+      sampleIds: result.rows.slice(0, 5).map(row => row.id)
+    });
     
     // Get total count for pagination
     const countText = `
@@ -273,8 +286,15 @@ async function getUserSubscriptions(userId, options = {}) {
     if (type) countParams.push(type);
     if (search) countParams.push(`%${search}%`);
     
+    // Log the count query
+    logger.logInfo(context, 'Repository: Executing count query', {
+      query: countText.replace(/\s+/g, ' ').trim(),
+      params: JSON.stringify(countParams)
+    });
+    
     const countResult = await query(countText, countParams);
     const total = parseInt(countResult.rows[0].total);
+    logger.logInfo(context, 'Repository: Count result', { total });
     
     // Format subscriptions
     const subscriptions = result.rows.map(formatSubscription);
@@ -289,7 +309,7 @@ async function getUserSubscriptions(userId, options = {}) {
       }
     };
   } catch (error) {
-    logger.error('Error getting user subscriptions', { 
+    logger.error(context, 'Error in getUserSubscriptions', { 
       error: error.message, 
       stack: error.stack, 
       userId, 
@@ -453,255 +473,144 @@ async function updateSubscription(id, data, options = {}) {
 async function deleteSubscription(id, options = {}) {
   const { userId, force = false, context } = options;
   
+  logger.logInfo(context, 'Starting subscription deletion process', { subscriptionId: id, userId });
+  
   try {
     return await withTransaction(userId, async (client) => {
       // Step 1: Check if subscription exists and user has permission
-      let subscriptionExists = false;
-      let ownershipVerified = false;
+      const existsCheck = await client.query(
+        'SELECT id, user_id FROM subscriptions WHERE id = $1',
+        [id]
+      );
       
-      try {
-        // First check with user constraint (if userId provided and force is false)
-        let ownershipCheckQuery;
-        let ownershipParams;
-        
-        if (userId && !force) {
-          ownershipCheckQuery = 'SELECT id, user_id FROM subscriptions WHERE id = $1 AND user_id = $2';
-          ownershipParams = [id, userId];
-        } else {
-          ownershipCheckQuery = 'SELECT id, user_id FROM subscriptions WHERE id = $1';
-          ownershipParams = [id];
-        }
-        
-        const checkResult = await client.query(ownershipCheckQuery, ownershipParams);
-        
-        if (checkResult.rows.length > 0) {
-          subscriptionExists = true;
-          
-          if (!userId) {
-            // No user check required
-            ownershipVerified = true;
-          } else if (userId && !force) {
-            // User ownership verified by the SQL where clause
-            ownershipVerified = true;
-          } else {
-            // Force mode, check if user is subscription owner or admin
-            const subscription = checkResult.rows[0];
-            
-            if (subscription.user_id === userId) {
-              ownershipVerified = true;
-            } else {
-              // Check if user is admin
-              const adminCheck = await client.query(
-                'SELECT role FROM users WHERE id = $1 AND role = $2',
-                [userId, 'admin']
-              );
-              
-              ownershipVerified = adminCheck.rows.length > 0;
-            }
-          }
-          
-          logger.logInfo({}, 'Subscription existence and ownership check', { 
-            subscriptionId: id, 
-            exists: subscriptionExists,
-            ownershipVerified,
-            ownerId: checkResult.rows[0].user_id
-          });
-        } else {
-          logger.logInfo({}, 'Subscription not found', { subscriptionId: id });
-        }
-      } catch (checkError) {
-        logger.error('Error checking subscription existence', {
-          error: checkError.message,
-          stack: checkError.stack,
-          subscriptionId: id
-        });
-        
-        throw new AppError(
-          'DATABASE_ERROR',
-          `Error verifying subscription: ${checkError.message}`,
-          500,
-          { originalError: checkError.message }
-        );
-      }
-      
-      // Handle non-existent subscription
-      if (!subscriptionExists) {
-        return { 
-          message: 'Subscription already removed',
-          id,
-          alreadyRemoved: true
+      if (existsCheck.rowCount === 0) {
+        logger.logInfo(context, 'Subscription not found for deletion', { subscriptionId: id });
+        return {
+          alreadyRemoved: true,
+          message: 'Subscription not found'
         };
       }
       
-      // Handle permission error
-      if (!ownershipVerified && !force) {
+      const subscription = existsCheck.rows[0];
+      
+      // Verify ownership if userId is provided and force is not true
+      if (userId && !force && subscription.user_id !== userId) {
+        logger.logInfo(context, 'Subscription existence and ownership check', {
+          subscriptionId: id,
+          exists: true,
+          ownershipVerified: false,
+          ownerId: subscription.user_id,
+          requesterId: userId
+        });
+        
         throw new AppError(
           'PERMISSION_ERROR',
           'You do not have permission to delete this subscription',
-          403,
-          { subscriptionId: id }
+          403
         );
       }
       
-      // Step 2: Delete the subscription and related records
+      logger.logInfo(context, 'Subscription existence and ownership check', {
+        subscriptionId: id,
+        exists: true,
+        ownershipVerified: true,
+        ownerId: subscription.user_id
+      });
+      
+      // Delete related processing records 
       try {
-        // First, delete subscription sharing records if the table exists
-        try {
-          // Check if subscription_shares table exists
-          const tableCheckResult = await client.query(`
-            SELECT EXISTS (
-              SELECT FROM information_schema.tables 
-              WHERE table_schema = 'public' 
-              AND table_name = 'subscription_shares'
-            ) as exists
-          `);
-          
-          const sharingTableExists = tableCheckResult.rows[0].exists;
-          
-          if (sharingTableExists) {
-            // Delete sharing records
-            await client.query(
-              'DELETE FROM subscription_shares WHERE subscription_id = $1',
-              [id]
-            );
-            
-            logger.logInfo({}, 'Deleted related sharing records', { subscriptionId: id });
-          }
-        } catch (sharingError) {
-          // Log but continue - don't fail the whole operation
-          logger.error('Error deleting sharing records', {
-            error: sharingError.message,
-            stack: sharingError.stack,
-            subscriptionId: id
-          });
-        }
-        
-        // Delete related processing records 
-        try {
-          await client.query(
-            'DELETE FROM subscription_processing WHERE subscription_id = $1',
-            [id]
-          );
-          
-          logger.logInfo({}, 'Deleted related processing records', { subscriptionId: id });
-        } catch (processingError) {
-          // Log but continue
-          logger.error('Error deleting processing records', {
-            error: processingError.message,
-            stack: processingError.stack,
-            subscriptionId: id
-          });
-        }
-        
-        // Delete related notifications
-        try {
-          // Try different notification table structures
-          try {
-            await client.query(
-              'DELETE FROM notifications WHERE subscription_id = $1',
-              [id]
-            );
-          } catch (e) {
-            // Try JSONB structure
-            await client.query(
-              "DELETE FROM notifications WHERE data->>'subscription_id' = $1",
-              [id]
-            );
-          }
-          
-          logger.logInfo({}, 'Deleted related notifications', { subscriptionId: id });
-        } catch (notificationError) {
-          // Log but continue
-          logger.error('Error deleting related notifications', {
-            error: notificationError.message,
-            stack: notificationError.stack,
-            subscriptionId: id
-          });
-        }
-        
-        // Delete the subscription itself
-        const deleteResult = await client.query(
-          'DELETE FROM subscriptions WHERE id = $1 RETURNING id',
+        const processingResult = await client.query(
+          'DELETE FROM subscription_processing WHERE subscription_id = $1',
           [id]
         );
         
-        // Verify deletion was successful
-        if (deleteResult.rowCount === 0) {
-          // Double-check if the subscription still exists
-          const verifyResult = await client.query(
-            'SELECT EXISTS(SELECT 1 FROM subscriptions WHERE id = $1) as exists',
-            [id]
-          );
-          
-          if (verifyResult.rows[0].exists) {
-            logger.error('Deletion query did not affect any rows but subscription still exists', {
-              subscriptionId: id
-            });
-            
-            // Try one more time with a direct DELETE
-            const forcedDeleteResult = await client.query(
-              'DELETE FROM subscriptions WHERE id = $1',
-              [id]
-            );
-            
-            if (forcedDeleteResult.rowCount === 0) {
-              throw new Error('Failed to delete subscription after multiple attempts');
-            } else {
-              logger.logInfo({}, 'Subscription deleted on second attempt', { 
-                subscriptionId: id,
-                rowsAffected: forcedDeleteResult.rowCount
-              });
-            }
-          } else {
-            logger.logInfo({}, 'No rows affected by deletion, subscription already gone', {
-              subscriptionId: id
-            });
-          }
-        } else {
-          logger.logInfo({}, 'Subscription deleted successfully', { 
-            subscriptionId: id,
-            rowsAffected: deleteResult.rowCount
-          });
-        }
-        
-        return { 
-          message: 'Subscription deleted successfully',
-          id,
-          alreadyRemoved: false
-        };
-      } catch (deleteError) {
-        logger.error('Error during subscription deletion', {
-          error: deleteError.message,
-          stack: deleteError.stack,
+        logger.logInfo(context, 'Deleted related processing records', { 
+          subscriptionId: id,
+          recordsDeleted: processingResult.rowCount 
+        });
+      } catch (processingError) {
+        // Log but continue
+        logger.error('Error deleting processing records', {
+          error: processingError.message,
+          stack: processingError.stack,
           subscriptionId: id
         });
-        
-        throw new AppError(
-          'DATABASE_ERROR',
-          `Error deleting subscription: ${deleteError.message}`,
-          500,
-          { originalError: deleteError.message }
-        );
       }
-    }, { isolationLevel: 'SERIALIZABLE' });
+      
+      // Delete related notifications
+      try {
+        // Try different notification table structures
+        let notificationResult;
+        try {
+          notificationResult = await client.query(
+            'DELETE FROM notifications WHERE subscription_id = $1',
+            [id]
+          );
+        } catch (e) {
+          // Try JSONB structure
+          notificationResult = await client.query(
+            "DELETE FROM notifications WHERE data->>'subscription_id' = $1",
+            [id]
+          );
+        }
+        
+        logger.logInfo(context, 'Deleted related notifications', { 
+          subscriptionId: id,
+          recordsDeleted: notificationResult?.rowCount || 0 
+        });
+      } catch (notificationError) {
+        // Log but continue
+        logger.error('Error deleting related notifications', {
+          error: notificationError.message,
+          stack: notificationError.stack,
+          subscriptionId: id
+        });
+      }
+      
+      // Delete the subscription itself
+      const deleteResult = await client.query(
+        'DELETE FROM subscriptions WHERE id = $1 RETURNING id',
+        [id]
+      );
+      
+      logger.logInfo(context, 'Subscription deleted successfully', { 
+        subscriptionId: id,
+        rowsAffected: deleteResult.rowCount
+      });
+      
+      // Final verification that the subscription no longer exists
+      const verifyResult = await client.query(
+        'SELECT id FROM subscriptions WHERE id = $1',
+        [id]
+      );
+      
+      logger.logInfo(context, 'Deletion verification', {
+        subscriptionId: id,
+        stillExists: verifyResult.rowCount > 0
+      });
+      
+      return {
+        deleted: true,
+        id: id,
+        rowCount: deleteResult.rowCount
+      };
+    });
   } catch (error) {
-    logger.error('Transaction error during subscription deletion', {
+    logger.logInfo(context, 'Error in deleteSubscription transaction', {
       error: error.message,
       stack: error.stack,
-      subscriptionId: id
+      subscriptionId: id,
+      userId
     });
     
-    // Special case for HTTP errors - rethrow them
     if (error instanceof AppError) {
       throw error;
     }
     
-    // For other errors, wrap in AppError
     throw new AppError(
-      SUBSCRIPTION_ERRORS.DELETE_ERROR.code,
-      `Failed to delete subscription: ${error.message}`,
-      500,
-      { originalError: error.message }
+      'DATABASE_ERROR',
+      `Error deleting subscription: ${error.message}`,
+      500
     );
   }
 }
