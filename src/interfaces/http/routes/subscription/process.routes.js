@@ -87,13 +87,13 @@ export async function registerProcessRoutes(fastify, options) {
       try {
         const processingResult = await query(
           `INSERT INTO subscription_processing
-           (subscription_id, status, requested_by, metadata)
-           VALUES ($1, 'pending', $2, $3)
+           (subscription_id, status, metadata)
+           VALUES ($1, 'pending', $2)
            RETURNING id`,
           [
             subscriptionId,
-            request.user.id,
             JSON.stringify({
+              requested_by: request.user.id,
               requested_at: new Date().toISOString(),
               request_id: requestContext.requestId,
               user_agent: request.headers['user-agent']
