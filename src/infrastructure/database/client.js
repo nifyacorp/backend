@@ -70,221 +70,10 @@ pool.on('error', (err) => {
 export async function query(text, params) {
   // Skip actual DB operations in development mode if specified
   if (isLocalDevelopment && process.env.SKIP_DB_VALIDATION === 'true') {
-    logger.debug('DEVELOPMENT MODE: Skipping database query', { 
+    logger.info('DEVELOPMENT MODE: Skipping DB query execution', { 
       sql: sanitizeSqlForLogging(text),
-      params: sanitizeParamsForLogging(params),
-      duration: 0,
-      rowCount: 0
+      params: sanitizeParamsForLogging(params)
     });
-    
-    // Mock subscription type data for getUserSubscriptions
-    if (text.includes('SELECT COUNT(*) as total FROM subscriptions')) {
-      return { 
-        rows: [{ total: 1 }], 
-        rowCount: 1 
-      };
-    }
-    
-    // Mock getUserSubscriptions data
-    if (text.includes('SELECT s.id, s.type_id, s.name, s.description, s.prompts')) {
-      return { 
-        rows: [{
-          id: 'mock-subscription-id',
-          name: 'Mock Subscription',
-          description: 'This is a mock subscription for development',
-          prompts: ['keyword1', 'keyword2'],
-          type: 'boe',
-          typeName: 'BOE',
-          typeIcon: 'FileText',
-          frequency: 'daily',
-          active: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }],
-        rowCount: 1
-      };
-    }
-    
-    // Mock subscription stats
-    if (text.includes('SELECT COUNT(*) as count FROM subscriptions')) {
-      return { 
-        rows: [{ count: 1 }], 
-        rowCount: 1 
-      };
-    }
-    
-    if (text.includes('SELECT frequency, COUNT(*) as count FROM subscriptions')) {
-      return { 
-        rows: [{ frequency: 'daily', count: 1 }], 
-        rowCount: 1 
-      };
-    }
-    
-    if (text.includes('SELECT t.name as source, COUNT(*) as count FROM subscriptions')) {
-      return { 
-        rows: [{ source: 'BOE', count: 1 }], 
-        rowCount: 1 
-      };
-    }
-    
-    // MOCK SUBSCRIPTION TYPES data for type.service.js
-    if (text.includes('FROM subscription_types')) {
-      // For getSubscriptionTypes query
-      if (text.includes('ORDER BY is_system DESC') || text.includes('ORDER BY name ASC')) {
-        return {
-          rows: [
-            {
-              id: 'boe',
-              name: 'BOE',
-              description: 'Boletín Oficial del Estado',
-              icon: 'FileText',
-              isSystem: true,
-              createdBy: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            },
-            {
-              id: 'doga',
-              name: 'DOGA',
-              description: 'Diario Oficial de Galicia',
-              icon: 'FileText',
-              isSystem: true,
-              createdBy: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            },
-            {
-              id: 'real-estate',
-              name: 'Inmobiliaria',
-              description: 'Búsquedas inmobiliarias',
-              icon: 'Home',
-              isSystem: true,
-              createdBy: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }
-          ],
-          rowCount: 3
-        };
-      }
-      
-      // For createSubscriptionType query
-      if (text.includes('INSERT INTO subscription_types')) {
-        return {
-          rows: [{
-            id: 'custom-type-' + Date.now(),
-            name: params[0] || 'Custom Type',
-            description: params[1] || 'Custom subscription type',
-            icon: params[2] || 'Star',
-            isSystem: false,
-            createdBy: params[3] || 'mock-user-id',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }],
-          rowCount: 1
-        };
-      }
-    }
-    
-    // MOCK TEMPLATE data for template.service.js
-    if (text.includes('FROM subscription_templates')) {
-      // For getPublicTemplates query
-      if (text.includes('WHERE t.is_public = true')) {
-        return {
-          rows: [
-            {
-              id: 'boe-general',
-              type: 'boe',
-              name: 'BOE General',
-              description: 'Seguimiento general del Boletín Oficial del Estado',
-              prompts: ['disposición', 'ley', 'real decreto'],
-              frequency: 'daily',
-              icon: 'GanttChart',
-              logo: 'https://www.boe.es/favicon.ico',
-              metadata: { category: 'government', source: 'boe' },
-              isPublic: true,
-              createdBy: null,
-              createdAt: new Date().toISOString()
-            },
-            {
-              id: 'boe-subvenciones',
-              type: 'boe',
-              name: 'Subvenciones BOE',
-              description: 'Alertas de subvenciones y ayudas públicas',
-              prompts: ['subvención', 'ayuda', 'convocatoria'],
-              frequency: 'immediate',
-              icon: 'Coins',
-              logo: 'https://www.boe.es/favicon.ico',
-              metadata: { category: 'government', source: 'boe' },
-              isPublic: true,
-              createdBy: null,
-              createdAt: new Date().toISOString()
-            }
-          ],
-          rowCount: 2
-        };
-      }
-      
-      // For getTemplateById query
-      if (text.includes('WHERE t.id = $1')) {
-        return {
-          rows: [{
-            id: params[0] || 'template-id',
-            type: 'boe',
-            name: 'BOE Template',
-            description: 'Template for BOE subscriptions',
-            prompts: ['keyword1', 'keyword2'],
-            frequency: 'daily',
-            icon: 'FileText',
-            logo: 'https://www.boe.es/favicon.ico',
-            metadata: { category: 'government', source: 'boe' },
-            isPublic: true,
-            createdBy: null,
-            createdAt: new Date().toISOString()
-          }],
-          rowCount: 1
-        };
-      }
-      
-      // For countPublicTemplates query
-      if (text.includes('COUNT(*)') && text.includes('WHERE t.is_public = true')) {
-        return {
-          rows: [{ count: '2' }],
-          rowCount: 1
-        };
-      }
-      
-      // For createTemplate query
-      if (text.includes('INSERT INTO subscription_templates')) {
-        return {
-          rows: [{
-            id: 'custom-template-' + Date.now(),
-            type: params[0] || 'boe',
-            name: params[1] || 'Custom Template',
-            description: params[2] || 'Custom template description',
-            prompts: params[3] || ['keyword1', 'keyword2'],
-            frequency: params[4] || 'daily',
-            icon: params[5] || 'Star',
-            logo: params[6] || null,
-            metadata: params[7] ? JSON.parse(params[7]) : {},
-            isPublic: params[8] || false,
-            createdBy: params[9] || 'mock-user-id',
-            createdAt: new Date().toISOString()
-          }],
-          rowCount: 1
-        };
-      }
-    }
-    
-    // MOCK getSubscriptionTypeId query for template repository
-    if (text.includes('SELECT id FROM subscription_types WHERE name = $1')) {
-      return {
-        rows: [{
-          id: 'boe'
-        }],
-        rowCount: 1
-      };
-    }
     
     return { rows: [], rowCount: 0 };
   }
@@ -292,28 +81,46 @@ export async function query(text, params) {
   const start = Date.now();
   let client;
   
+  logger.logInfo({}, '[DB CLIENT] Attempting query execution', {
+    sql: sanitizeSqlForLogging(text),
+    params: sanitizeParamsForLogging(params),
+    timestamp: new Date().toISOString()
+  });
+  
   try {
     // Get client from pool
+    logger.logInfo({}, '[DB CLIENT] Connecting to pool...', {
+      timestamp: new Date().toISOString()
+    });
     client = await pool.connect();
+    logger.logInfo({}, '[DB CLIENT] Connected to pool successfully', {
+      timestamp: new Date().toISOString()
+    });
     
     // Execute query
+    logger.logInfo({}, '[DB CLIENT] Executing query...', {
+      sql: sanitizeSqlForLogging(text),
+      params: sanitizeParamsForLogging(params),
+      timestamp: new Date().toISOString()
+    });
     const res = await client.query(text, params);
     const duration = Date.now() - start;
     
     // Log query execution with sanitized data
-    logger.debug('Query executed', { 
+    logger.logInfo({}, '[DB CLIENT] Query executed successfully', { 
       sql: sanitizeSqlForLogging(text),
       params: sanitizeParamsForLogging(params),
       duration,
-      rowCount: res.rowCount
+      rowCount: res.rowCount,
+      timestamp: new Date().toISOString()
     });
     
     return res;
   } catch (error) {
     const duration = Date.now() - start;
     
-    // Log error with sanitized data
-    logger.error('Database query error', {
+    // Log error with sanitized data and FULL error object
+    logger.error('[DB CLIENT] Database query error', {
       sql: sanitizeSqlForLogging(text),
       params: sanitizeParamsForLogging(params),
       duration,
@@ -322,8 +129,13 @@ export async function query(text, params) {
         code: error.code,
         detail: error.detail,
         hint: error.hint,
-        position: error.position
-      }
+        position: error.position,
+        stack: error.stack, // Include stack trace
+        errno: error.errno, // System error number
+        syscall: error.syscall // System call that failed
+      },
+      fullErrorObject: error, // Log the full error object if possible
+      timestamp: new Date().toISOString()
     });
     
     throw new AppError(
@@ -338,13 +150,24 @@ export async function query(text, params) {
     );
   } finally {
     if (client) {
+      logger.logInfo({}, '[DB CLIENT] Releasing client...', {
+        timestamp: new Date().toISOString()
+      });
       try {
         client.release();
+        logger.logInfo({}, '[DB CLIENT] Client released successfully', {
+          timestamp: new Date().toISOString()
+        });
       } catch (releaseError) {
-        logger.error('Error releasing database connection', {
-          error: releaseError.message
+        logger.error('[DB CLIENT] Error releasing database connection', {
+          error: releaseError.message,
+          timestamp: new Date().toISOString()
         });
       }
+    } else {
+      logger.logInfo({}, '[DB CLIENT] No client to release.', {
+        timestamp: new Date().toISOString()
+      });
     }
   }
 }
