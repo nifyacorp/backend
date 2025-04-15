@@ -206,14 +206,16 @@ class UserService {
       // Add metadata updates using jsonb_set
       if (metadataPaths.length > 0) {
         let metadataUpdateClause = 'metadata = ';
+        
+        // Build nested jsonb_set calls from inside out
+        let nestedExpression = 'metadata';
         for (let i = 0; i < metadataPaths.length; i++) {
-          // For the first path, set metadata = jsonb_set(metadata, ...)
-          // For subsequent paths, wrap the previous result: jsonb_set( (previous jsonb_set), ...)
-          metadataUpdateClause += `jsonb_set(${i === 0 ? 'metadata' : ''}, ${metadataPaths[i]}, $${paramIndex++}::jsonb, true)`;
-          if (i > 0) metadataUpdateClause += ')'; // Close the parenthesis for nested sets
+          nestedExpression = `jsonb_set(${nestedExpression}, ${metadataPaths[i]}, $${paramIndex}::jsonb, true)`;
           queryParams.push(JSON.stringify(metadataValues[i]));
+          paramIndex++;
         }
-        setClauses.push(metadataUpdateClause);
+        
+        setClauses.push(metadataUpdateClause + nestedExpression);
       }
       
       // Always update the updated_at timestamp
