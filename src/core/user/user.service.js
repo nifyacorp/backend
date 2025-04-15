@@ -154,6 +154,33 @@ class UserService {
     // --- Handle nested notification settings --- 
     if (updates.notification_settings) {
       const ns = updates.notification_settings;
+      
+      // Basic validation
+      if (ns.emailNotifications !== undefined && typeof ns.emailNotifications !== 'boolean') {
+        throw new AppError('INVALID_NOTIFICATION_SETTING', 'emailNotifications must be a boolean', 400);
+      }
+      
+      if (ns.useCustomEmail !== undefined && typeof ns.useCustomEmail !== 'boolean') {
+        throw new AppError('INVALID_NOTIFICATION_SETTING', 'useCustomEmail must be a boolean', 400);
+      }
+      
+      if (ns.notificationEmail !== undefined && ns.notificationEmail !== null && 
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ns.notificationEmail)) {
+        throw new AppError('INVALID_NOTIFICATION_SETTING', 'notificationEmail must be a valid email address', 400);
+      }
+      
+      if (ns.emailFrequency !== undefined && !['daily', 'weekly', 'immediate'].includes(ns.emailFrequency)) {
+        throw new AppError('INVALID_NOTIFICATION_SETTING', 'emailFrequency must be daily, weekly, or immediate', 400);
+      }
+      
+      if (ns.instantNotifications !== undefined && typeof ns.instantNotifications !== 'boolean') {
+        throw new AppError('INVALID_NOTIFICATION_SETTING', 'instantNotifications must be a boolean', 400);
+      }
+      
+      if (ns.digestTime !== undefined && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(ns.digestTime)) {
+        throw new AppError('INVALID_NOTIFICATION_SETTING', 'digestTime must be in format HH:MM', 400);
+      }
+      
       if (ns.emailNotifications !== undefined) {
         metadataPaths.push(`'{notifications,email,enabled}'`);
         metadataValues.push(ns.emailNotifications);
