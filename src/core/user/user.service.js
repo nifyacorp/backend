@@ -4,21 +4,6 @@ import { USER_ERRORS, USER_PREFERENCES } from '../types/user.types.js';
 import { logRequest, logError } from '../../shared/logging/logger.js';
 import { uploadProfilePicture, deleteProfilePicture } from '../../infrastructure/storage/index.js';
 
-// Helper function to build jsonb_set paths
-const buildJsonbSetPath = (key, value) => {
-  switch (key) {
-    case 'bio': return `'{profile,bio}', $${value}`; // value is placeholder index
-    case 'language': return `'{preferences,language}', $${value}`; 
-    case 'theme': return `'{preferences,theme}', $${value}`; 
-    case 'emailNotifications': return `'{notifications,email,enabled}', $${value}`; 
-    case 'notificationEmail': return `'{notifications,email,customEmail}', $${value}`; 
-    case 'useCustomEmail': return `'{notifications,email,useCustomEmail}', $${value}`; 
-    case 'digestTime': return `'{notifications,email,digestTime}', $${value}`; 
-    // Add other metadata fields as needed
-    default: return null; // Ignore unknown keys for metadata update
-  }
-};
-
 class UserService {
   async getUserProfile(userId, context) {
     logRequest(context, 'Fetching user profile', { userId });
@@ -65,13 +50,17 @@ class UserService {
         const defaultMetadata = {
           profile: { bio: "", interests: [] },
           preferences: { language: "es", theme: "light" },
-          notifications: { email: { enabled: true, useCustomEmail: false, customEmail: null, digestTime: "08:00" } },
-          security: { lastPasswordChange: null, lastLogoutAllDevices: null },
-          // Keep legacy fields for potential backward compatibility
-          emailNotifications: true,
-          emailFrequency: "daily",
-          instantNotifications: true,
-          notificationEmail: userData.email
+          notifications: { 
+            email: { 
+              enabled: true, 
+              useCustomEmail: false, 
+              customEmail: null, 
+              digestTime: "08:00",
+              frequency: "daily"
+            },
+            instantNotifications: true
+          },
+          security: { lastPasswordChange: null, lastLogoutAllDevices: null }
         };
 
         // Update the database and use the default for the current response
@@ -97,8 +86,8 @@ class UserService {
           emailNotifications: metadata.notifications?.email?.enabled,
           notificationEmail: metadata.notifications?.email?.customEmail,
           useCustomEmail: metadata.notifications?.email?.useCustomEmail,
-          emailFrequency: metadata.emailFrequency || 'daily', // Use legacy or default
-          instantNotifications: metadata.instantNotifications || false, // Use legacy or default
+          emailFrequency: metadata.notifications?.email?.frequency || 'daily',
+          instantNotifications: metadata.notifications?.instantNotifications || false,
           digestTime: metadata.notifications?.email?.digestTime
         },
         lastLogin: userData.lastLogin,
@@ -181,8 +170,14 @@ class UserService {
         metadataPaths.push(`'{notifications,email,digestTime}'`);
         metadataValues.push(ns.digestTime);
       }
-      // Handle legacy fields if needed, potentially updating the new structure
-      // Example: if (ns.emailFrequency === 'daily') { /* update digestTime? */ }
+      if (ns.emailFrequency !== undefined) {
+        metadataPaths.push(`'{notifications,email,frequency}'`);
+        metadataValues.push(ns.emailFrequency);
+      }
+      if (ns.instantNotifications !== undefined) {
+        metadataPaths.push(`'{notifications,instantNotifications}'`);
+        metadataValues.push(ns.instantNotifications);
+      }
     }
 
     // --- Build and Execute SQL Query --- 
