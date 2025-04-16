@@ -44,10 +44,29 @@ const getUserNotifications = async (request, reply) => {
       subscriptionId
     });
     
+    // More detailed debugging for raw notifications
+    logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Raw notifications received', {
+      count: (result.notifications || []).length,
+      fields: result.notifications && result.notifications.length > 0 
+        ? Object.keys(result.notifications[0] || {}) 
+        : [],
+      firstNotification: result.notifications && result.notifications.length > 0 
+        ? JSON.stringify(result.notifications[0]).substring(0, 100) + '...' 
+        : 'No notifications'
+    });
+    
     // Format result to match frontend expectations
     // Ensure notifications have consistent format
     const formattedNotifications = (result.notifications || []).map(notification => {
-      return {
+      // Validate notification has required fields
+      if (!notification || !notification.id) {
+        logger.logWarn({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Skipping invalid notification', {
+          notification: JSON.stringify(notification)
+        });
+        return null; // Will be filtered out later
+      }
+      
+      const formatted = {
         id: notification.id,
         title: notification.title || '',
         content: notification.content || '',
@@ -62,7 +81,10 @@ const getUserNotifications = async (request, reply) => {
         metadata: notification.metadata || {},
         entityType: notification.entityType || notification.entity_type || 'notification:generic'
       };
-    });
+      
+      return formatted;
+    })
+    .filter(Boolean); // Remove null entries
     
     // Log the formatted notifications for debugging
     logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Formatted notifications', {
@@ -82,6 +104,44 @@ const getUserNotifications = async (request, reply) => {
       limit: limit,
       totalPages: Math.ceil((result.total || 0) / limit)
     };
+    
+    // Check for empty notifications and add debug info
+    if (formattedNotifications.length === 0 && result.total > 0) {
+      logger.logWarn({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Returning empty notifications despite non-zero total', {
+        userId,
+        total: result.total,
+        unread: result.unread,
+        requestedPage: page,
+        requestedLimit: limit
+      });
+      
+      // Debug: check raw notifications
+      if (result.notifications && result.notifications.length > 0) {
+        logger.logWarn({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Raw notifications exist but formatted ones are empty', {
+          rawCount: result.notifications.length,
+          firstRawNotification: JSON.stringify(result.notifications[0]).substring(0, 200)
+        });
+        
+        // If we have raw notifications but formatted ones are empty, 
+        // try to fix them directly with minimal formatting
+        formattedNotifications.push(...result.notifications.map(n => ({
+          id: n.id || `temp-${Math.random().toString(36).substring(2, 15)}`,
+          title: n.title || 'Notification title missing',
+          content: typeof n.content === 'string' ? n.content : 'Content unavailable',
+          read: !!n.read,
+          createdAt: n.createdAt || n.created_at || new Date().toISOString(),
+          sourceUrl: n.sourceUrl || n.source_url || '',
+          entityType: n.entityType || n.entity_type || 'notification:generic'
+        })));
+        
+        logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Created simple fallback notifications', {
+          count: formattedNotifications.length
+        });
+        
+        // Update response
+        response.notifications = formattedNotifications;
+      }
+    }
     
     // Log response count for debugging
     logger.logProcessing({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Returning notifications', {

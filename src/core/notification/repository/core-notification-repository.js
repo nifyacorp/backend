@@ -138,6 +138,24 @@ async function getUserNotifications(userId, options = {}) {
     
     const result = await query(sqlQuery, queryParams);
     
+    // Log detailed result information
+    console.log('Query results from getUserNotifications:', {
+      rowCount: result.rowCount,
+      hasRows: result.rows.length > 0,
+      firstRow: result.rows.length > 0 ? Object.keys(result.rows[0]) : 'No rows'
+    });
+    
+    if (result.rows.length === 0) {
+      console.log('No notifications found for user:', {
+        userId,
+        includeRead,
+        subscriptionId,
+        limit,
+        offset
+      });
+      return [];
+    }
+    
     // Process returned rows to format content and handle metadata
     return result.rows.map(row => {
       // Parse content if it's a JSON string
@@ -175,6 +193,17 @@ async function getUserNotifications(userId, options = {}) {
         // If parsing fails, use an empty object
         console.warn('Error parsing notification data', e);
         data = {};
+      }
+      
+      // Log the first row for debugging
+      if (row === result.rows[0]) {
+        console.log('First notification sample:', {
+          id: row.id,
+          title: row.title,
+          contentType: typeof row.content,
+          contentLength: row.content ? row.content.length : 0,
+          hasData: !!row.data
+        });
       }
       
       // Return a fully formed notification object, preserving all fields
