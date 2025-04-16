@@ -57,10 +57,10 @@ const getUserNotifications = async (request, reply) => {
         sourceUrl: notification.sourceUrl || notification.source_url || '',
         subscriptionId: notification.subscriptionId || notification.subscription_id || null,
         subscriptionName: notification.subscriptionName || notification.subscription_name || '',
+        source: notification.source || '',
+        data: notification.data || {},
         metadata: notification.metadata || {},
-        // Add any missing fields
-        entityType: notification.entityType || notification.entity_type || 
-                   (notification.metadata ? (notification.metadata.type || notification.metadata.source || '') : '')
+        entityType: notification.entityType || notification.entity_type || 'notification:generic'
       };
     });
     
@@ -93,10 +93,9 @@ const getUserNotifications = async (request, reply) => {
     
     return reply.send(response);
   } catch (error) {
-    // Log detailed error for debugging
-    logger.logError({ controller: 'notification-controller', method: 'getUserNotifications' }, error, {
-      userId: request.user?.id,
-      query: request.query
+    logger.logError({ controller: 'notification-controller', method: 'getUserNotifications' }, 'Error getting user notifications', {
+      error: error.message,
+      stack: error.stack
     });
     
     // If we're in development mode, provide test data instead of failing
@@ -129,7 +128,7 @@ const getUserNotifications = async (request, reply) => {
       });
     }
     
-    return reply.status(error.status || 500).send({
+    return reply.status(500).send({
       error: 'Failed to retrieve notifications',
       message: error.message
     });
@@ -406,6 +405,45 @@ const getActivityStats = async (request, reply) => {
   }
 };
 
+/**
+ * Get a notification by ID
+ * @param {Object} request - Fastify request object
+ * @param {Object} reply - Fastify reply object
+ * @returns {Promise<void>}
+ */
+const getNotificationById = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const { notificationId } = request.params;
+    
+    logger.logProcessing({ controller: 'notification-controller', method: 'getNotificationById' }, 'Getting notification by ID', {
+      userId,
+      notificationId
+    });
+    
+    const notification = await notificationService.getNotificationById(notificationId, userId);
+    
+    if (!notification) {
+      return reply.status(404).send({
+        error: 'Notification not found',
+        message: `No notification found with id ${notificationId}`
+      });
+    }
+    
+    return reply.send(notification);
+  } catch (error) {
+    logger.logError({ controller: 'notification-controller', method: 'getNotificationById' }, 'Error getting notification by ID', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    return reply.status(500).send({
+      error: 'Failed to retrieve notification',
+      message: error.message
+    });
+  }
+};
+
 export default {
   getUserNotifications,
   markAsRead,
@@ -413,5 +451,6 @@ export default {
   deleteNotification,
   deleteAllNotifications,
   getNotificationStats,
-  getActivityStats
+  getActivityStats,
+  getNotificationById
 };

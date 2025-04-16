@@ -421,6 +421,36 @@ async function sendEmailNotification({ notificationId, userId, type, content, tr
   }
 }
 
+/**
+ * Get a notification by ID
+ * @param {string} notificationId - The notification ID
+ * @param {string} userId - The user ID
+ * @returns {Promise<Object|null>} - Notification object or null if not found
+ */
+async function getNotificationById(notificationId, userId) {
+  logger.logDebug({ userId }, 'Getting notification by ID', { notificationId });
+  
+  try {
+    // Use repository to get notification
+    const notification = await notificationRepository.getNotificationById(notificationId, userId);
+    
+    if (!notification) {
+      return null;
+    }
+    
+    return notification;
+  } catch (error) {
+    safeLog('error', 'Error getting notification by ID', { 
+      error: error.message, 
+      stack: error.stack,
+      notificationId, 
+      userId 
+    });
+    
+    throw error;
+  }
+}
+
 export {
   createNotification,
   getUserNotifications,
@@ -429,5 +459,6 @@ export {
   deleteNotification,
   deleteAllNotifications,
   getNotificationStats,
-  getActivityStats
+  getActivityStats,
+  getNotificationById
 }; 

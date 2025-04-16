@@ -91,52 +91,8 @@ export async function crudRoutes(fastify, options) {
         }
       }
     },
-    preHandler: validateZod(notificationIdParamSchema, 'params'),
-    handler: async (request, reply) => {
-      try {
-        const userId = request.user.id;
-        const { notificationId } = request.params;
-        
-        console.log('Getting notification details:', {
-          userId,
-          notificationId
-        });
-        
-        // Use the notification service (via controller) to find the notification
-        // Since there's no specific getNotificationById method, we'll use the getUserNotifications
-        // and filter for the one we want
-        const notificationsResult = await notificationController.getUserNotifications({
-          user: { id: userId },
-          query: { 
-            limit: 100,
-            page: 1
-          }
-        }, reply);
-        
-        // Check if we got a direct response object
-        const notificationsData = notificationsResult?.notifications || 
-                                 (typeof notificationsResult === 'object' ? notificationsResult : {});
-        
-        // Find the specific notification
-        const notification = notificationsData.notifications?.find(n => n.id === notificationId);
-        
-        if (!notification) {
-          return reply.status(404).send({
-            error: 'Notification not found',
-            message: `No notification found with id ${notificationId}`
-          });
-        }
-        
-        return reply.send(notification);
-      } catch (error) {
-        console.error('Error fetching notification detail:', error);
-        return reply.status(error.status || 500).send({
-          error: 'Failed to fetch notification details',
-          message: error.message
-        });
-      }
-    }
-  });
+    preHandler: validateZod(notificationIdParamSchema, 'params')
+  }, notificationController.getNotificationById);
 
   /**
    * GET /by-entity - Get notifications by entity type

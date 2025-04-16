@@ -28,24 +28,32 @@ async function createNotification(notification) {
     const sqlQuery = `
       INSERT INTO notifications (
         user_id, 
-        type, 
+        title, 
         content, 
+        source_url,
         read, 
         created_at,
         subscription_id,
+        entity_type,
+        source,
+        data,
         metadata
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id
     `;
     
     const params = [
       notification.userId,
-      notification.type,
+      notification.title,
       content,
+      notification.sourceUrl || null,
       notification.read || false,
       createdAt,
       notification.subscriptionId || null,
+      notification.entityType || 'notification:generic',
+      notification.source || null,
+      notification.data ? JSON.stringify(notification.data) : null,
       notification.metadata ? JSON.stringify(notification.metadata) : null
     ];
     
@@ -88,12 +96,16 @@ async function getUserNotifications(userId, options = {}) {
       SELECT 
         n.id,
         n.user_id,
-        n.type,
+        n.title,
         n.content,
+        n.source_url,
         n.read,
         n.created_at,
         n.read_at,
         n.subscription_id,
+        n.entity_type,
+        n.source,
+        n.data,
         n.metadata,
         s.name as subscription_name,
         s.type_id
@@ -150,16 +162,31 @@ async function getUserNotifications(userId, options = {}) {
         metadata = {};
       }
       
+      // Parse data if it's a JSON string
+      let data = row.data;
+      try {
+        if (typeof row.data === 'string') {
+          data = JSON.parse(row.data);
+        }
+      } catch (e) {
+        // If parsing fails, use an empty object
+        data = {};
+      }
+      
       return {
         id: row.id,
         userId: row.user_id,
-        type: row.type,
+        title: row.title,
         content: parsedContent,
+        sourceUrl: row.source_url,
         read: row.read,
         createdAt: row.created_at,
         readAt: row.read_at,
         subscriptionId: row.subscription_id,
         subscriptionName: row.subscription_name,
+        entityType: row.entity_type,
+        source: row.source,
+        data: data,
         metadata: metadata
       };
     });
@@ -380,11 +407,11 @@ async function getNotificationStats(userId) {
     // Get counts by type
     const byTypeQuery = `
       SELECT 
-        type,
+        entity_type,
         COUNT(*) as count
       FROM notifications
       WHERE user_id = $1
-      GROUP BY type
+      GROUP BY entity_type
       ORDER BY count DESC
     `;
     
@@ -392,7 +419,7 @@ async function getNotificationStats(userId) {
     
     const byType = {};
     byTypeResult.rows.forEach(row => {
-      byType[row.type] = parseInt(row.count);
+      byType[row.entity_type] = parseInt(row.count);
     });
     
     return {
@@ -447,9 +474,9 @@ async function getActivityStats(userId, days = 7) {
           CASE 
             WHEN metadata ? 'source' THEN metadata->>'source'
             WHEN metadata ? 'type' THEN metadata->>'type' 
-            ELSE type
+            ELSE COALESCE(source, entity_type)
           END, 
-          type
+          'generic'
         ) as name,
         COUNT(*) as count
       FROM notifications
@@ -547,6 +574,107 @@ async function getUserEmailPreferences(userId) {
   }
 }
 
+/**
+ * Get a notification by ID
+ * @param {string} notificationId - The notification ID
+ * @param {string} userId - The user ID
+ * @returns {Promise<Object|null>} - Notification object or null if not found
+ */
+async function getNotificationById(notificationId, userId) {
+  try {
+    // Set RLS context for security
+    await setRLSContext(userId);
+    
+    const sqlQuery = `
+      SELECT 
+        n.id,
+        n.user_id,
+        n.title,
+        n.content,
+        n.source_url,
+        n.read,
+        n.created_at,
+        n.read_at,
+        n.subscription_id,
+        n.entity_type,
+        n.source,
+        n.data,
+        n.metadata,
+        s.name as subscription_name,
+        s.type_id
+      FROM notifications n
+      LEFT JOIN subscriptions s ON n.subscription_id = s.id
+      WHERE n.id = $1 AND n.user_id = $2
+    `;
+    
+    const result = await query(sqlQuery, [notificationId, userId]);
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+    
+    const row = result.rows[0];
+    
+    // Parse content if it's a JSON string
+    let parsedContent = row.content;
+    try {
+      if (typeof row.content === 'string') {
+        parsedContent = JSON.parse(row.content);
+      }
+    } catch (e) {
+      // If parsing fails, keep the original content
+      console.warn('Error parsing notification content', e);
+    }
+    
+    // Parse metadata if it's a JSON string
+    let metadata = row.metadata;
+    try {
+      if (typeof row.metadata === 'string') {
+        metadata = JSON.parse(row.metadata);
+      }
+    } catch (e) {
+      // If parsing fails, use an empty object
+      metadata = {};
+    }
+    
+    // Parse data if it's a JSON string
+    let data = row.data;
+    try {
+      if (typeof row.data === 'string') {
+        data = JSON.parse(row.data);
+      }
+    } catch (e) {
+      // If parsing fails, use an empty object
+      data = {};
+    }
+    
+    return {
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      content: parsedContent,
+      sourceUrl: row.source_url,
+      read: row.read,
+      createdAt: row.created_at,
+      readAt: row.read_at,
+      subscriptionId: row.subscription_id,
+      subscriptionName: row.subscription_name,
+      entityType: row.entity_type,
+      source: row.source,
+      data: data,
+      metadata: metadata
+    };
+  } catch (error) {
+    logger.error('Error getting notification by ID', { 
+      error: error.message, 
+      stack: error.stack,
+      notificationId,
+      userId
+    });
+    throw error;
+  }
+}
+
 // Export implementation that matches the interface
 export default {
   createNotification,
@@ -558,5 +686,6 @@ export default {
   countUnreadNotifications,
   getNotificationStats,
   getActivityStats,
-  getUserEmailPreferences
+  getUserEmailPreferences,
+  getNotificationById
 }; 
