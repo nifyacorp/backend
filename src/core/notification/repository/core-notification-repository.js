@@ -143,51 +143,56 @@ async function getUserNotifications(userId, options = {}) {
       // Parse content if it's a JSON string
       let parsedContent = row.content;
       try {
-        if (typeof row.content === 'string') {
+        if (typeof row.content === 'string' && row.content.trim().startsWith('{')) {
           parsedContent = JSON.parse(row.content);
         }
+        // Not JSON, keep as plain text
       } catch (e) {
-        // If parsing fails, keep the original content
+        // If parsing fails, keep the original content as a string
         console.warn('Error parsing notification content', e);
+        parsedContent = row.content;
       }
       
       // Parse metadata if it's a JSON string
       let metadata = row.metadata;
       try {
-        if (typeof row.metadata === 'string') {
+        if (typeof row.metadata === 'string' && row.metadata.trim()) {
           metadata = JSON.parse(row.metadata);
         }
       } catch (e) {
         // If parsing fails, use an empty object
+        console.warn('Error parsing notification metadata', e);
         metadata = {};
       }
       
       // Parse data if it's a JSON string
       let data = row.data;
       try {
-        if (typeof row.data === 'string') {
+        if (typeof row.data === 'string' && row.data.trim()) {
           data = JSON.parse(row.data);
         }
       } catch (e) {
         // If parsing fails, use an empty object
+        console.warn('Error parsing notification data', e);
         data = {};
       }
       
+      // Return a fully formed notification object, preserving all fields
       return {
         id: row.id,
         userId: row.user_id,
-        title: row.title,
-        content: parsedContent,
-        sourceUrl: row.source_url,
-        read: row.read,
+        title: row.title || '',
+        content: parsedContent || '',
+        sourceUrl: row.source_url || '',
+        read: !!row.read,
         createdAt: row.created_at,
         readAt: row.read_at,
         subscriptionId: row.subscription_id,
-        subscriptionName: row.subscription_name,
-        entityType: row.entity_type,
-        source: row.source,
-        data: data,
-        metadata: metadata
+        subscriptionName: row.subscription_name || '',
+        entityType: row.entity_type || 'notification:generic',
+        source: row.source || '',
+        data: data || {},
+        metadata: metadata || {}
       };
     });
   } catch (error) {
@@ -618,51 +623,56 @@ async function getNotificationById(notificationId, userId) {
     // Parse content if it's a JSON string
     let parsedContent = row.content;
     try {
-      if (typeof row.content === 'string') {
+      if (typeof row.content === 'string' && row.content.trim().startsWith('{')) {
         parsedContent = JSON.parse(row.content);
       }
+      // Not JSON, keep as plain text
     } catch (e) {
-      // If parsing fails, keep the original content
+      // If parsing fails, keep the original content as a string
       console.warn('Error parsing notification content', e);
+      parsedContent = row.content;
     }
     
     // Parse metadata if it's a JSON string
     let metadata = row.metadata;
     try {
-      if (typeof row.metadata === 'string') {
+      if (typeof row.metadata === 'string' && row.metadata.trim()) {
         metadata = JSON.parse(row.metadata);
       }
     } catch (e) {
       // If parsing fails, use an empty object
+      console.warn('Error parsing notification metadata', e);
       metadata = {};
     }
     
     // Parse data if it's a JSON string
     let data = row.data;
     try {
-      if (typeof row.data === 'string') {
+      if (typeof row.data === 'string' && row.data.trim()) {
         data = JSON.parse(row.data);
       }
     } catch (e) {
       // If parsing fails, use an empty object
+      console.warn('Error parsing notification data', e);
       data = {};
     }
     
+    // Return a fully formed notification object, preserving all fields
     return {
       id: row.id,
       userId: row.user_id,
-      title: row.title,
-      content: parsedContent,
-      sourceUrl: row.source_url,
-      read: row.read,
+      title: row.title || '',
+      content: parsedContent || '',
+      sourceUrl: row.source_url || '',
+      read: !!row.read,
       createdAt: row.created_at,
       readAt: row.read_at,
       subscriptionId: row.subscription_id,
-      subscriptionName: row.subscription_name,
-      entityType: row.entity_type,
-      source: row.source,
-      data: data,
-      metadata: metadata
+      subscriptionName: row.subscription_name || '',
+      entityType: row.entity_type || 'notification:generic',
+      source: row.source || '',
+      data: data || {},
+      metadata: metadata || {}
     };
   } catch (error) {
     logger.error('Error getting notification by ID', { 
